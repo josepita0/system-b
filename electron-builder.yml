@@ -1,0 +1,15 @@
+appId: com.systembarra.desktop
+productName: Sistema Barra
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+extraMetadata:
+  main: dist-electron/src/main/index.js
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

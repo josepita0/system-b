@@ -1,0 +1,42 @@
+node_modules/
+dist/
+dist-electron/
+coverage/
+.data/
+release/
+out/
+
+# Local databases and runtime state
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.wal
+*.shm
+app.key
+current-session.json
+initial-admin-access.json
+
+# Environment and local overrides
+.env
+.env.*
+*.local
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.cursor/

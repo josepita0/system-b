@@ -1,0 +1,86 @@
+import { useEffect, useState } from 'react'
+import type { Product, ProductInput } from '@shared/types/product'
+
+interface ProductFormProps {
+  product?: Product | null
+  onSubmit: (payload: ProductInput) => Promise<void>
+}
+
+const initialState: ProductInput = {
+  sku: '',
+  name: '',
+  type: 'simple',
+  salePrice: 0,
+  minStock: 0,
+}
+
+export function ProductForm({ product, onSubmit }: ProductFormProps) {
+  const [form, setForm] = useState<ProductInput>(initialState)
+
+  useEffect(() => {
+    if (!product) {
+      setForm(initialState)
+      return
+    }
+
+    setForm({
+      sku: product.sku,
+      name: product.name,
+      type: product.type,
+      salePrice: product.salePrice,
+      minStock: product.minStock,
+    })
+  }, [product])
+
+  return (
+    <form
+      className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5"
+      onSubmit={async (event) => {
+        event.preventDefault()
+        await onSubmit(form)
+      }}
+    >
+      <h2 className="text-lg font-semibold text-white">{product ? 'Editar producto' : 'Nuevo producto'}</h2>
+      <input
+        className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+        placeholder="SKU"
+        value={form.sku}
+        onChange={(event) => setForm((state) => ({ ...state, sku: event.target.value }))}
+      />
+      <input
+        className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+        placeholder="Nombre"
+        value={form.name}
+        onChange={(event) => setForm((state) => ({ ...state, name: event.target.value }))}
+      />
+      <select
+        className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+        value={form.type}
+        onChange={(event) => setForm((state) => ({ ...state, type: event.target.value as ProductInput['type'] }))}
+      >
+        <option value="simple">Simple</option>
+        <option value="compound">Compuesto</option>
+      </select>
+      <input
+        className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+        type="number"
+        min="0"
+        step="0.01"
+        placeholder="Precio"
+        value={form.salePrice}
+        onChange={(event) => setForm((state) => ({ ...state, salePrice: Number(event.target.value) }))}
+      />
+      <input
+        className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+        type="number"
+        min="0"
+        placeholder="Stock minimo"
+        value={form.minStock}
+        onChange={(event) => setForm((state) => ({ ...state, minStock: Number(event.target.value) }))}
+      />
+      <button className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950" type="submit">
+        Guardar
+      </button>
+    </form>
+  )
+}

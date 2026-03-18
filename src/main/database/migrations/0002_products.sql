@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sku TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('simple', 'compound')),
+  sale_price REAL NOT NULL CHECK (sale_price >= 0),
+  min_stock INTEGER NOT NULL DEFAULT 0 CHECK (min_stock >= 0),
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
