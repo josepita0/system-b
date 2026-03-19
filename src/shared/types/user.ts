@@ -1,4 +1,16 @@
 export type UserRole = 'admin' | 'manager' | 'employee'
+export type UserPermission =
+  | 'users.manage_profiles'
+  | 'users.manage_credentials'
+  | 'users.manage_roles.employee'
+  | 'users.manage_roles.manager'
+  | 'users.manage_roles.admin'
+  | 'products.manage'
+  | 'reports.manage'
+  | 'shifts.manage'
+  | 'documents.self'
+  | 'sales.use'
+  | 'shifts.open'
 
 export interface User {
   id: number
@@ -16,7 +28,7 @@ export interface User {
 }
 
 export interface AuthenticatedUser extends User {
-  permissions: string[]
+  permissions: UserPermission[]
 }
 
 export interface CreateUserInput {
@@ -50,6 +62,10 @@ export interface UserDocument {
 }
 
 export interface CreateUserResult {
+  user: User
+}
+
+export interface IssueUserCredentialsResult {
   user: User
   temporaryPassword: string
   recoveryCodes: string[]

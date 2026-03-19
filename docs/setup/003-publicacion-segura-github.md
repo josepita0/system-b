@@ -49,7 +49,7 @@ Este proyecto mezcla codigo versionable con datos operativos del runtime local:
 - `src/main/database/connection.ts` define un directorio de datos local;
 - `src/main/security/sessionStorage.ts` persiste la sesion actual;
 - `src/main/security/encryption.ts` genera y guarda `app.key`;
-- `src/main/services/authService.ts` puede escribir `initial-admin-access.json`.
+- `src/main/services/authService.ts` puede escribir `initial-admin-access.json` durante el bootstrap inicial del primer administrador.
 
 Nada de eso debe formar parte del repositorio.
 
@@ -74,3 +74,8 @@ Este script revisa el arbol versionable y falla si detecta bases locales, llaves
 ## Nota operativa
 
 Si `SYSTEM_BARRA_DATA_DIR` se define manualmente en desarrollo, debe apuntar a una ruta fuera del arbol versionado del proyecto.
+
+Ademas:
+
+- el acceso bootstrap del primer `admin` debe considerarse transitorio;
+- si el archivo `initial-admin-access.json` existe en un entorno de uso real, debe tratarse como dato sensible operativo y no como parte de documentacion o respaldo comun.

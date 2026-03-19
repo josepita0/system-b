@@ -61,5 +61,31 @@ describe('AuthService', () => {
     })
 
     expect(session.user.username).toBe('admin')
+    expect(service.getBootstrapInfo()).toBeNull()
+  })
+
+  it('hides bootstrap info after the initial admin changes the password', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-auth-change-'))
+    process.env.SYSTEM_BARRA_DATA_DIR = directory
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ directory, close: () => db.close() })
+
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+    const service = new AuthService(db)
+    const bootstrapInfo = service.ensureInitialAdmin()!
+
+    service.login({
+      identifier: bootstrapInfo.username,
+      password: bootstrapInfo.temporaryPassword,
+    })
+
+    const session = service.changePassword({
+      currentPassword: bootstrapInfo.temporaryPassword,
+      newPassword: 'ClaveAdminSegura123',
+    })
+
+    expect(session.user.mustChangePassword).toBe(0)
+    expect(service.getBootstrapInfo()).toBeNull()
   })
 })

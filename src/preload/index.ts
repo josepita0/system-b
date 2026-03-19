@@ -11,6 +11,7 @@ const api = {
     login: (payload: unknown) => ipcRenderer.invoke(authChannels.login, payload),
     logout: () => ipcRenderer.invoke(authChannels.logout),
     me: () => ipcRenderer.invoke(authChannels.me),
+    changePassword: (payload: unknown) => ipcRenderer.invoke(authChannels.changePassword, payload),
     recoverPassword: (payload: unknown) => ipcRenderer.invoke(authChannels.recoverPassword, payload),
     bootstrapInfo: () => ipcRenderer.invoke(authChannels.bootstrapInfo),
   },
@@ -20,6 +21,7 @@ const api = {
     create: (payload: unknown) => ipcRenderer.invoke(userChannels.create, payload),
     update: (payload: unknown) => ipcRenderer.invoke(userChannels.update, payload),
     myProfile: () => ipcRenderer.invoke(userChannels.myProfile),
+    issueCredentials: (userId: number) => ipcRenderer.invoke(userChannels.issueCredentials, userId),
     regenerateRecoveryCodes: (userId: number) => ipcRenderer.invoke(userChannels.regenerateRecoveryCodes, userId),
   },
   documents: {

@@ -44,7 +44,7 @@ La sesion actual se guarda localmente en un archivo de sesion del sistema y se v
 Se implemento un modelo por codigos personales:
 
 - se generan codigos individuales;
-- solo se muestran en el momento de creacion o regeneracion;
+- solo se muestran en el momento de emision o regeneracion autorizada;
 - en base de datos se guarda un hash del codigo, no el valor original;
 - al usar un codigo, este queda invalidado.
 
@@ -56,16 +56,23 @@ Roles activos:
 - `manager`
 - `employee`
 
-Jerarquia:
+Permisos efectivos:
 
-- un rol superior puede operar funciones del inferior;
-- un rol inferior no puede ejecutar acciones del superior.
+- `admin`: gestiona perfiles y credenciales de cualquier rol.
+- `manager`: gestiona perfiles solo de `employee`.
+- `employee`: no administra usuarios.
 
 ## Restricciones actuales
 
 - `employee`: interfaz centrada en `Ventas`.
-- `manager`: acceso a usuarios, productos, turnos y reportes.
-- `admin`: acceso total, excepto documentacion personal.
+- `manager`: acceso a usuarios, productos, turnos y reportes, pero sin emitir credenciales ni regenerar recovery codes.
+- `admin`: acceso total administrativo y emision de acceso inicial.
+
+## Flujo de alta y acceso
+
+- `manager` puede crear perfiles `employee`, pero no recibe secretos de acceso.
+- `admin` emite la credencial inicial y los codigos de recuperacion desde una accion separada.
+- toda credencial inicial obliga cambio de clave en el primer ingreso.
 
 ## Seguridad aplicada en backend
 
@@ -102,7 +109,9 @@ Los archivos se almacenan fuera del renderer y la metadata sensible se cifra loc
 - `src/shared/ipc/documents.ts`
 - `src/renderer/src/pages/auth/LoginPage.tsx`
 - `src/renderer/src/pages/auth/RecoverPasswordPage.tsx`
-- `src/renderer/src/pages/users/UsersPage.tsx`
+- `src/renderer/src/pages/auth/ChangePasswordPage.tsx`
+- `src/renderer/src/pages/users/UserListPage.tsx`
+- `src/renderer/src/pages/users/UserDetailPage.tsx`
 - `src/renderer/src/pages/users/UserDocumentsPage.tsx`
 
 ## Validaciones realizadas
@@ -116,4 +125,4 @@ Se validaron con exito:
 
 ## Nota operativa
 
-El primer administrador se genera automaticamente si no existe ninguno. Sus credenciales iniciales y codigos de recuperacion quedan registradas localmente para el primer acceso del sistema.
+El primer administrador se genera automaticamente si no existe ninguno. Sus credenciales iniciales y codigos de recuperacion quedan registradas localmente para el primer acceso del sistema, pero ese bootstrap deja de exponerse cuando el `admin` cambia o recupera su contrasena.

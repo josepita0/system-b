@@ -14,15 +14,17 @@ Archivos involucrados:
 - `src/main/ipc/authHandlers.ts`
 - `src/renderer/src/pages/auth/LoginPage.tsx`
 
-Problema:
+Estado:
 
-Mientras exista `initial-admin-access.json`, el renderer puede consultar y mostrar el acceso inicial del administrador.
+Parcialmente mitigado.
 
-Accion recomendada:
+`initial-admin-access.json` ahora se invalida cuando el administrador inicial deja el estado de primer acceso, evitando que la UI siga mostrando una credencial bootstrap obsoleta.
+
+Pendiente:
 
 - devolver esta informacion solo durante bootstrap controlado;
-- invalidar o borrar el archivo tras el primer acceso exitoso;
-- quitar la exposicion permanente desde la UI de login.
+- quitar la exposicion permanente desde la UI comun de login;
+- definir una estrategia operativa mas cerrada para entrega del acceso inicial.
 
 ### 2. Endurecer persistencia de sesion local
 

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
+import type { UserRole } from '@shared/types/user'
 import { UserForm, type UserFormValues } from '@renderer/components/users/UserForm'
+import { useAuthStore } from '@renderer/store/authStore'
 
 function toOptionalValue(value: string) {
   const trimmed = value.trim()
@@ -11,10 +13,12 @@ function toOptionalValue(value: string) {
 export function UserEditPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const actor = useAuthStore((state) => state.user)
   const { id } = useParams()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const userId = Number(id)
   const isValidUserId = Number.isInteger(userId) && userId > 0
+  const availableRoles: UserRole[] = actor?.role === 'admin' ? ['employee', 'manager', 'admin'] : ['employee']
 
   const userQuery = useQuery({
     queryKey: ['users', userId],
@@ -74,6 +78,7 @@ export function UserEditPage() {
         <div className="rounded-2xl border border-rose-800 bg-slate-900 p-4 text-sm text-rose-300">{errorMessage}</div>
       ) : null}
       <UserForm
+        availableRoles={availableRoles}
         mode="edit"
         onCancel={() => navigate('/usuarios')}
         onSubmit={async (payload) => {

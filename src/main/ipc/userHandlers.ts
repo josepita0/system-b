@@ -15,6 +15,9 @@ export function registerUserHandlers() {
   ipcMain.handle(userChannels.create, (_event, payload) => executeIpc(() => service.create(payload)))
   ipcMain.handle(userChannels.update, (_event, payload) => executeIpc(() => service.update(payload)))
   ipcMain.handle(userChannels.myProfile, () => executeIpc(() => service.myProfile()))
+  ipcMain.handle(userChannels.issueCredentials, (_event, userId: number) =>
+    executeIpc(() => service.issueCredentials(userId)),
+  )
   ipcMain.handle(userChannels.regenerateRecoveryCodes, (_event, userId: number) =>
     executeIpc(() => service.regenerateRecoveryCodes(userId)),
   )

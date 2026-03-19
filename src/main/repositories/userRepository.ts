@@ -66,6 +66,11 @@ export class UserRepository {
     return row ?? null
   }
 
+  getAuthById(id: number) {
+    const row = this.db.prepare('SELECT * FROM employees WHERE id = ?').get(id) as UserRow | undefined
+    return row ?? null
+  }
+
   create(input: {
     firstName: string
     lastName: string
@@ -73,7 +78,7 @@ export class UserRepository {
     email: string | null
     username: string
     role: User['role']
-    passwordHash: string
+    passwordHash: string | null
     mustChangePassword: number
   }) {
     const result = this.db

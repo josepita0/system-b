@@ -1,12 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type Database from 'better-sqlite3'
-import type { BootstrapAdminInfo, LoginInput, SessionInfo } from '../../shared/types/auth'
-import type { AuthenticatedUser, User } from '../../shared/types/user'
-import { loginSchema, recoverPasswordSchema } from '../../shared/schemas/authSchema'
+import type { BootstrapAdminInfo, ChangePasswordInput, LoginInput, SessionInfo } from '../../shared/types/auth'
+import type { AuthenticatedUser, User, UserPermission } from '../../shared/types/user'
+import { changePasswordSchema, loginSchema, recoverPasswordSchema } from '../../shared/schemas/authSchema'
 import { AuthenticationError, ConflictError, LockedAccountError, NotFoundError, RecoveryCodeError, ValidationError } from '../errors'
 import { getDataDirectory } from '../database/connection'
 import { AuthSessionRepository } from '../repositories/authSessionRepository'
+import { AuditLogRepository } from '../repositories/auditLogRepository'
 import { RecoveryCodeRepository } from '../repositories/recoveryCodeRepository'
 import { UserRepository } from '../repositories/userRepository'
 import { randomRecoveryCodes, randomSecret, hashSecret, sha256, verifySecret } from '../security/password'
@@ -24,12 +25,38 @@ function getBootstrapInfoPath() {
   return path.join(getDataDirectory(), 'initial-admin-access.json')
 }
 
-function buildPermissions(role: User['role']) {
+function clearBootstrapInfoFile() {
+  const filePath = getBootstrapInfoPath()
+  if (fs.existsSync(filePath)) {
+    fs.rmSync(filePath, { force: true })
+  }
+}
+
+function buildPermissions(role: User['role']): UserPermission[] {
   switch (role) {
     case 'admin':
-      return ['users.manage', 'products.manage', 'reports.manage', 'shifts.manage', 'documents.self', 'sales.use']
+      return [
+        'users.manage_profiles',
+        'users.manage_credentials',
+        'users.manage_roles.employee',
+        'users.manage_roles.manager',
+        'users.manage_roles.admin',
+        'products.manage',
+        'reports.manage',
+        'shifts.manage',
+        'documents.self',
+        'sales.use',
+      ]
     case 'manager':
-      return ['users.manage', 'products.manage', 'reports.manage', 'shifts.manage', 'documents.self', 'sales.use']
+      return [
+        'users.manage_profiles',
+        'users.manage_roles.employee',
+        'products.manage',
+        'reports.manage',
+        'shifts.manage',
+        'documents.self',
+        'sales.use',
+      ]
     case 'employee':
     default:
       return ['sales.use', 'documents.self', 'shifts.open']
@@ -40,11 +67,13 @@ export class AuthService {
   private readonly users: UserRepository
   private readonly sessions: AuthSessionRepository
   private readonly recoveryCodes: RecoveryCodeRepository
+  private readonly audit: AuditLogRepository
 
   constructor(private readonly db: Database.Database) {
     this.users = new UserRepository(db)
     this.sessions = new AuthSessionRepository(db)
     this.recoveryCodes = new RecoveryCodeRepository(db)
+    this.audit = new AuditLogRepository(db)
   }
 
   ensureInitialAdmin() {
@@ -88,7 +117,14 @@ export class AuthService {
       return null
     }
 
-    return JSON.parse(fs.readFileSync(filePath, 'utf8')) as BootstrapAdminInfo
+    const info = JSON.parse(fs.readFileSync(filePath, 'utf8')) as BootstrapAdminInfo
+    const user = this.users.getAuthByIdentifier(info.username)
+    if (!user || !user.is_active || user.must_change_password !== 1) {
+      clearBootstrapInfoFile()
+      return null
+    }
+
+    return info
   }
 
   login(input: LoginInput): SessionInfo {
@@ -192,8 +228,48 @@ export class AuthService {
 
     this.users.setPassword(userRow.id, hashSecret(parsed.data.newPassword), 0)
     this.recoveryCodes.markUsed(match.id)
+    if (userRow.username === 'admin') {
+      clearBootstrapInfoFile()
+    }
+    this.audit.create({
+      actorEmployeeId: userRow.id,
+      action: 'user.password_recovered',
+      targetType: 'employee',
+      targetId: userRow.id,
+    })
     clearCurrentSession()
     return { success: true as const }
+  }
+
+  changePassword(input: ChangePasswordInput): SessionInfo {
+    const actor = this.requireCurrentUser()
+    const parsed = changePasswordSchema.safeParse(input)
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues.map((issue) => issue.message).join(', '))
+    }
+
+    const userRow = this.users.getAuthById(actor.id)
+    if (!userRow?.password_hash || !verifySecret(parsed.data.currentPassword, userRow.password_hash)) {
+      throw new AuthenticationError('La contrasena actual es invalida.')
+    }
+
+    this.users.setPassword(actor.id, hashSecret(parsed.data.newPassword), 0)
+    const updatedUser = this.users.getById(actor.id)
+    if (!updatedUser) {
+      throw new NotFoundError('Usuario no encontrado.')
+    }
+    if (updatedUser.username === 'admin') {
+      clearBootstrapInfoFile()
+    }
+
+    this.audit.create({
+      actorEmployeeId: actor.id,
+      action: 'user.password_changed',
+      targetType: 'employee',
+      targetId: actor.id,
+    })
+
+    return { user: this.buildAuthenticatedUser(updatedUser) }
   }
 
   replaceRecoveryCodes(userId: number, generatedByEmployeeId: number | null) {
@@ -203,6 +279,13 @@ export class AuthService {
       recoveryCodes.map((code, index) => ({ codeHash: sha256(code), label: `RC-${index + 1}` })),
       generatedByEmployeeId,
     )
+
+    this.audit.create({
+      actorEmployeeId: generatedByEmployeeId,
+      action: 'user.recovery_codes_regenerated',
+      targetType: 'employee',
+      targetId: userId,
+    })
 
     return recoveryCodes
   }

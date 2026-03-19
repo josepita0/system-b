@@ -57,4 +57,5 @@ Al cierre de la jornada actual, el proyecto ya cuenta con:
 - `implementation/semana-1.md`: resumen general del bootstrap tecnico.
 - `implementation/2026-03-18-avances.md`: bitacora detallada de lo construido hoy.
 - `implementation/2026-03-18-seguridad-usuarios.md`: capa de autenticacion, roles, sesiones y recuperacion.
+- `implementation/2026-03-19-rbac-credenciales-usuarios.md`: separacion entre gestion de perfiles, credenciales y primer acceso.
 - `implementation/2026-03-18-github-hardening.md`: deuda de seguridad detectada antes de publicar el repositorio.

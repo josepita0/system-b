@@ -11,6 +11,11 @@ export interface RecoverPasswordInput {
   newPassword: string
 }
 
+export interface ChangePasswordInput {
+  currentPassword: string
+  newPassword: string
+}
+
 export interface SessionInfo {
   user: AuthenticatedUser
 }

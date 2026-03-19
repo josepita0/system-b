@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
+import { ChangePasswordPage } from './pages/auth/ChangePasswordPage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { RecoverPasswordPage } from './pages/auth/RecoverPasswordPage'
 import { ProductsPage } from './pages/products/ProductsPage'
@@ -62,6 +63,28 @@ export default function App() {
         <Route element={<RecoverPasswordPage />} path="/recuperar" />
         <Route element={<Navigate replace to="/login" />} path="*" />
       </Routes>
+    )
+  }
+
+  if (user.mustChangePassword) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6">
+        <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-900 p-6">
+          <div className="mb-6 flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-semibold text-white">Cambio obligatorio de clave</h1>
+              <p className="mt-1 text-sm text-slate-400">Debes actualizar tu contrasena antes de continuar.</p>
+            </div>
+            <button className="rounded-lg bg-slate-800 px-4 py-2 text-sm text-slate-200" onClick={() => logoutMutation.mutate()} type="button">
+              Cerrar sesion
+            </button>
+          </div>
+          <Routes>
+            <Route element={<ChangePasswordPage />} path="/cambiar-clave" />
+            <Route element={<Navigate replace to="/cambiar-clave" />} path="*" />
+          </Routes>
+        </div>
+      </div>
     )
   }
 

@@ -16,7 +16,7 @@ export function LoginPage() {
     onSuccess: async (result) => {
       setUser(result.user)
       await queryClient.invalidateQueries()
-      navigate(result.user.role === 'employee' ? '/ventas' : '/')
+      navigate(result.user.mustChangePassword ? '/cambiar-clave' : result.user.role === 'employee' ? '/ventas' : '/')
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible iniciar sesion.')

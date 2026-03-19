@@ -12,12 +12,19 @@ export interface UserFormValues {
 }
 
 interface UserFormProps {
+  availableRoles: UserRole[]
   mode: 'create' | 'edit'
   onCancel?: () => void
   onSubmit: (payload: UserFormValues) => Promise<void>
   submitLabel: string
   title: string
   user?: User | null
+}
+
+const roleLabels: Record<UserRole, string> = {
+  admin: 'Administrador',
+  manager: 'Encargada',
+  employee: 'Empleado',
 }
 
 const initialState: UserFormValues = {
@@ -30,7 +37,7 @@ const initialState: UserFormValues = {
   isActive: true,
 }
 
-export function UserForm({ mode, onCancel, onSubmit, submitLabel, title, user }: UserFormProps) {
+export function UserForm({ availableRoles, mode, onCancel, onSubmit, submitLabel, title, user }: UserFormProps) {
   const [form, setForm] = useState<UserFormValues>(initialState)
 
   useEffect(() => {
@@ -103,9 +110,11 @@ export function UserForm({ mode, onCancel, onSubmit, submitLabel, title, user }:
         value={form.role}
         onChange={(event) => setForm((state) => ({ ...state, role: event.target.value as UserRole }))}
       >
-        <option value="employee">Empleado</option>
-        <option value="manager">Encargada</option>
-        <option value="admin">Administrador</option>
+        {availableRoles.map((role) => (
+          <option key={role} value={role}>
+            {roleLabels[role]}
+          </option>
+        ))}
       </select>
       {mode === 'edit' ? (
         <label className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200">

@@ -1,4 +1,4 @@
-import type { CreateUserInput, CreateUserResult, UpdateUserInput, User } from '../types/user'
+import type { CreateUserInput, CreateUserResult, IssueUserCredentialsResult, UpdateUserInput, User } from '../types/user'
 
 export const userChannels = {
   list: 'users:list',
@@ -6,6 +6,7 @@ export const userChannels = {
   create: 'users:create',
   update: 'users:update',
   myProfile: 'users:myProfile',
+  issueCredentials: 'users:issueCredentials',
   regenerateRecoveryCodes: 'users:regenerateRecoveryCodes',
 } as const
 
@@ -15,5 +16,6 @@ export interface UserApi {
   create: (payload: CreateUserInput) => Promise<CreateUserResult>
   update: (payload: UpdateUserInput) => Promise<User>
   myProfile: () => Promise<User>
+  issueCredentials: (userId: number) => Promise<IssueUserCredentialsResult>
   regenerateRecoveryCodes: (userId: number) => Promise<string[]>
 }
