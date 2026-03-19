@@ -43,6 +43,7 @@ Al cierre de la jornada actual, el proyecto ya cuenta con:
 
 - `decisions/0001-node-version.md`: version oficial de Node para el proyecto.
 - `decisions/0002-repositorio-privado-en-github.md`: estrategia inicial de publicacion y controles base en GitHub.
+- `decisions/0003-patron-crud-navegable.md`: convencion base para CRUD administrativos con listado, acciones y pantallas separadas.
 
 ### Setup
 

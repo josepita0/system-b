@@ -11,6 +11,7 @@ export function registerUserHandlers() {
   const service = new UserService(db, auth)
 
   ipcMain.handle(userChannels.list, () => executeIpc(() => service.list()))
+  ipcMain.handle(userChannels.getById, (_event, userId: number) => executeIpc(() => service.getById(userId)))
   ipcMain.handle(userChannels.create, (_event, payload) => executeIpc(() => service.create(payload)))
   ipcMain.handle(userChannels.update, (_event, payload) => executeIpc(() => service.update(payload)))
   ipcMain.handle(userChannels.myProfile, () => executeIpc(() => service.myProfile()))

@@ -22,6 +22,18 @@ export class UserService {
     return this.users.list()
   }
 
+  getById(id: number) {
+    const actor = this.auth.requireCurrentUser()
+    this.authorization.requireRole(actor.role, 'manager')
+    const user = this.users.getById(id)
+    if (!user) {
+      throw new NotFoundError('Usuario no encontrado.')
+    }
+
+    this.authorization.requireCanManageRole(actor.role, user.role)
+    return user
+  }
+
   myProfile() {
     return this.auth.requireCurrentUser()
   }

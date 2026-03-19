@@ -16,6 +16,7 @@ const api = {
   },
   users: {
     list: () => ipcRenderer.invoke(userChannels.list),
+    getById: (id: number) => ipcRenderer.invoke(userChannels.getById, id),
     create: (payload: unknown) => ipcRenderer.invoke(userChannels.create, payload),
     update: (payload: unknown) => ipcRenderer.invoke(userChannels.update, payload),
     myProfile: () => ipcRenderer.invoke(userChannels.myProfile),

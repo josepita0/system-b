@@ -8,8 +8,11 @@ import { ProductsPage } from './pages/products/ProductsPage'
 import { ReportsPage } from './pages/reports/ReportsPage'
 import { SalesPage } from './pages/sales/SalesPage'
 import { ShiftsPage } from './pages/shifts/ShiftsPage'
+import { UserCreatePage } from './pages/users/UserCreatePage'
+import { UserDetailPage } from './pages/users/UserDetailPage'
 import { UserDocumentsPage } from './pages/users/UserDocumentsPage'
-import { UsersPage } from './pages/users/UsersPage'
+import { UserEditPage } from './pages/users/UserEditPage'
+import { UserListPage } from './pages/users/UserListPage'
 import { useAuthStore } from './store/authStore'
 import { usePosStore } from './store/posStore'
 
@@ -130,10 +133,34 @@ export default function App() {
             <Route
               element={
                 <ProtectedRoute requiredRole="manager">
-                  <UsersPage />
+                  <UserListPage />
                 </ProtectedRoute>
               }
               path="/usuarios"
+            />
+            <Route
+              element={
+                <ProtectedRoute requiredRole="manager">
+                  <UserCreatePage />
+                </ProtectedRoute>
+              }
+              path="/usuarios/nuevo"
+            />
+            <Route
+              element={
+                <ProtectedRoute requiredRole="manager">
+                  <UserDetailPage />
+                </ProtectedRoute>
+              }
+              path="/usuarios/:id"
+            />
+            <Route
+              element={
+                <ProtectedRoute requiredRole="manager">
+                  <UserEditPage />
+                </ProtectedRoute>
+              }
+              path="/usuarios/:id/editar"
             />
             <Route
               element={
