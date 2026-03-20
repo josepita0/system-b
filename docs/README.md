@@ -45,6 +45,9 @@ Al cierre de la jornada actual, el proyecto ya cuenta con:
 - `decisions/0001-node-version.md`: version oficial de Node para el proyecto.
 - `decisions/0002-repositorio-privado-en-github.md`: estrategia inicial de publicacion y controles base en GitHub.
 - `decisions/0003-patron-crud-navegable.md`: convencion base para CRUD administrativos con listado, acciones y pantallas separadas.
+- `decisions/0004-catalogo-por-categorias-y-formatos.md`: nuevo dominio del catalogo con categorias jerarquicas y formatos habilitables por categoria.
+- `decisions/0005-categorias-padre-y-herencia-formatos.md`: capacidad explicita para categorias padre y herencia configurable de formatos.
+- `decisions/0006-bloqueo-estructural-categorias.md`: proteccion persistente para evitar mover categorias ya operativas.
 
 ### Setup
 
@@ -59,6 +62,9 @@ Al cierre de la jornada actual, el proyecto ya cuenta con:
 - `implementation/2026-03-18-avances.md`: bitacora detallada de lo construido hoy.
 - `implementation/2026-03-18-seguridad-usuarios.md`: capa de autenticacion, roles, sesiones y recuperacion.
 - `implementation/2026-03-19-rbac-credenciales-usuarios.md`: separacion entre gestion de perfiles, credenciales y primer acceso.
+- `implementation/2026-03-20-categorias-productos-formatos.md`: reestructuracion administrativa del catalogo hacia categorias, subcategorias y formatos de venta.
+- `implementation/2026-03-20-categorias-padre-herencia-formatos.md`: refinamiento del modelo para categorias padre y formatos heredados.
+- `implementation/2026-03-20-blindaje-edicion-categorias.md`: bloqueo estructural para evitar reubicaciones riesgosas del arbol.
 - `implementation/2026-03-18-github-hardening.md`: deuda de seguridad detectada antes de publicar el repositorio.
 
 ### Privada

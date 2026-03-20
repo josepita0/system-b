@@ -2,6 +2,7 @@ import { ZodError } from 'zod'
 import type { ProductInput, ProductUpdateInput } from '../../shared/types/product'
 import { productSchema, productUpdateSchema } from '../../shared/schemas/productSchema'
 import { ConflictError, NotFoundError, ValidationError } from '../errors'
+import { CategoryRepository } from '../repositories/categoryRepository'
 import { ProductRepository } from '../repositories/productRepository'
 
 function normalizeZodError(error: ZodError) {
@@ -9,10 +10,20 @@ function normalizeZodError(error: ZodError) {
 }
 
 export class ProductService {
-  constructor(private readonly repository: ProductRepository) {}
+  constructor(
+    private readonly repository: ProductRepository,
+    private readonly categories: CategoryRepository,
+  ) {}
 
-  list() {
-    return this.repository.list()
+  list(categoryId?: number) {
+    if (typeof categoryId === 'number') {
+      const category = this.categories.getById(categoryId)
+      if (!category || !category.isActive) {
+        throw new NotFoundError('Categoria no encontrada.')
+      }
+    }
+
+    return this.repository.list(categoryId)
   }
 
   getById(id: number) {
@@ -25,11 +36,18 @@ export class ProductService {
       throw new ValidationError(normalizeZodError(parsed.error))
     }
 
+    const category = this.categories.getById(parsed.data.categoryId)
+    if (!category || !category.isActive) {
+      throw new ValidationError('Debe seleccionar una categoria activa.')
+    }
+
     if (this.repository.getBySku(parsed.data.sku)) {
       throw new ConflictError('El SKU ya existe.')
     }
 
-    return this.repository.create(parsed.data)
+    const created = this.repository.create(parsed.data)
+    this.categories.lockStructure(parsed.data.categoryId)
+    return created
   }
 
   update(input: ProductUpdateInput) {
@@ -48,7 +66,14 @@ export class ProductService {
       throw new ConflictError('El SKU ya existe.')
     }
 
-    return this.repository.update(parsed.data)
+    const category = this.categories.getById(parsed.data.categoryId)
+    if (!category || !category.isActive) {
+      throw new ValidationError('Debe seleccionar una categoria activa.')
+    }
+
+    const updated = this.repository.update(parsed.data)
+    this.categories.lockStructure(parsed.data.categoryId)
+    return updated
   }
 
   remove(id: number) {

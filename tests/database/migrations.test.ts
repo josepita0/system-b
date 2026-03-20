@@ -34,5 +34,13 @@ describe('database migrations', () => {
     expect(tables).toContain('auth_sessions')
     expect(tables).toContain('employee_documents')
     expect(tables).toContain('license_activations')
+    expect(tables).toContain('categories')
+    expect(tables).toContain('sale_formats')
+    expect(tables).toContain('category_sale_formats')
+
+    const categoryColumns = db.pragma('table_info(categories)') as Array<{ name: string }>
+    expect(categoryColumns.map((column) => column.name)).toContain('supports_children')
+    expect(categoryColumns.map((column) => column.name)).toContain('inherits_sale_formats')
+    expect(categoryColumns.map((column) => column.name)).toContain('structure_locked')
   })
 })
