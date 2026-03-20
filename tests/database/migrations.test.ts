@@ -33,5 +33,6 @@ describe('database migrations', () => {
     expect(tables).toContain('report_jobs')
     expect(tables).toContain('auth_sessions')
     expect(tables).toContain('employee_documents')
+    expect(tables).toContain('license_activations')
   })
 })

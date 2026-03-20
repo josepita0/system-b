@@ -4,6 +4,10 @@ import { usePosStore } from '@renderer/store/posStore'
 export function ReportsPage() {
   const queryClient = useQueryClient()
   const activeSessionId = usePosStore((state) => state.activeSessionId)
+  const licenseFlagsQuery = useQuery({
+    queryKey: ['license', 'feature-flags'],
+    queryFn: () => window.api.license.getFeatureFlags(),
+  })
 
   const pendingQuery = useQuery({
     queryKey: ['reports', 'pending-emails'],
@@ -30,20 +34,34 @@ export function ReportsPage() {
     },
   })
 
+  const reportPdfEnabled = licenseFlagsQuery.data?.reportPdfEnabled ?? false
+  const reportEmailEnabled = licenseFlagsQuery.data?.reportEmailEnabled ?? false
+  const licenseReason = licenseFlagsQuery.data?.reason
+
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-semibold text-white">Reportes de cierre</h1>
+      {licenseReason ? (
+        <div className="rounded-2xl border border-amber-700 bg-slate-900 p-4 text-sm text-amber-200">
+          {licenseReason}
+        </div>
+      ) : null}
       <div className="flex flex-wrap gap-3">
         <button
           className="rounded-lg bg-cyan-500 px-4 py-2 text-slate-950 disabled:opacity-50"
-          disabled={!activeSessionId}
+          disabled={!activeSessionId || !reportPdfEnabled || generateMutation.isPending}
           onClick={() => generateMutation.mutate()}
           type="button"
         >
-          Generar cierre del turno activo
+          {generateMutation.isPending ? 'Generando...' : 'Generar cierre del turno activo'}
         </button>
-        <button className="rounded-lg bg-slate-700 px-4 py-2 text-white" onClick={() => retryMutation.mutate()} type="button">
-          Reintentar correos pendientes
+        <button
+          className="rounded-lg bg-slate-700 px-4 py-2 text-white disabled:opacity-50"
+          disabled={!reportEmailEnabled || retryMutation.isPending}
+          onClick={() => retryMutation.mutate()}
+          type="button"
+        >
+          {retryMutation.isPending ? 'Reintentando...' : 'Reintentar correos pendientes'}
         </button>
       </div>
 

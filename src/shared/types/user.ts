@@ -5,6 +5,7 @@ export type UserPermission =
   | 'users.manage_roles.employee'
   | 'users.manage_roles.manager'
   | 'users.manage_roles.admin'
+  | 'license.manage'
   | 'products.manage'
   | 'reports.manage'
   | 'shifts.manage'

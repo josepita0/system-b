@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { authChannels } from '../shared/ipc/auth'
 import { documentChannels } from '../shared/ipc/documents'
+import { licenseChannels, licenseEvents } from '../shared/ipc/license'
 import { productChannels } from '../shared/ipc/products'
 import { reportChannels } from '../shared/ipc/reports'
 import { shiftChannels } from '../shared/ipc/shifts'
@@ -14,6 +15,22 @@ const api = {
     changePassword: (payload: unknown) => ipcRenderer.invoke(authChannels.changePassword, payload),
     recoverPassword: (payload: unknown) => ipcRenderer.invoke(authChannels.recoverPassword, payload),
     bootstrapInfo: () => ipcRenderer.invoke(authChannels.bootstrapInfo),
+  },
+  license: {
+    getStatus: () => ipcRenderer.invoke(licenseChannels.getStatus),
+    getFeatureFlags: () => ipcRenderer.invoke(licenseChannels.getFeatureFlags),
+    validateSecretAccess: (payload: unknown) => ipcRenderer.invoke(licenseChannels.validateSecretAccess, payload),
+    activateByKey: (payload: unknown) => ipcRenderer.invoke(licenseChannels.activateByKey, payload),
+    activateManual: (payload: unknown) => ipcRenderer.invoke(licenseChannels.activateManual, payload),
+    renew: (payload: unknown) => ipcRenderer.invoke(licenseChannels.renew, payload),
+    cancel: (payload: unknown) => ipcRenderer.invoke(licenseChannels.cancel, payload),
+    onOpenAdminPanel: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on(licenseEvents.openAdminPanel, listener)
+      return () => {
+        ipcRenderer.removeListener(licenseEvents.openAdminPanel, listener)
+      }
+    },
   },
   users: {
     list: () => ipcRenderer.invoke(userChannels.list),

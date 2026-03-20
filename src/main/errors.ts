@@ -74,3 +74,15 @@ export class RecoveryCodeError extends AppError {
     super('RECOVERY_CODE_ERROR', message, 400)
   }
 }
+
+export class LicenseAccessError extends AppError {
+  constructor(message: string) {
+    super('LICENSE_ACCESS_ERROR', message, 403)
+  }
+}
+
+export class LicenseRestrictionError extends AppError {
+  constructor(message: string) {
+    super('LICENSE_RESTRICTION', message, 403)
+  }
+}

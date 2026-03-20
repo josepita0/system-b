@@ -11,6 +11,7 @@ Registrar cada decision importante y cada paso relevante de implementacion para 
 - `decisions/`: decisiones tecnicas formales del proyecto.
 - `setup/`: pasos de instalacion y configuracion del entorno.
 - `implementation/`: bitacora de avances por modulo o sprint.
+- `private/`: documentacion operativa sensible del producto. Debe mantenerse local e ignorada por Git.
 
 ## Regla de trabajo
 
@@ -59,3 +60,7 @@ Al cierre de la jornada actual, el proyecto ya cuenta con:
 - `implementation/2026-03-18-seguridad-usuarios.md`: capa de autenticacion, roles, sesiones y recuperacion.
 - `implementation/2026-03-19-rbac-credenciales-usuarios.md`: separacion entre gestion de perfiles, credenciales y primer acceso.
 - `implementation/2026-03-18-github-hardening.md`: deuda de seguridad detectada antes de publicar el repositorio.
+
+### Privada
+
+- `private/licenciamiento-administrativo.md`: configuracion interna del modulo de licencia local para `ADMINISTRADOR`. Documento local, excluido de Git.

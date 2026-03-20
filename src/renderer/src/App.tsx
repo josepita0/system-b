@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { ChangePasswordPage } from './pages/auth/ChangePasswordPage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { RecoverPasswordPage } from './pages/auth/RecoverPasswordPage'
+import { LicenseAdminPage } from './pages/license/LicenseAdminPage'
 import { ProductsPage } from './pages/products/ProductsPage'
 import { ReportsPage } from './pages/reports/ReportsPage'
 import { SalesPage } from './pages/sales/SalesPage'
@@ -21,6 +22,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-lg px-4 py-2 text-sm ${isActive ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`
 
 export default function App() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const user = useAuthStore((state) => state.user)
   const setUser = useAuthStore((state) => state.setUser)
@@ -42,6 +44,18 @@ export default function App() {
   useEffect(() => {
     setActiveSessionId(currentShiftQuery.data?.id ?? null)
   }, [currentShiftQuery.data?.id, setActiveSessionId])
+
+  useEffect(() => {
+    if (!window.api?.license?.onOpenAdminPanel) {
+      return undefined
+    }
+
+    return window.api.license.onOpenAdminPanel(() => {
+      if (user?.role === 'admin') {
+        navigate('/admin/licencia')
+      }
+    })
+  }, [navigate, user?.role])
 
   const logoutMutation = useMutation({
     mutationFn: () => window.api.auth.logout(),
@@ -184,6 +198,14 @@ export default function App() {
                 </ProtectedRoute>
               }
               path="/usuarios/:id/editar"
+            />
+            <Route
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <LicenseAdminPage />
+                </ProtectedRoute>
+              }
+              path="/admin/licencia"
             />
             <Route
               element={

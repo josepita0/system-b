@@ -40,3 +40,6 @@ Thumbs.db
 .vscode/
 .idea/
 .cursor/
+
+# Private product documentation
+docs/private/
