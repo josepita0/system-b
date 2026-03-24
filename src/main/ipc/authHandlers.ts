@@ -17,5 +17,4 @@ export function registerAuthHandlers() {
   )
   ipcMain.handle(authChannels.changePassword, (_event, payload) => executeIpc(() => service.changePassword(payload)))
   ipcMain.handle(authChannels.recoverPassword, (_event, payload) => executeIpc(() => service.recoverPassword(payload)))
-  ipcMain.handle(authChannels.bootstrapInfo, () => executeIpc(() => service.getBootstrapInfo()))
 }

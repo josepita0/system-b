@@ -3,6 +3,7 @@ import { registerDocumentHandlers } from './documentHandlers'
 import { registerLicenseHandlers } from './licenseHandlers'
 import { registerProductHandlers } from './productHandlers'
 import { registerReportHandlers } from './reportHandlers'
+import { registerSetupHandlers } from './setupHandlers'
 import { registerShiftHandlers } from './shiftHandlers'
 import { registerUserHandlers } from './userHandlers'
 
@@ -14,4 +15,5 @@ export function registerIpcHandlers() {
   registerProductHandlers()
   registerShiftHandlers()
   registerReportHandlers()
+  registerSetupHandlers()
 }

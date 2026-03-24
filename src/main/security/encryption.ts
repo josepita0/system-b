@@ -37,3 +37,11 @@ export function decryptJson<T>(payload: string): T {
   const decrypted = Buffer.concat([decipher.update(Buffer.from(parsed.data, 'hex')), decipher.final()])
   return JSON.parse(decrypted.toString('utf8')) as T
 }
+
+export function encryptString(payload: string) {
+  return encryptJson({ value: payload })
+}
+
+export function decryptString(payload: string) {
+  return decryptJson<{ value: string }>(payload).value
+}

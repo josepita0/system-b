@@ -86,3 +86,19 @@ export class LicenseRestrictionError extends AppError {
     super('LICENSE_RESTRICTION', message, 403)
   }
 }
+
+export function toSerializedIpcError(error: unknown) {
+  if (error instanceof AppError) {
+    return {
+      code: error.code,
+      message: error.message,
+      status: error.status,
+    }
+  }
+
+  return {
+    code: 'INTERNAL_ERROR',
+    message: 'Ocurrio un error interno. Revise los logs locales para mas detalles.',
+    status: 500,
+  }
+}

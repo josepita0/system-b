@@ -5,6 +5,7 @@ import type { DocumentApi } from '@shared/ipc/documents'
 import type { LicenseApi } from '@shared/ipc/license'
 import type { ProductApi } from '@shared/ipc/products'
 import type { ReportApi } from '@shared/ipc/reports'
+import type { SetupApi } from '@shared/ipc/setup'
 import type { ShiftApi } from '@shared/ipc/shifts'
 import type { UserApi } from '@shared/ipc/users'
 
@@ -18,6 +19,7 @@ declare global {
       products: ProductApi
       shifts: ShiftApi
       reports: ReportApi
+      setup: SetupApi
     }
   }
 }

@@ -419,6 +419,13 @@ export class LicenseService {
   }
 
   private getPanelSecret() {
-    return process.env.SYSTEM_BARRA_LICENSE_PANEL_SECRET?.trim() || 'ACTIVAR-LICENCIA-ADMIN'
+    const configuredSecret = process.env.SYSTEM_BARRA_LICENSE_PANEL_SECRET?.trim()
+    if (!configuredSecret) {
+      throw new LicenseAccessError(
+        'El panel de licencias no esta configurado en este entorno. Defina SYSTEM_BARRA_LICENSE_PANEL_SECRET antes de usarlo.',
+      )
+    }
+
+    return configuredSecret
   }
 }

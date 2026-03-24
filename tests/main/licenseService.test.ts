@@ -21,6 +21,7 @@ afterEach(() => {
 function setupServices(prefix: string) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
   process.env.SYSTEM_BARRA_DATA_DIR = directory
+  process.env.SYSTEM_BARRA_LICENSE_PANEL_SECRET = 'TEST-LICENSE-SECRET'
   const dbPath = path.join(directory, 'test.sqlite')
   const db = createDatabase(dbPath)
   cleanupQueue.push({ directory, close: () => db.close() })
@@ -60,7 +61,7 @@ describe('LicenseService', () => {
     })
 
     const actor = auth.getCurrentUser()!
-    const access = license.validateSecretAccess(actor.id, { secret: 'ACTIVAR-LICENCIA-ADMIN' })
+    const access = license.validateSecretAccess(actor.id, { secret: 'TEST-LICENSE-SECRET' })
     const accessMinutes = (new Date(access.expiresAt).getTime() - Date.now()) / (60 * 1000)
     const status = license.activateByKey(actor.id, {
       accessToken: access.accessToken,
@@ -90,7 +91,7 @@ describe('LicenseService', () => {
     })
 
     const actor = auth.getCurrentUser()!
-    const access = license.validateSecretAccess(actor.id, { secret: 'ACTIVAR-LICENCIA-ADMIN' })
+    const access = license.validateSecretAccess(actor.id, { secret: 'TEST-LICENSE-SECRET' })
     license.activateManual(actor.id, {
       accessToken: access.accessToken,
       planType: 'monthly',
@@ -122,7 +123,7 @@ describe('LicenseService', () => {
     })
 
     const actor = auth.getCurrentUser()!
-    const access = license.validateSecretAccess(actor.id, { secret: 'ACTIVAR-LICENCIA-ADMIN' })
+    const access = license.validateSecretAccess(actor.id, { secret: 'TEST-LICENSE-SECRET' })
     license.activateManual(actor.id, {
       accessToken: access.accessToken,
       planType: 'monthly',

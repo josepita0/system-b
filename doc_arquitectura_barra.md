@@ -102,43 +102,50 @@ Base de datos local embebida. Ventajas:
 - Archivo único
 - Ideal para sistemas POS
 
-#### 📦 Librerías Recomendadas
+#### 📦 Librerías en uso
 
 | Librería | Uso |
 |----------|-----|
 | `better-sqlite3` | Acceso a base de datos |
-| `Drizzle ORM` | ORM opcional |
 | `date-fns` | Manejo de fechas |
 | `electron-builder` | Build del instalador |
-| `shadcn/ui` | Componentes de UI |
+| `pdf-lib` | Generacion de reportes PDF |
+| `@tanstack/react-query` | Cache y sincronizacion de datos |
+| `zod` | Validacion de contratos y formularios |
 
 ### 📁 Estructura del Proyecto
 
-```
-bar-system/
+```text
+system-barra/
 │
-├── electron/
-│   ├── main.js
-│   └── preload.js
+├── src/
+│   ├── main/
+│   │   ├── database/
+│   │   ├── ipc/
+│   │   ├── repositories/
+│   │   ├── security/
+│   │   ├── services/
+│   │   ├── windows/
+│   │   └── workers/
+│   ├── preload/
+│   │   └── index.ts
+│   ├── renderer/
+│   │   └── src/
+│   │       ├── components/
+│   │       ├── lib/
+│   │       ├── pages/
+│   │       ├── store/
+│   │       └── main.tsx
+│   └── shared/
+│       ├── ipc/
+│       ├── schemas/
+│       └── types/
 │
-├── backend/
-│   ├── database/
-│   │   ├── connection.js
-│   │   └── migrations/
-│   ├── repositories/
-│   ├── services/
-│   └── ipc/
-│
-├── frontend/
-│   └── src/
-│       ├── pages/
-│       ├── components/
-│       ├── hooks/
-│       ├── services/
-│       └── context/
-│
-└── database/
-    └── database.sqlite
+├── tests/
+│   └── main/
+├── docs/
+├── dist/
+└── dist-electron/
 ```
 
 ### ⚡ Componentes de Electron
@@ -152,45 +159,50 @@ bar-system/
 ### 🔌 Comunicación IPC
 
 ```js
-// Frontend
-window.api.createSale(data)
+// Renderer
+window.api.products.create(data)
 
-// Backend
-ipcMain.handle("create-sale", async (event, data) => {
-  return salesService.createSale(data)
+// Main
+ipcMain.handle('products:create', (_event, payload) => {
+  return executeIpc(() => service.create(payload))
 })
 ```
 
 ### 🧠 Arquitectura del Backend
 
-```
-IPC Handler (Controller)
+```text
+IPC Handler
         ↓
-Service (Lógica de negocio)
+Auth / Authorization Guard
         ↓
-Repository (Acceso a datos)
+Service
         ↓
-Database (SQLite)
+Repository
+        ↓
+SQLite
 ```
 
 ---
 
 ## 3. 🗃️ Modelo de Datos
 
-### Tablas Principales
+### Tablas Principales actuales
 
 | Tabla | Descripción |
 |-------|-------------|
-| `workspaces` | Espacios de trabajo |
 | `employees` | Empleados |
+| `auth_sessions` | Sesiones persistidas |
+| `recovery_codes` | Recuperacion de credenciales |
+| `license_activations` | Activaciones y renovaciones |
 | `products` | Productos del catálogo |
-| `ingredients` | Ingredientes base |
-| `recipes` | Recetas de productos compuestos |
-| `inventory` | Control de stock |
+| `categories` | Categorias y subcategorias del catalogo |
+| `sale_formats` | Formatos habilitados por categoria |
+| `inventory_movements` | Movimientos de inventario |
 | `sales` | Cabecera de ventas |
 | `sale_items` | Líneas de cada venta |
-| `vip_clients` | Clientes VIP |
-| `shifts` | Turnos de trabajo |
+| `cash_sessions` | Sesiones de caja |
+| `report_jobs` | Cola local de reportes por correo |
+| `user_documents` | Documentacion del personal |
 
 ### Estructuras de Ejemplo
 
@@ -236,28 +248,28 @@ Database (SQLite)
 7. Se confirma operación
 ```
 
-### 🖥️ Pantallas del MVP
+### 🖥️ Pantallas actuales del producto
 
 | Pantalla | Funcionalidades |
 |---------|----------------|
-| **Dashboard** | Ventas del día, alertas de inventario |
-| **Ventas (POS)** | Búsqueda rápida, agregar productos, confirmar venta |
-| **Inventario** | Ver stock, registrar entradas, alertas |
-| **Productos** | Crear productos, definir recetas |
-| **Empleados** | Registro, documentación |
-| **Turnos** | Calendario, exportación a Excel |
+| **Login / Recuperacion** | Inicio de sesion, cambio obligatorio de clave y recuperacion por codigo |
+| **Ventas (POS)** | Operacion diaria y apertura de turno |
+| **Productos** | Catalogo por categorias, subcategorias y formatos |
+| **Turnos** | Apertura, cierre y control de caja |
+| **Reportes** | Generacion de PDF y reintento de envios |
+| **Usuarios** | CRUD, credenciales y documentacion |
+| **Licencia administrativa** | Activacion, renovacion y cancelacion local |
 
 ---
 
-## 4. 📅 Plan de Desarrollo — 5 Semanas
+## 4. 📅 Estado de Desarrollo Actual
 
-| Semana | Objetivo |
-|--------|----------|
-| **Semana 1** | Base del proyecto + SQLite + CRUD de productos |
-| **Semana 2** | Inventario (entradas / salidas / alertas) |
-| **Semana 3** | Facturación (POS) |
-| **Semana 4** | Productos compuestos + clientes VIP |
-| **Semana 5** | Empleados + turnos + build e instalador |
+- Base Electron + React + SQLite operativa.
+- Autenticacion local con roles, recuperacion y sesiones persistidas.
+- Modulo administrativo de usuarios.
+- Modulo de turnos, caja y reportes PDF.
+- Catalogo jerarquico por categorias con formatos heredados.
+- Bitacora tecnica viva en `docs/`.
 
 ### 🏗️ Build e Instalación
 
@@ -275,24 +287,24 @@ Genera un `Setup.exe` instalable en PC local.
 
 | # | Riesgo | Impacto |
 |---|--------|---------|
-| 1 | Manejo incorrecto de recetas | Alto |
-| 2 | Desincronización de inventario | Alto |
-| 3 | Bloqueos en operaciones pesadas | Medio |
-| 4 | Errores en flujo de ventas | Alto |
+| 1 | Exposicion local de sesiones o secretos operativos | Alto |
+| 2 | Bloqueos del main process por consultas o reportes pesados | Alto |
+| 3 | Omisiones de autorizacion entre canales IPC | Alto |
+| 4 | Desalineacion entre documentacion y codigo real | Medio |
 
 ### 🧩 Recomendaciones Clave
 
-1. **Diseñar correctamente el inventario desde el inicio** — es la base de toda la operación.
-2. **Separar la lógica de negocio del frontend** — facilita el mantenimiento y las pruebas.
-3. **Optimizar la pantalla POS** — es la pantalla más crítica del sistema.
-4. **Preparar la arquitectura para escalar a cloud** — diseñar pensando en el futuro.
+1. **Mantener la seguridad en el runtime Electron** para evitar exponer sesiones, IPC o secretos locales.
+2. **Concentrar la autorizacion en un patron unico** para que cada canal IPC sea facil de auditar.
+3. **Sacar consultas y reportes pesados del hilo principal** para proteger la fluidez de la app.
+4. **Usar `docs/` como fuente principal de verdad** y evitar documentos raices desactualizados.
 
 ### 🚀 Próximos Pasos Recomendados
 
-- [ ] Diseñar la base de datos completa
-- [ ] Definir el flujo de facturación exacto
-- [ ] Crear la estructura del proyecto
-- [ ] Iniciar el desarrollo del MVP
+- [ ] Cerrar backlog de hardening de Electron, IPC y secretos locales
+- [ ] Medir tiempos de IPC y consultas criticas del catalogo
+- [ ] Consolidar contratos de errores y autorizacion
+- [ ] Preparar una fase posterior para ventas e inventario avanzado
 
 ---
 

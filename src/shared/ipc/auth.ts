@@ -1,4 +1,4 @@
-import type { BootstrapAdminInfo, ChangePasswordInput, LoginInput, RecoverPasswordInput, SessionInfo } from '../types/auth'
+import type { ChangePasswordInput, LoginInput, RecoverPasswordInput, SessionInfo } from '../types/auth'
 
 export const authChannels = {
   login: 'auth:login',
@@ -6,7 +6,6 @@ export const authChannels = {
   me: 'auth:me',
   changePassword: 'auth:changePassword',
   recoverPassword: 'auth:recoverPassword',
-  bootstrapInfo: 'auth:bootstrapInfo',
 } as const
 
 export interface AuthApi {
@@ -15,5 +14,4 @@ export interface AuthApi {
   me: () => Promise<SessionInfo | null>
   changePassword: (payload: ChangePasswordInput) => Promise<SessionInfo>
   recoverPassword: (payload: RecoverPasswordInput) => Promise<{ success: true }>
-  bootstrapInfo: () => Promise<BootstrapAdminInfo | null>
 }

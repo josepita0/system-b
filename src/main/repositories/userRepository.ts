@@ -45,7 +45,7 @@ export class UserRepository {
   }
 
   list() {
-    return this.db.prepare('SELECT * FROM employees ORDER BY role DESC, first_name ASC, last_name ASC').all().map((row: any) => mapUser(row))
+    return (this.db.prepare('SELECT * FROM employees ORDER BY role DESC, first_name ASC, last_name ASC').all() as UserRow[]).map(mapUser)
   }
 
   getById(id: number) {

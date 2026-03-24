@@ -1,32 +1,29 @@
 import type Database from 'better-sqlite3'
-import type { CreateUserInput, UpdateUserInput } from '../../shared/types/user'
+import type { AuthenticatedUser, CreateUserInput, UpdateUserInput } from '../../shared/types/user'
 import { createUserSchema, updateUserSchema } from '../../shared/schemas/userSchema'
 import { ConflictError, NotFoundError, ValidationError } from '../errors'
 import { AuditLogRepository } from '../repositories/auditLogRepository'
 import { UserRepository } from '../repositories/userRepository'
 import { randomSecret, hashSecret } from '../security/password'
 import { AuthorizationService } from './authorizationService'
-import { AuthService } from './authService'
 
 export class UserService {
   private readonly users: UserRepository
   private readonly authorization: AuthorizationService
   private readonly audit: AuditLogRepository
 
-  constructor(private readonly db: Database.Database, private readonly auth: AuthService) {
+  constructor(private readonly db: Database.Database) {
     this.users = new UserRepository(db)
     this.authorization = new AuthorizationService()
     this.audit = new AuditLogRepository(db)
   }
 
-  list() {
-    const actor = this.auth.requireCurrentUser()
+  list(actor: AuthenticatedUser) {
     this.authorization.requirePermission(actor.permissions, 'users.manage_profiles')
     return this.users.list().filter((user) => actor.permissions.includes(`users.manage_roles.${user.role}`))
   }
 
-  getById(id: number) {
-    const actor = this.auth.requireCurrentUser()
+  getById(actor: AuthenticatedUser, id: number) {
     this.authorization.requirePermission(actor.permissions, 'users.manage_profiles')
     const user = this.users.getById(id)
     if (!user) {
@@ -37,12 +34,11 @@ export class UserService {
     return user
   }
 
-  myProfile() {
-    return this.auth.requireCurrentUser()
+  myProfile(actor: AuthenticatedUser) {
+    return actor
   }
 
-  create(input: CreateUserInput) {
-    const actor = this.auth.requireCurrentUser()
+  create(actor: AuthenticatedUser, input: CreateUserInput) {
     this.authorization.requirePermission(actor.permissions, 'users.manage_profiles')
 
     const parsed = createUserSchema.safeParse(input)
@@ -84,8 +80,7 @@ export class UserService {
     return { user }
   }
 
-  update(input: UpdateUserInput) {
-    const actor = this.auth.requireCurrentUser()
+  update(actor: AuthenticatedUser, input: UpdateUserInput) {
     this.authorization.requirePermission(actor.permissions, 'users.manage_profiles')
 
     const parsed = updateUserSchema.safeParse(input)
@@ -138,8 +133,7 @@ export class UserService {
     return updated
   }
 
-  issueCredentials(userId: number) {
-    const actor = this.auth.requireCurrentUser()
+  issueCredentials(actor: AuthenticatedUser, userId: number, issueRecoveryCodes: (userId: number, actorId: number) => string[]) {
     this.authorization.requirePermission(actor.permissions, 'users.manage_credentials')
     const target = this.users.getById(userId)
     if (!target) {
@@ -150,7 +144,7 @@ export class UserService {
 
     const temporaryPassword = randomSecret(12)
     this.users.setPassword(userId, hashSecret(temporaryPassword), 1)
-    const recoveryCodes = this.auth.replaceRecoveryCodes(userId, actor.id)
+    const recoveryCodes = issueRecoveryCodes(userId, actor.id)
     const user = this.users.getById(userId)!
 
     this.audit.create({
@@ -166,8 +160,7 @@ export class UserService {
     return { user, temporaryPassword, recoveryCodes }
   }
 
-  regenerateRecoveryCodes(userId: number) {
-    const actor = this.auth.requireCurrentUser()
+  regenerateRecoveryCodes(actor: AuthenticatedUser, userId: number, issueRecoveryCodes: (userId: number, actorId: number) => string[]) {
     this.authorization.requirePermission(actor.permissions, 'users.manage_credentials')
     const target = this.users.getById(userId)
     if (!target) {
@@ -175,6 +168,6 @@ export class UserService {
     }
 
     this.authorization.requireCanManageRole(actor, target.role)
-    return this.auth.replaceRecoveryCodes(userId, actor.id)
+    return issueRecoveryCodes(userId, actor.id)
   }
 }

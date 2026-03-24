@@ -1,22 +1,27 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect, type ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
-import { ChangePasswordPage } from './pages/auth/ChangePasswordPage'
-import { LoginPage } from './pages/auth/LoginPage'
-import { RecoverPasswordPage } from './pages/auth/RecoverPasswordPage'
-import { LicenseAdminPage } from './pages/license/LicenseAdminPage'
-import { ProductsPage } from './pages/products/ProductsPage'
-import { ReportsPage } from './pages/reports/ReportsPage'
-import { SalesPage } from './pages/sales/SalesPage'
-import { ShiftsPage } from './pages/shifts/ShiftsPage'
-import { UserCreatePage } from './pages/users/UserCreatePage'
-import { UserDetailPage } from './pages/users/UserDetailPage'
-import { UserDocumentsPage } from './pages/users/UserDocumentsPage'
-import { UserEditPage } from './pages/users/UserEditPage'
-import { UserListPage } from './pages/users/UserListPage'
+import { getSetupStatusSafe } from './lib/setup'
 import { useAuthStore } from './store/authStore'
 import { usePosStore } from './store/posStore'
+
+const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage').then((module) => ({ default: module.ChangePasswordPage })))
+const LoginPage = lazy(() => import('./pages/auth/LoginPage').then((module) => ({ default: module.LoginPage })))
+const RecoverPasswordPage = lazy(() => import('./pages/auth/RecoverPasswordPage').then((module) => ({ default: module.RecoverPasswordPage })))
+const LicenseAdminPage = lazy(() => import('./pages/license/LicenseAdminPage').then((module) => ({ default: module.LicenseAdminPage })))
+const ProductsPage = lazy(() => import('./pages/products/ProductsPage').then((module) => ({ default: module.ProductsPage })))
+const ReportsPage = lazy(() => import('./pages/reports/ReportsPage').then((module) => ({ default: module.ReportsPage })))
+const SalesPage = lazy(() => import('./pages/sales/SalesPage').then((module) => ({ default: module.SalesPage })))
+const SetupCompletionPage = lazy(() => import('./pages/setup/SetupCompletionPage').then((module) => ({ default: module.SetupCompletionPage })))
+const SetupPasswordStepPage = lazy(() => import('./pages/setup/SetupPasswordStepPage').then((module) => ({ default: module.SetupPasswordStepPage })))
+const SetupWelcomePage = lazy(() => import('./pages/setup/SetupWelcomePage').then((module) => ({ default: module.SetupWelcomePage })))
+const ShiftsPage = lazy(() => import('./pages/shifts/ShiftsPage').then((module) => ({ default: module.ShiftsPage })))
+const UserCreatePage = lazy(() => import('./pages/users/UserCreatePage').then((module) => ({ default: module.UserCreatePage })))
+const UserDetailPage = lazy(() => import('./pages/users/UserDetailPage').then((module) => ({ default: module.UserDetailPage })))
+const UserDocumentsPage = lazy(() => import('./pages/users/UserDocumentsPage').then((module) => ({ default: module.UserDocumentsPage })))
+const UserEditPage = lazy(() => import('./pages/users/UserEditPage').then((module) => ({ default: module.UserEditPage })))
+const UserListPage = lazy(() => import('./pages/users/UserListPage').then((module) => ({ default: module.UserListPage })))
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-lg px-4 py-2 text-sm ${isActive ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`
@@ -30,6 +35,10 @@ export default function App() {
   const meQuery = useQuery({
     queryKey: ['auth', 'me'],
     queryFn: () => window.api.auth.me(),
+  })
+  const setupQuery = useQuery({
+    queryKey: ['setup', 'status'],
+    queryFn: getSetupStatusSafe,
   })
   const currentShiftQuery = useQuery({
     queryKey: ['shift', 'current'],
@@ -66,17 +75,84 @@ export default function App() {
     },
   })
 
-  if (meQuery.isLoading) {
+  if (meQuery.isLoading || setupQuery.isLoading) {
     return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">Cargando sesion...</div>
   }
 
-  if (!user) {
+  if (setupQuery.error) {
     return (
-      <Routes>
-        <Route element={<LoginPage />} path="/login" />
-        <Route element={<RecoverPasswordPage />} path="/recuperar" />
-        <Route element={<Navigate replace to="/login" />} path="*" />
-      </Routes>
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6">
+        <div className="w-full max-w-xl rounded-3xl border border-rose-800 bg-slate-900 p-6 text-sm text-rose-300">
+          {setupQuery.error instanceof Error ? setupQuery.error.message : 'No fue posible cargar el estado de instalacion.'}
+        </div>
+      </div>
+    )
+  }
+
+  const setupStatus = setupQuery.data
+  const shouldRunSetupWizard = Boolean(setupStatus?.mustRunWizard)
+
+  if (!user) {
+    if (shouldRunSetupWizard) {
+      return (
+        <SetupShell
+          description="Siga esta guia para ubicar el acceso bootstrap y completar el primer arranque del equipo."
+          title="Wizard de instalacion"
+        >
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route element={<SetupWelcomePage />} path="/instalacion" />
+              <Route element={<LoginPage />} path="/login" />
+              <Route element={<RecoverPasswordPage />} path="/recuperar" />
+              <Route element={<Navigate replace to="/instalacion" />} path="*" />
+            </Routes>
+          </Suspense>
+        </SetupShell>
+      )
+    }
+
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route element={<LoginPage />} path="/login" />
+          <Route element={<RecoverPasswordPage />} path="/recuperar" />
+          <Route element={<Navigate replace to="/login" />} path="*" />
+        </Routes>
+      </Suspense>
+    )
+  }
+
+  if (shouldRunSetupWizard) {
+    if (user.mustChangePassword) {
+      return (
+        <SetupShell
+          description="La instalacion continua con el cambio obligatorio de la clave temporal del administrador inicial."
+          onLogout={() => logoutMutation.mutate()}
+          title="Wizard de instalacion"
+        >
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route element={<SetupPasswordStepPage />} path="/instalacion/cambiar-clave" />
+              <Route element={<Navigate replace to="/instalacion/cambiar-clave" />} path="*" />
+            </Routes>
+          </Suspense>
+        </SetupShell>
+      )
+    }
+
+    return (
+      <SetupShell
+        description="La cuenta administrativa ya esta protegida. Cierre el onboarding para habilitar el uso normal del sistema."
+        onLogout={() => logoutMutation.mutate()}
+        title="Wizard de instalacion"
+      >
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route element={<SetupCompletionPage />} path="/instalacion/finalizar" />
+            <Route element={<Navigate replace to="/instalacion/finalizar" />} path="*" />
+          </Routes>
+        </Suspense>
+      </SetupShell>
     )
   }
 
@@ -94,7 +170,7 @@ export default function App() {
             </button>
           </div>
           <Routes>
-            <Route element={<ChangePasswordPage />} path="/cambiar-clave" />
+            <Route element={<Suspense fallback={<PageLoader />}><ChangePasswordPage /></Suspense>} path="/cambiar-clave" />
             <Route element={<Navigate replace to="/cambiar-clave" />} path="*" />
           </Routes>
         </div>
@@ -140,88 +216,125 @@ export default function App() {
         </aside>
 
         <main className="rounded-3xl border border-slate-800 bg-slate-950 p-2">
-          <Routes>
-            <Route element={<Navigate replace to={user.role === 'employee' ? '/ventas' : '/'} />} path="/login" />
-            <Route element={<SalesPage />} path="/ventas" />
-            <Route
-              element={
-                <ProtectedRoute requiredRole="manager">
-                  <ProductsPage />
-                </ProtectedRoute>
-              }
-              path="/"
-            />
-            <Route
-              element={
-                <ProtectedRoute requiredRole="manager">
-                  <ShiftsPage />
-                </ProtectedRoute>
-              }
-              path="/turnos"
-            />
-            <Route
-              element={
-                <ProtectedRoute requiredRole="manager">
-                  <ReportsPage />
-                </ProtectedRoute>
-              }
-              path="/reportes"
-            />
-            <Route
-              element={
-                <ProtectedRoute requiredRole="manager">
-                  <UserListPage />
-                </ProtectedRoute>
-              }
-              path="/usuarios"
-            />
-            <Route
-              element={
-                <ProtectedRoute requiredRole="manager">
-                  <UserCreatePage />
-                </ProtectedRoute>
-              }
-              path="/usuarios/nuevo"
-            />
-            <Route
-              element={
-                <ProtectedRoute requiredRole="manager">
-                  <UserDetailPage />
-                </ProtectedRoute>
-              }
-              path="/usuarios/:id"
-            />
-            <Route
-              element={
-                <ProtectedRoute requiredRole="manager">
-                  <UserEditPage />
-                </ProtectedRoute>
-              }
-              path="/usuarios/:id/editar"
-            />
-            <Route
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <LicenseAdminPage />
-                </ProtectedRoute>
-              }
-              path="/admin/licencia"
-            />
-            <Route
-              element={
-                user.role === 'admin' ? (
-                  <Navigate replace to="/" />
-                ) : (
-                  <ProtectedRoute requiredRole="employee">
-                    <UserDocumentsPage />
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route element={<Navigate replace to={user.role === 'employee' ? '/ventas' : '/'} />} path="/login" />
+              <Route element={<SalesPage />} path="/ventas" />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <ProductsPage />
                   </ProtectedRoute>
-                )
-              }
-              path="/mi-documentacion"
-            />
-            <Route element={<Navigate replace to={user.role === 'employee' ? '/ventas' : '/'} />} path="*" />
-          </Routes>
+                }
+                path="/"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <ShiftsPage />
+                  </ProtectedRoute>
+                }
+                path="/turnos"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <ReportsPage />
+                  </ProtectedRoute>
+                }
+                path="/reportes"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <UserListPage />
+                  </ProtectedRoute>
+                }
+                path="/usuarios"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <UserCreatePage />
+                  </ProtectedRoute>
+                }
+                path="/usuarios/nuevo"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <UserDetailPage />
+                  </ProtectedRoute>
+                }
+                path="/usuarios/:id"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <UserEditPage />
+                  </ProtectedRoute>
+                }
+                path="/usuarios/:id/editar"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <LicenseAdminPage />
+                  </ProtectedRoute>
+                }
+                path="/admin/licencia"
+              />
+              <Route
+                element={
+                  user.role === 'admin' ? (
+                    <Navigate replace to="/" />
+                  ) : (
+                    <ProtectedRoute requiredRole="employee">
+                      <UserDocumentsPage />
+                    </ProtectedRoute>
+                  )
+                }
+                path="/mi-documentacion"
+              />
+              <Route element={<Navigate replace to={user.role === 'employee' ? '/ventas' : '/'} />} path="*" />
+            </Routes>
+          </Suspense>
         </main>
+      </div>
+    </div>
+  )
+}
+
+function PageLoader() {
+  return <div className="flex min-h-[200px] items-center justify-center text-sm text-slate-400">Cargando modulo...</div>
+}
+
+function SetupShell({
+  title,
+  description,
+  onLogout,
+  children,
+}: {
+  title: string
+  description: string
+  onLogout?: () => void
+  children: ReactNode
+}) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6">
+      <div className="w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-900 p-6">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-white">{title}</h1>
+            <p className="mt-1 text-sm text-slate-400">{description}</p>
+          </div>
+          {onLogout ? (
+            <button className="rounded-lg bg-slate-800 px-4 py-2 text-sm text-slate-200" onClick={onLogout} type="button">
+              Cerrar sesion
+            </button>
+          ) : null}
+        </div>
+        {children}
       </div>
     </div>
   )

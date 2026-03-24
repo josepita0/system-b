@@ -1,29 +1,43 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { IpcResult } from '../shared/ipc/result'
 import { authChannels } from '../shared/ipc/auth'
 import { documentChannels } from '../shared/ipc/documents'
 import { licenseChannels, licenseEvents } from '../shared/ipc/license'
 import { productChannels } from '../shared/ipc/products'
 import { reportChannels } from '../shared/ipc/reports'
+import { setupChannels } from '../shared/ipc/setup'
 import { shiftChannels } from '../shared/ipc/shifts'
 import { userChannels } from '../shared/ipc/users'
 
+async function invokeIpc<T>(channel: string, ...args: unknown[]) {
+  const result = (await ipcRenderer.invoke(channel, ...args)) as IpcResult<T>
+  if (result.ok) {
+    return result.data
+  }
+
+  const error = new Error(result.error.message) as Error & { code?: string; status?: number }
+  error.name = result.error.code
+  error.code = result.error.code
+  error.status = result.error.status
+  throw error
+}
+
 const api = {
   auth: {
-    login: (payload: unknown) => ipcRenderer.invoke(authChannels.login, payload),
-    logout: () => ipcRenderer.invoke(authChannels.logout),
-    me: () => ipcRenderer.invoke(authChannels.me),
-    changePassword: (payload: unknown) => ipcRenderer.invoke(authChannels.changePassword, payload),
-    recoverPassword: (payload: unknown) => ipcRenderer.invoke(authChannels.recoverPassword, payload),
-    bootstrapInfo: () => ipcRenderer.invoke(authChannels.bootstrapInfo),
+    login: (payload: unknown) => invokeIpc(authChannels.login, payload),
+    logout: () => invokeIpc(authChannels.logout),
+    me: () => invokeIpc(authChannels.me),
+    changePassword: (payload: unknown) => invokeIpc(authChannels.changePassword, payload),
+    recoverPassword: (payload: unknown) => invokeIpc(authChannels.recoverPassword, payload),
   },
   license: {
-    getStatus: () => ipcRenderer.invoke(licenseChannels.getStatus),
-    getFeatureFlags: () => ipcRenderer.invoke(licenseChannels.getFeatureFlags),
-    validateSecretAccess: (payload: unknown) => ipcRenderer.invoke(licenseChannels.validateSecretAccess, payload),
-    activateByKey: (payload: unknown) => ipcRenderer.invoke(licenseChannels.activateByKey, payload),
-    activateManual: (payload: unknown) => ipcRenderer.invoke(licenseChannels.activateManual, payload),
-    renew: (payload: unknown) => ipcRenderer.invoke(licenseChannels.renew, payload),
-    cancel: (payload: unknown) => ipcRenderer.invoke(licenseChannels.cancel, payload),
+    getStatus: () => invokeIpc(licenseChannels.getStatus),
+    getFeatureFlags: () => invokeIpc(licenseChannels.getFeatureFlags),
+    validateSecretAccess: (payload: unknown) => invokeIpc(licenseChannels.validateSecretAccess, payload),
+    activateByKey: (payload: unknown) => invokeIpc(licenseChannels.activateByKey, payload),
+    activateManual: (payload: unknown) => invokeIpc(licenseChannels.activateManual, payload),
+    renew: (payload: unknown) => invokeIpc(licenseChannels.renew, payload),
+    cancel: (payload: unknown) => invokeIpc(licenseChannels.cancel, payload),
     onOpenAdminPanel: (callback: () => void) => {
       const listener = () => callback()
       ipcRenderer.on(licenseEvents.openAdminPanel, listener)
@@ -33,45 +47,49 @@ const api = {
     },
   },
   users: {
-    list: () => ipcRenderer.invoke(userChannels.list),
-    getById: (id: number) => ipcRenderer.invoke(userChannels.getById, id),
-    create: (payload: unknown) => ipcRenderer.invoke(userChannels.create, payload),
-    update: (payload: unknown) => ipcRenderer.invoke(userChannels.update, payload),
-    myProfile: () => ipcRenderer.invoke(userChannels.myProfile),
-    issueCredentials: (userId: number) => ipcRenderer.invoke(userChannels.issueCredentials, userId),
-    regenerateRecoveryCodes: (userId: number) => ipcRenderer.invoke(userChannels.regenerateRecoveryCodes, userId),
+    list: () => invokeIpc(userChannels.list),
+    getById: (id: number) => invokeIpc(userChannels.getById, id),
+    create: (payload: unknown) => invokeIpc(userChannels.create, payload),
+    update: (payload: unknown) => invokeIpc(userChannels.update, payload),
+    myProfile: () => invokeIpc(userChannels.myProfile),
+    issueCredentials: (userId: number) => invokeIpc(userChannels.issueCredentials, userId),
+    regenerateRecoveryCodes: (userId: number) => invokeIpc(userChannels.regenerateRecoveryCodes, userId),
   },
   documents: {
-    myDocuments: () => ipcRenderer.invoke(documentChannels.myDocuments),
-    uploadForCurrentUser: (documentType: string) => ipcRenderer.invoke(documentChannels.uploadForCurrentUser, documentType),
-    remove: (documentId: number) => ipcRenderer.invoke(documentChannels.remove, documentId),
+    myDocuments: () => invokeIpc(documentChannels.myDocuments),
+    uploadForCurrentUser: (documentType: string) => invokeIpc(documentChannels.uploadForCurrentUser, documentType),
+    remove: (documentId: number) => invokeIpc(documentChannels.remove, documentId),
   },
   products: {
-    list: (categoryId?: number) => ipcRenderer.invoke(productChannels.list, categoryId),
-    getById: (id: number) => ipcRenderer.invoke(productChannels.getById, id),
-    create: (payload: unknown) => ipcRenderer.invoke(productChannels.create, payload),
-    update: (payload: unknown) => ipcRenderer.invoke(productChannels.update, payload),
-    remove: (id: number) => ipcRenderer.invoke(productChannels.remove, id),
-    listCategories: () => ipcRenderer.invoke(productChannels.listCategories),
-    createCategory: (payload: unknown) => ipcRenderer.invoke(productChannels.createCategory, payload),
-    updateCategory: (payload: unknown) => ipcRenderer.invoke(productChannels.updateCategory, payload),
-    removeCategory: (id: number) => ipcRenderer.invoke(productChannels.removeCategory, id),
-    listSaleFormats: () => ipcRenderer.invoke(productChannels.listSaleFormats),
-    createSaleFormat: (payload: unknown) => ipcRenderer.invoke(productChannels.createSaleFormat, payload),
-    updateSaleFormat: (payload: unknown) => ipcRenderer.invoke(productChannels.updateSaleFormat, payload),
-    removeSaleFormat: (id: number) => ipcRenderer.invoke(productChannels.removeSaleFormat, id),
-    setCategorySaleFormats: (payload: unknown) => ipcRenderer.invoke(productChannels.setCategorySaleFormats, payload),
+    list: (categoryId?: number) => invokeIpc(productChannels.list, categoryId),
+    getById: (id: number) => invokeIpc(productChannels.getById, id),
+    create: (payload: unknown) => invokeIpc(productChannels.create, payload),
+    update: (payload: unknown) => invokeIpc(productChannels.update, payload),
+    remove: (id: number) => invokeIpc(productChannels.remove, id),
+    listCategories: () => invokeIpc(productChannels.listCategories),
+    createCategory: (payload: unknown) => invokeIpc(productChannels.createCategory, payload),
+    updateCategory: (payload: unknown) => invokeIpc(productChannels.updateCategory, payload),
+    removeCategory: (id: number) => invokeIpc(productChannels.removeCategory, id),
+    listSaleFormats: () => invokeIpc(productChannels.listSaleFormats),
+    createSaleFormat: (payload: unknown) => invokeIpc(productChannels.createSaleFormat, payload),
+    updateSaleFormat: (payload: unknown) => invokeIpc(productChannels.updateSaleFormat, payload),
+    removeSaleFormat: (id: number) => invokeIpc(productChannels.removeSaleFormat, id),
+    setCategorySaleFormats: (payload: unknown) => invokeIpc(productChannels.setCategorySaleFormats, payload),
   },
   shifts: {
-    definitions: () => ipcRenderer.invoke(shiftChannels.definitions),
-    current: () => ipcRenderer.invoke(shiftChannels.current),
-    open: (payload: unknown) => ipcRenderer.invoke(shiftChannels.open, payload),
-    close: (payload: unknown) => ipcRenderer.invoke(shiftChannels.close, payload),
+    definitions: () => invokeIpc(shiftChannels.definitions),
+    current: () => invokeIpc(shiftChannels.current),
+    open: (payload: unknown) => invokeIpc(shiftChannels.open, payload),
+    close: (payload: unknown) => invokeIpc(shiftChannels.close, payload),
   },
   reports: {
-    generateShiftClose: (sessionId: number) => ipcRenderer.invoke(reportChannels.generateShiftClose, sessionId),
-    pendingEmails: () => ipcRenderer.invoke(reportChannels.pendingEmails),
-    retryPendingEmails: () => ipcRenderer.invoke(reportChannels.retryPendingEmails),
+    generateShiftClose: (sessionId: number) => invokeIpc(reportChannels.generateShiftClose, sessionId),
+    pendingEmails: () => invokeIpc(reportChannels.pendingEmails),
+    retryPendingEmails: () => invokeIpc(reportChannels.retryPendingEmails),
+  },
+  setup: {
+    getStatus: () => invokeIpc(setupChannels.getStatus),
+    complete: () => invokeIpc(setupChannels.complete),
   },
 }
 

@@ -26,7 +26,7 @@ function setupServices(prefix: string) {
 
   runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
   const auth = new AuthService(db)
-  const users = new UserService(db, auth)
+  const users = new UserService(db)
 
   return { db, auth, users }
 }
@@ -40,21 +40,23 @@ describe('UserService security boundaries', () => {
       identifier: bootstrap.username,
       password: bootstrap.temporaryPassword,
     })
+    const admin = auth.getCurrentUser()!
 
-    const manager = users.create({
+    const manager = users.create(admin, {
       firstName: 'Maria',
       lastName: 'Encargada',
       username: 'maria.manager',
       role: 'manager',
     }).user
 
-    const managerCredentials = users.issueCredentials(manager.id)
+    const managerCredentials = users.issueCredentials(admin, manager.id, (userId, actorId) => auth.replaceRecoveryCodes(userId, actorId))
     auth.login({
       identifier: manager.username!,
       password: managerCredentials.temporaryPassword,
     })
+    const managerActor = auth.getCurrentUser()!
 
-    const createdEmployee = users.create({
+    const createdEmployee = users.create(managerActor, {
       firstName: 'Luis',
       lastName: 'Empleado',
       username: 'luis.employee',
@@ -63,17 +65,19 @@ describe('UserService security boundaries', () => {
 
     expect(Object.keys(createdEmployee)).toEqual(['user'])
     expect(createdEmployee.user.role).toBe('employee')
-    expect(users.list().every((user) => user.role === 'employee')).toBe(true)
-    expect(() => users.getById(manager.id)).toThrowError(/No puede administrar usuarios de este rol/)
+    expect(users.list(managerActor).every((user) => user.role === 'employee')).toBe(true)
+    expect(() => users.getById(managerActor, manager.id)).toThrowError(/No puede administrar usuarios de este rol/)
     expect(() =>
-      users.create({
+      users.create(managerActor, {
         firstName: 'Ana',
         lastName: 'OtraEncargada',
         username: 'ana.manager',
         role: 'manager',
       }),
     ).toThrowError(/No puede administrar usuarios de este rol/)
-    expect(() => users.issueCredentials(createdEmployee.user.id)).toThrowError(/No tiene permisos/)
+    expect(() =>
+      users.issueCredentials(managerActor, createdEmployee.user.id, (userId, actorId) => auth.replaceRecoveryCodes(userId, actorId)),
+    ).toThrowError(/No tiene permisos/)
   })
 
   it('forces password change after issuing credentials and records audit logs', () => {
@@ -84,15 +88,16 @@ describe('UserService security boundaries', () => {
       identifier: bootstrap.username,
       password: bootstrap.temporaryPassword,
     })
+    const admin = auth.getCurrentUser()!
 
-    const employee = users.create({
+    const employee = users.create(admin, {
       firstName: 'Laura',
       lastName: 'Cajera',
       username: 'laura.employee',
       role: 'employee',
     }).user
 
-    const issuedCredentials = users.issueCredentials(employee.id)
+    const issuedCredentials = users.issueCredentials(admin, employee.id, (userId, actorId) => auth.replaceRecoveryCodes(userId, actorId))
     expect(issuedCredentials.user.mustChangePassword).toBe(1)
     expect(issuedCredentials.recoveryCodes).toHaveLength(8)
 

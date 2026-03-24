@@ -1,5 +1,9 @@
 import path from 'node:path'
-import { BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
+
+function resolveRendererEntry() {
+  return path.join(app.getAppPath(), 'dist', 'renderer', 'index.html')
+}
 
 export function createMainWindow() {
   const window = new BrowserWindow({
@@ -21,7 +25,7 @@ export function createMainWindow() {
     void window.loadURL(devServerUrl)
     window.webContents.openDevTools({ mode: 'detach' })
   } else {
-    void window.loadFile(path.join(process.cwd(), 'dist', 'renderer', 'index.html'))
+    void window.loadFile(resolveRendererEntry())
   }
 
   return window

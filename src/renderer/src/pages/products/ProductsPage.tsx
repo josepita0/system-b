@@ -7,6 +7,10 @@ import { ProductForm } from '@renderer/components/products/ProductForm'
 import { SaleFormatManager } from '@renderer/components/products/SaleFormatManager'
 import { ProductTable } from '@renderer/components/products/ProductTable'
 
+const productListKey = (categoryId: number | null) => ['products', 'list', { categoryId }] as const
+const categoriesKey = ['products', 'categories'] as const
+const saleFormatsKey = ['products', 'sale-formats'] as const
+
 function flattenCategoryTree(nodes: CategoryTreeNode[], depth = 0): Array<CategoryTreeNode & { depth: number }> {
   return nodes.flatMap((node) => [
     { ...node, depth },
@@ -23,12 +27,12 @@ export function ProductsPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const categoriesQuery = useQuery({
-    queryKey: ['products', 'categories'],
+    queryKey: categoriesKey,
     queryFn: () => window.api.products.listCategories(),
   })
 
   const saleFormatsQuery = useQuery({
-    queryKey: ['products', 'sale-formats'],
+    queryKey: saleFormatsKey,
     queryFn: () => window.api.products.listSaleFormats(),
   })
 
@@ -79,17 +83,32 @@ export function ProductsPage() {
   }, [flatCategories, selectedCategoryId])
 
   const productsQuery = useQuery({
-    queryKey: ['products', { categoryId: selectedCategoryId }],
+    queryKey: productListKey(selectedCategoryId),
     queryFn: () => window.api.products.list(selectedCategoryId ?? undefined),
     enabled: selectedCategoryId !== null,
   })
+
+  const refreshProducts = async () => {
+    if (selectedCategoryId === null) {
+      return
+    }
+
+    await queryClient.invalidateQueries({ queryKey: productListKey(selectedCategoryId) })
+  }
+
+  const refreshCategories = async () => {
+    await queryClient.invalidateQueries({ queryKey: categoriesKey })
+  }
+
+  const refreshSaleFormats = async () => {
+    await queryClient.invalidateQueries({ queryKey: saleFormatsKey })
+  }
 
   const createMutation = useMutation({
     mutationFn: (payload: ProductInput) => window.api.products.create(payload),
     onSuccess: async () => {
       setSelected(null)
-      await queryClient.invalidateQueries({ queryKey: ['products'] })
-      await queryClient.invalidateQueries({ queryKey: ['products', 'categories'] })
+      await Promise.all([refreshProducts(), refreshCategories()])
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible crear el producto.')
@@ -101,8 +120,7 @@ export function ProductsPage() {
       selected ? window.api.products.update({ id: selected.id, ...payload }) : Promise.resolve(null),
     onSuccess: async () => {
       setSelected(null)
-      await queryClient.invalidateQueries({ queryKey: ['products'] })
-      await queryClient.invalidateQueries({ queryKey: ['products', 'categories'] })
+      await Promise.all([refreshProducts(), refreshCategories()])
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible actualizar el producto.')
@@ -113,8 +131,7 @@ export function ProductsPage() {
     mutationFn: (id: number) => window.api.products.remove(id),
     onSuccess: async (_result, id) => {
       setSelected((current) => (current?.id === id ? null : current))
-      await queryClient.invalidateQueries({ queryKey: ['products'] })
-      await queryClient.invalidateQueries({ queryKey: ['products', 'categories'] })
+      await Promise.all([refreshProducts(), refreshCategories()])
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible desactivar el producto.')
@@ -126,7 +143,7 @@ export function ProductsPage() {
     onSuccess: async (category) => {
       setEditingCategory(null)
       setSelectedCategoryId(category.id)
-      await queryClient.invalidateQueries({ queryKey: ['products', 'categories'] })
+      await refreshCategories()
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible crear la categoria.')
@@ -141,7 +158,7 @@ export function ProductsPage() {
       if (category) {
         setSelectedCategoryId(category.id)
       }
-      await queryClient.invalidateQueries({ queryKey: ['products', 'categories'] })
+      await refreshCategories()
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible actualizar la categoria.')
@@ -153,8 +170,7 @@ export function ProductsPage() {
     onSuccess: async () => {
       setEditingCategory(null)
       setSelected(null)
-      await queryClient.invalidateQueries({ queryKey: ['products', 'categories'] })
-      await queryClient.invalidateQueries({ queryKey: ['products'] })
+      await Promise.all([refreshCategories(), refreshProducts()])
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible desactivar la categoria.')
@@ -164,8 +180,7 @@ export function ProductsPage() {
   const createSaleFormatMutation = useMutation({
     mutationFn: (payload: SaleFormatInput) => window.api.products.createSaleFormat(payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['products', 'sale-formats'] })
-      await queryClient.invalidateQueries({ queryKey: ['products', 'categories'] })
+      await Promise.all([refreshSaleFormats(), refreshCategories()])
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible crear el formato.')
@@ -175,8 +190,7 @@ export function ProductsPage() {
   const updateSaleFormatMutation = useMutation({
     mutationFn: (payload: SaleFormatInput & { id: number }) => window.api.products.updateSaleFormat(payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['products', 'sale-formats'] })
-      await queryClient.invalidateQueries({ queryKey: ['products', 'categories'] })
+      await Promise.all([refreshSaleFormats(), refreshCategories()])
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible actualizar el formato.')
@@ -186,8 +200,7 @@ export function ProductsPage() {
   const deleteSaleFormatMutation = useMutation({
     mutationFn: (id: number) => window.api.products.removeSaleFormat(id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['products', 'sale-formats'] })
-      await queryClient.invalidateQueries({ queryKey: ['products', 'categories'] })
+      await Promise.all([refreshSaleFormats(), refreshCategories()])
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible desactivar el formato.')
@@ -206,7 +219,7 @@ export function ProductsPage() {
       })
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['products', 'categories'] })
+      await refreshCategories()
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible guardar los formatos de la categoria.')

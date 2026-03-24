@@ -1,7 +1,22 @@
 import type Database from 'better-sqlite3'
 import type { Product, ProductInput, ProductUpdateInput } from '../../shared/types/product'
 
-function mapRow(row: any): Product {
+type ProductRow = {
+  id: number
+  sku: string
+  name: string
+  type: Product['type']
+  category_id: number
+  category_name: string
+  category_slug: string
+  sale_price: number
+  min_stock: number
+  is_active: number
+  created_at: string
+  updated_at: string
+}
+
+function mapRow(row: ProductRow): Product {
   return {
     id: row.id,
     sku: row.sku,
@@ -32,19 +47,20 @@ export class ProductRepository {
 
   list(categoryId?: number) {
     const whereCategory = typeof categoryId === 'number' ? ' AND p.category_id = ?' : ''
-    return this.db
+    const rows = this.db
       .prepare(`${this.baseSelect} WHERE p.is_active = 1${whereCategory} ORDER BY p.name ASC`)
-      .all(...(typeof categoryId === 'number' ? [categoryId] : []))
-      .map(mapRow)
+      .all(...(typeof categoryId === 'number' ? [categoryId] : [])) as ProductRow[]
+
+    return rows.map(mapRow)
   }
 
   getById(id: number) {
-    const row = this.db.prepare(`${this.baseSelect} WHERE p.id = ?`).get(id)
+    const row = this.db.prepare(`${this.baseSelect} WHERE p.id = ?`).get(id) as ProductRow | undefined
     return row ? mapRow(row) : null
   }
 
   getBySku(sku: string) {
-    const row = this.db.prepare(`${this.baseSelect} WHERE p.sku = ?`).get(sku)
+    const row = this.db.prepare(`${this.baseSelect} WHERE p.sku = ?`).get(sku) as ProductRow | undefined
     return row ? mapRow(row) : null
   }
 

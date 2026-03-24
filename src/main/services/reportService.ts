@@ -1,152 +1,55 @@
-import fs from 'node:fs'
 import path from 'node:path'
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { Worker } from 'node:worker_threads'
 import type Database from 'better-sqlite3'
 import type { ShiftCloseReport } from '../../shared/types/report'
 import { ReportGenerationError } from '../errors'
-import { getDatabasePath } from '../database/connection'
-import { InventoryRepository } from '../repositories/inventoryRepository'
 import { ReportJobRepository } from '../repositories/reportJobRepository'
-import { ShiftRepository } from '../repositories/shiftRepository'
 
 export class ReportService {
-  private readonly inventoryRepository: InventoryRepository
-  private readonly shiftRepository: ShiftRepository
   private readonly reportJobRepository: ReportJobRepository
 
-  constructor(private readonly db: Database.Database) {
-    this.inventoryRepository = new InventoryRepository(db)
-    this.shiftRepository = new ShiftRepository(db)
+  constructor(db: Database.Database) {
     this.reportJobRepository = new ReportJobRepository(db)
   }
 
   async generateShiftClose(sessionId: number) {
-    const session = this.shiftRepository.getSessionById(sessionId)
-    if (!session) {
-      throw new ReportGenerationError('No se encontro la sesion a reportar.')
-    }
-
-    const shift = this.shiftRepository.listDefinitions().find((item: { id: number }) => item.id === session.shiftId)
-    if (!shift) {
-      throw new ReportGenerationError('No se encontro la definicion del turno.')
-    }
-
-    const inventory = this.inventoryRepository.getInventoryBalance()
-    const replenishment = this.inventoryRepository.getReplenishmentList()
-    const daySalesTotal = this.getDaySalesTotal(session.businessDate)
-    const productsSold = this.getProductsSold(session.businessDate)
-    const pdfPath = await this.createPdf({
-      sessionId,
-      businessDate: session.businessDate,
-      shiftName: shift.name,
-      inventory: inventory.map((item: any) => ({
-        ingredientId: item.ingredient_id,
-        ingredientName: item.ingredient_name,
-        stock: item.stock,
-        minStock: item.min_stock,
-      })),
-      replenishment: replenishment.map((item: any) => ({
-        productId: item.ingredient_id,
-        productName: item.ingredient_name,
-        sku: item.ingredient_name,
-        currentStock: item.stock,
-        minStock: item.min_stock,
-      })),
-      shiftCash: session.countedCash ?? session.expectedCash ?? session.openingCash,
-      daySalesTotal,
-      productsSold,
-      pdfPath: '',
-    })
-
+    const report = await this.runWorker(sessionId)
     const recipientEmail = this.reportJobRepository.getPrimaryRecipientEmail()
     if (recipientEmail) {
-      this.reportJobRepository.create(session.id, recipientEmail, pdfPath)
+      this.reportJobRepository.create(report.sessionId, recipientEmail, report.pdfPath)
     }
 
-    return {
-      sessionId,
-      businessDate: session.businessDate,
-      shiftName: shift.name,
-      inventory: inventory.map((item: any) => ({
-        ingredientId: item.ingredient_id,
-        ingredientName: item.ingredient_name,
-        stock: item.stock,
-        minStock: item.min_stock,
-      })),
-      replenishment: replenishment.map((item: any) => ({
-        productId: item.ingredient_id,
-        productName: item.ingredient_name,
-        sku: item.ingredient_name,
-        currentStock: item.stock,
-        minStock: item.min_stock,
-      })),
-      shiftCash: session.countedCash ?? session.expectedCash ?? session.openingCash,
-      daySalesTotal,
-      productsSold,
-      pdfPath,
-    } satisfies ShiftCloseReport
+    return report
   }
 
   listPendingEmails() {
     return this.reportJobRepository.listPending()
   }
 
-  private getDaySalesTotal(businessDate: string) {
-    const row = this.db
-      .prepare(
-        `SELECT COALESCE(SUM(sales.total), 0) AS total
-         FROM sales
-         INNER JOIN cash_sessions ON cash_sessions.id = sales.cash_session_id
-         WHERE cash_sessions.business_date = ?`,
-      )
-      .get(businessDate) as { total: number }
-    return row.total
-  }
+  private runWorker(sessionId: number) {
+    return new Promise<ShiftCloseReport>((resolve, reject) => {
+      const worker = new Worker(path.join(__dirname, '..', 'workers', 'reportWorker.js'), {
+        workerData: { sessionId },
+      })
 
-  private getProductsSold(businessDate: string) {
-    return this.db
-      .prepare(
-        `SELECT sale_items.product_id AS productId,
-                sale_items.product_name AS productName,
-                SUM(sale_items.quantity) AS quantity,
-                SUM(sale_items.subtotal) AS total
-         FROM sale_items
-         INNER JOIN sales ON sales.id = sale_items.sale_id
-         INNER JOIN cash_sessions ON cash_sessions.id = sales.cash_session_id
-         WHERE cash_sessions.business_date = ?
-         GROUP BY sale_items.product_id, sale_items.product_name
-         ORDER BY total DESC`,
-      )
-      .all(businessDate) as Array<{ productId: number; productName: string; quantity: number; total: number }>
-  }
+      worker.once('message', (message: { ok: boolean; data?: ShiftCloseReport; error?: string }) => {
+        if (message.ok && message.data) {
+          resolve(message.data)
+          return
+        }
 
-  private async createPdf(report: ShiftCloseReport) {
-    const pdf = await PDFDocument.create()
-    const page = pdf.addPage([595, 842])
-    const font = await pdf.embedFont(StandardFonts.Helvetica)
-    let cursorY = 800
+        reject(new ReportGenerationError(message.error ?? 'No fue posible generar el reporte.'))
+      })
 
-    const writeLine = (text: string, size = 11) => {
-      page.drawText(text, { x: 40, y: cursorY, size, font, color: rgb(0.1, 0.1, 0.1) })
-      cursorY -= size + 6
-    }
+      worker.once('error', (error) => {
+        reject(new ReportGenerationError(error instanceof Error ? error.message : 'No fue posible ejecutar el worker de reportes.'))
+      })
 
-    writeLine('Reporte de Cierre de Turno', 18)
-    writeLine(`Fecha operativa: ${report.businessDate}`)
-    writeLine(`Turno: ${report.shiftName}`)
-    writeLine(`Caja turno: ${report.shiftCash.toFixed(2)}`)
-    writeLine(`Ventas acumuladas del dia: ${report.daySalesTotal.toFixed(2)}`)
-    cursorY -= 8
-    writeLine('Productos vendidos:', 13)
-    report.productsSold.slice(0, 12).forEach((item) => writeLine(`- ${item.productName}: ${item.quantity} / ${item.total.toFixed(2)}`))
-    cursorY -= 8
-    writeLine('Reponer:', 13)
-    report.replenishment.slice(0, 12).forEach((item) => writeLine(`- ${item.productName}: stock ${item.currentStock}, minimo ${item.minStock}`))
-
-    const reportsDir = path.join(path.dirname(getDatabasePath()), 'reports')
-    fs.mkdirSync(reportsDir, { recursive: true })
-    const pdfPath = path.join(reportsDir, `shift-close-${report.sessionId}.pdf`)
-    fs.writeFileSync(pdfPath, await pdf.save())
-    return pdfPath
+      worker.once('exit', (code) => {
+        if (code !== 0) {
+          reject(new ReportGenerationError(`El worker de reportes finalizo con codigo ${code}.`))
+        }
+      })
+    })
   }
 }

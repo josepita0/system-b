@@ -2,6 +2,28 @@ import nodemailer from 'nodemailer'
 import type Database from 'better-sqlite3'
 import { EmailDeliveryError } from '../errors'
 import { ReportJobRepository } from '../repositories/reportJobRepository'
+import { decryptString } from '../security/encryption'
+
+function resolveSmtpPassword(rawValue: unknown) {
+  const override = process.env.SYSTEM_BARRA_SMTP_PASSWORD?.trim()
+  if (override) {
+    return override
+  }
+
+  if (typeof rawValue !== 'string' || !rawValue.trim()) {
+    return null
+  }
+
+  if (!rawValue.startsWith('enc:')) {
+    return rawValue
+  }
+
+  try {
+    return decryptString(rawValue.slice(4))
+  } catch {
+    throw new EmailDeliveryError('La clave SMTP cifrada no pudo desencriptarse.')
+  }
+}
 
 export class EmailQueueService {
   private readonly reportJobRepository: ReportJobRepository
@@ -13,8 +35,9 @@ export class EmailQueueService {
   async retryPendingEmails() {
     const jobs = this.reportJobRepository.listPending()
     const settings = this.db.prepare('SELECT * FROM settings WHERE id = 1').get() as any
+    const smtpPassword = resolveSmtpPassword(settings?.smtp_password)
 
-    if (!settings?.smtp_host || !settings?.smtp_user || !settings?.smtp_password) {
+    if (!settings?.smtp_host || !settings?.smtp_user || !smtpPassword) {
       throw new EmailDeliveryError('La configuracion SMTP no esta completa.')
     }
 
@@ -24,7 +47,7 @@ export class EmailQueueService {
       secure: Boolean(settings.smtp_secure),
       auth: {
         user: settings.smtp_user,
-        pass: settings.smtp_password,
+        pass: smtpPassword,
       },
     })
 

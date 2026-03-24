@@ -54,24 +54,28 @@ export class CategoryRepository {
   listWithStats() {
     return this.db
       .prepare(
-        `SELECT
+        `WITH sale_format_assignments AS (
+           SELECT csf.category_id, GROUP_CONCAT(csf.sale_format_id) AS assigned_sale_format_ids
+           FROM category_sale_formats csf
+           INNER JOIN sale_formats sf ON sf.id = csf.sale_format_id
+           WHERE sf.is_active = 1
+           GROUP BY csf.category_id
+         ),
+         product_counts AS (
+           SELECT p.category_id, COUNT(*) AS product_count
+           FROM products p
+           WHERE p.is_active = 1
+           GROUP BY p.category_id
+         )
+         SELECT
            c.*,
            parent.name AS parent_name,
-           (
-             SELECT GROUP_CONCAT(csf.sale_format_id)
-             FROM category_sale_formats csf
-             INNER JOIN sale_formats sf ON sf.id = csf.sale_format_id
-             WHERE csf.category_id = c.id
-               AND sf.is_active = 1
-           ) AS assigned_sale_format_ids,
-           (
-             SELECT COUNT(*)
-             FROM products p
-             WHERE p.category_id = c.id
-               AND p.is_active = 1
-           ) AS product_count
+           sale_format_assignments.assigned_sale_format_ids,
+           COALESCE(product_counts.product_count, 0) AS product_count
          FROM categories c
          LEFT JOIN categories parent ON parent.id = c.parent_id
+         LEFT JOIN sale_format_assignments ON sale_format_assignments.category_id = c.id
+         LEFT JOIN product_counts ON product_counts.category_id = c.id
          WHERE c.is_active = 1
          ORDER BY c.parent_id IS NOT NULL, c.sort_order ASC, c.name ASC`,
       )

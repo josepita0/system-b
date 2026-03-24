@@ -1,13 +1,16 @@
-import { AppError } from '../errors'
+import type { IpcResult } from '../../shared/ipc/result'
+import { toSerializedIpcError } from '../errors'
 
-export async function executeIpc<T>(handler: () => Promise<T> | T) {
+export async function executeIpc<T>(handler: () => Promise<T> | T): Promise<IpcResult<T>> {
   try {
-    return await handler()
-  } catch (error) {
-    if (error instanceof AppError) {
-      throw error
+    return {
+      ok: true,
+      data: await handler(),
     }
-
-    throw new AppError('INTERNAL_ERROR', error instanceof Error ? error.message : 'Error interno', 500)
+  } catch (error) {
+    return {
+      ok: false,
+      error: toSerializedIpcError(error),
+    }
   }
 }

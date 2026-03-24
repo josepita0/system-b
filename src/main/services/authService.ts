@@ -8,10 +8,13 @@ import { AuthenticationError, ConflictError, LockedAccountError, NotFoundError, 
 import { getDataDirectory } from '../database/connection'
 import { AuthSessionRepository } from '../repositories/authSessionRepository'
 import { AuditLogRepository } from '../repositories/auditLogRepository'
+import { AppSetupRepository } from '../repositories/appSetupRepository'
 import { RecoveryCodeRepository } from '../repositories/recoveryCodeRepository'
 import { UserRepository } from '../repositories/userRepository'
 import { randomRecoveryCodes, randomSecret, hashSecret, sha256, verifySecret } from '../security/password'
-import { clearCurrentSession, readCurrentSession, writeCurrentSession } from '../security/sessionStorage'
+import { clearCurrentSession, readCurrentSession, updateCurrentSessionValidation, writeCurrentSession } from '../security/sessionStorage'
+
+const SESSION_TOUCH_INTERVAL_MS = 5 * 60 * 1000
 
 function nowPlusDays(days: number) {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
@@ -69,12 +72,14 @@ export class AuthService {
   private readonly sessions: AuthSessionRepository
   private readonly recoveryCodes: RecoveryCodeRepository
   private readonly audit: AuditLogRepository
+  private readonly appSetup: AppSetupRepository
 
   constructor(private readonly db: Database.Database) {
     this.users = new UserRepository(db)
     this.sessions = new AuthSessionRepository(db)
     this.recoveryCodes = new RecoveryCodeRepository(db)
     this.audit = new AuditLogRepository(db)
+    this.appSetup = new AppSetupRepository(db)
   }
 
   ensureInitialAdmin() {
@@ -108,6 +113,7 @@ export class AuthService {
       filePath: getBootstrapInfoPath(),
     }
 
+    this.appSetup.requireWizard('v1')
     fs.writeFileSync(getBootstrapInfoPath(), JSON.stringify(payload, null, 2))
     return payload
   }
@@ -189,7 +195,11 @@ export class AuthService {
       return null
     }
 
-    this.sessions.touch(session.id)
+    if (Date.now() - sessionFile.lastValidatedAt >= SESSION_TOUCH_INTERVAL_MS) {
+      this.sessions.touch(session.id)
+      updateCurrentSessionValidation(session.id, sessionFile.token)
+    }
+
     const user = this.users.getById(session.employee_id)
     if (!user || !user.isActive) {
       clearCurrentSession()

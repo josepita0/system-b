@@ -15,7 +15,22 @@ export interface LicenseActivationRecord {
   updatedAt: string
 }
 
-function mapActivation(row: any): LicenseActivationRecord {
+type LicenseActivationRow = {
+  id: number
+  license_key_hash: string | null
+  activation_mode: LicenseActivationRecord['activationMode']
+  plan_type: LicenseActivationRecord['planType']
+  activated_at: string
+  expires_at: string
+  status: LicenseActivationRecord['status']
+  issued_to: string | null
+  notes: string | null
+  created_by_employee_id: number | null
+  created_at: string
+  updated_at: string
+}
+
+function mapActivation(row: LicenseActivationRow): LicenseActivationRecord {
   return {
     id: row.id,
     licenseKeyHash: row.license_key_hash,
@@ -86,7 +101,7 @@ export class LicenseRepository {
   }
 
   getById(id: number) {
-    const row = this.db.prepare('SELECT * FROM license_activations WHERE id = ?').get(id)
+    const row = this.db.prepare('SELECT * FROM license_activations WHERE id = ?').get(id) as LicenseActivationRow | undefined
     return row ? mapActivation(row) : null
   }
 
@@ -98,7 +113,7 @@ export class LicenseRepository {
          ORDER BY datetime(activated_at) DESC, id DESC
          LIMIT 1`,
       )
-      .get()
+      .get() as LicenseActivationRow | undefined
 
     return row ? mapActivation(row) : null
   }

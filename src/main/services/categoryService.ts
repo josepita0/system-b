@@ -45,6 +45,10 @@ export class CategoryService {
     }
 
     const resolveEffectiveSaleFormats = (node: CategoryTreeNode): number[] => {
+      if (node.effectiveSaleFormatIds.length > 0 || (!node.inheritsSaleFormats && node.assignedSaleFormatIds.length === 0)) {
+        return node.effectiveSaleFormatIds
+      }
+
       if (!node.inheritsSaleFormats || !node.parentId) {
         node.inheritedFromCategoryId = null
         node.inheritedFromCategoryName = null

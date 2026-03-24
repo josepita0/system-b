@@ -8,6 +8,11 @@ import { createMainWindow } from './windows/createMainWindow'
 
 let mainWindow: BrowserWindow | null = null
 const LICENSE_PANEL_SHORTCUT = 'CommandOrControl+Alt+Shift+L'
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+}
 
 function registerLicenseShortcut() {
   const registered = globalShortcut.register(LICENSE_PANEL_SHORTCUT, () => {
@@ -28,6 +33,18 @@ function registerLicenseShortcut() {
   }
 }
 
+function registerSecurityGuards() {
+  app.on('web-contents-created', (_event, contents) => {
+    contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    contents.on('will-navigate', (event, navigationUrl) => {
+      const currentUrl = contents.getURL()
+      if (currentUrl && new URL(navigationUrl).origin !== new URL(currentUrl).origin) {
+        event.preventDefault()
+      }
+    })
+  })
+}
+
 async function bootstrap() {
   const db = getDb()
   runMigrations(db)
@@ -38,6 +55,7 @@ async function bootstrap() {
 }
 
 app.whenReady().then(() => {
+  registerSecurityGuards()
   void bootstrap()
 
   app.on('activate', () => {
@@ -45,6 +63,19 @@ app.whenReady().then(() => {
       mainWindow = createMainWindow()
     }
   })
+})
+
+app.on('second-instance', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createMainWindow()
+    return
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore()
+  }
+
+  mainWindow.focus()
 })
 
 app.on('window-all-closed', () => {
