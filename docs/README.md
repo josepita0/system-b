@@ -66,6 +66,7 @@ Al cierre de la jornada actual, el proyecto ya cuenta con:
 - `implementation/2026-03-20-categorias-padre-herencia-formatos.md`: refinamiento del modelo para categorias padre y formatos heredados.
 - `implementation/2026-03-20-blindaje-edicion-categorias.md`: bloqueo estructural para evitar reubicaciones riesgosas del arbol.
 - `implementation/2026-03-18-github-hardening.md`: deuda de seguridad detectada antes de publicar el repositorio.
+- `implementation/2026-03-24-ventas-pos.md`: flujo POS, IPC de ventas, carrito y descuento de inventario por recetas.
 
 ### Privada
 

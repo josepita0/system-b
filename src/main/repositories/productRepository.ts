@@ -54,6 +54,18 @@ export class ProductRepository {
     return rows.map(mapRow)
   }
 
+  listInCategories(categoryIds: number[]) {
+    if (categoryIds.length === 0) {
+      return []
+    }
+    const placeholders = categoryIds.map(() => '?').join(', ')
+    const rows = this.db
+      .prepare(`${this.baseSelect} WHERE p.is_active = 1 AND p.category_id IN (${placeholders}) ORDER BY p.name ASC`)
+      .all(...categoryIds) as ProductRow[]
+
+    return rows.map(mapRow)
+  }
+
   getById(id: number) {
     const row = this.db.prepare(`${this.baseSelect} WHERE p.id = ?`).get(id) as ProductRow | undefined
     return row ? mapRow(row) : null

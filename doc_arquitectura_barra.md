@@ -221,10 +221,11 @@ SQLite
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | `id` | INTEGER | Clave primaria |
-| `date` | DATETIME | Fecha y hora de la venta |
-| `employee_id` | INTEGER | Referencia al empleado |
+| `cash_session_id` | INTEGER | Sesion de caja (`cash_sessions`) |
+| `employee_id` | INTEGER | Empleado que registra la venta (nullable en esquema) |
+| `sale_type` | TEXT | Tipo de venta (p. ej. `pos`) |
 | `total` | REAL | Total de la venta |
-| `type` | TEXT | Tipo de venta |
+| `created_at` | TEXT | Marca de tiempo de creacion |
 
 **Tabla: `sale_items`**
 
@@ -233,8 +234,13 @@ SQLite
 | `id` | INTEGER | Clave primaria |
 | `sale_id` | INTEGER | Referencia a la venta |
 | `product_id` | INTEGER | Referencia al producto |
-| `quantity` | INTEGER | Cantidad vendida |
-| `price` | REAL | Precio unitario aplicado |
+| `product_name` | TEXT | Nombre snapshot al momento de la venta |
+| `unit_price` | REAL | Precio unitario aplicado |
+| `discount` | REAL | Descuento de linea |
+| `quantity` | REAL | Cantidad vendida |
+| `subtotal` | REAL | Subtotal de linea |
+| `sale_format_id` | INTEGER | Formato de venta (opcional, FK `sale_formats`) |
+| `complement_product_id` | INTEGER | Producto complemento (opcional, FK `products`) |
 
 ### 🧾 Flujo de Venta (POS)
 
@@ -253,7 +259,7 @@ SQLite
 | Pantalla | Funcionalidades |
 |---------|----------------|
 | **Login / Recuperacion** | Inicio de sesion, cambio obligatorio de clave y recuperacion por codigo |
-| **Ventas (POS)** | Operacion diaria y apertura de turno |
+| **Ventas (POS)** | Catalogo por categoria, carrito, formatos/complementos y registro de ventas con turno abierto |
 | **Productos** | Catalogo por categorias, subcategorias y formatos |
 | **Turnos** | Apertura, cierre y control de caja |
 | **Reportes** | Generacion de PDF y reintento de envios |

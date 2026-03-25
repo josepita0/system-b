@@ -5,6 +5,7 @@ import { documentChannels } from '../shared/ipc/documents'
 import { licenseChannels, licenseEvents } from '../shared/ipc/license'
 import { productChannels } from '../shared/ipc/products'
 import { reportChannels } from '../shared/ipc/reports'
+import { salesChannels } from '../shared/ipc/sales'
 import { setupChannels } from '../shared/ipc/setup'
 import { shiftChannels } from '../shared/ipc/shifts'
 import { userChannels } from '../shared/ipc/users'
@@ -75,6 +76,12 @@ const api = {
     updateSaleFormat: (payload: unknown) => invokeIpc(productChannels.updateSaleFormat, payload),
     removeSaleFormat: (id: number) => invokeIpc(productChannels.removeSaleFormat, id),
     setCategorySaleFormats: (payload: unknown) => invokeIpc(productChannels.setCategorySaleFormats, payload),
+  },
+  sales: {
+    posCatalog: () => invokeIpc(salesChannels.posCatalog),
+    posProducts: (categoryId: number) => invokeIpc(salesChannels.posProducts, categoryId),
+    posComplementProducts: (rootCategoryId: number) => invokeIpc(salesChannels.posComplementProducts, rootCategoryId),
+    create: (payload: unknown) => invokeIpc(salesChannels.create, payload),
   },
   shifts: {
     definitions: () => invokeIpc(shiftChannels.definitions),

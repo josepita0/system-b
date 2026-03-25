@@ -94,6 +94,19 @@ export class CategoryRepository {
     return row ? mapCategory(row) : null
   }
 
+  /** True if `categoryId` is `rootCategoryId` or a descendant of it (walks up from categoryId). */
+  isCategoryInSubtree(categoryId: number, rootCategoryId: number): boolean {
+    let current: number | null = categoryId
+    while (current !== null) {
+      if (current === rootCategoryId) {
+        return true
+      }
+      const row = this.db.prepare('SELECT parent_id FROM categories WHERE id = ?').get(current) as { parent_id: number | null } | undefined
+      current = row?.parent_id ?? null
+    }
+    return false
+  }
+
   getBySlug(slug: string) {
     const row = this.db.prepare('SELECT * FROM categories WHERE lower(slug) = lower(?)').get(slug) as CategoryRow | undefined
     return row ? mapCategory(row) : null
