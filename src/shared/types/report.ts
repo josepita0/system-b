@@ -25,7 +25,10 @@ export interface ShiftCloseReport {
   }>
   replenishment: ReplenishmentItem[]
   shiftCash: number
+  /** Ventas con entrada de efectivo en la fecha (contado + liquidaciones de pagaré). */
   daySalesTotal: number
+  /** Cargos a cuenta registrados en este turno aún no cobrados al momento del cierre. */
+  shiftPendingReconcile: number
   productsSold: ProductSalesTotal[]
   pdfPath: string
 }

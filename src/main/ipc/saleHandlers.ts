@@ -6,6 +6,7 @@ import { InventoryRepository } from '../repositories/inventoryRepository'
 import { ProductRepository } from '../repositories/productRepository'
 import { RecipeRepository } from '../repositories/recipeRepository'
 import { SaleRepository } from '../repositories/saleRepository'
+import { TabRepository } from '../repositories/tabRepository'
 import { SaleFormatRepository } from '../repositories/saleFormatRepository'
 import { ShiftRepository } from '../repositories/shiftRepository'
 import { ValidationError } from '../errors'
@@ -26,6 +27,7 @@ export function registerSaleHandlers() {
   const sales = new SaleRepository(db)
   const recipes = new RecipeRepository(db)
   const inventory = new InventoryRepository(db)
+  const tabs = new TabRepository(db)
   const saleService = new SaleService(
     shifts,
     products,
@@ -35,6 +37,7 @@ export function registerSaleHandlers() {
     sales,
     recipes,
     inventory,
+    tabs,
   )
   const auth = new AuthService(db)
   const guards = createIpcGuards(auth, new AuthorizationService())
@@ -70,6 +73,27 @@ export function registerSaleHandlers() {
     executeIpc(() => {
       const actor = guards.requirePermission('sales.use')
       return saleService.createSale(payload as never, actor.id)
+    }),
+  )
+
+  ipcMain.handle(salesChannels.openTab, (_event, payload: unknown) =>
+    executeIpc(() => {
+      const actor = guards.requirePermission('sales.use')
+      return saleService.openTab(payload as never, actor.id)
+    }),
+  )
+
+  ipcMain.handle(salesChannels.listOpenTabs, () =>
+    executeIpc(() => {
+      guards.requirePermission('sales.use')
+      return saleService.listOpenTabs()
+    }),
+  )
+
+  ipcMain.handle(salesChannels.settleTab, (_event, payload: unknown) =>
+    executeIpc(() => {
+      const actor = guards.requirePermission('sales.use')
+      return saleService.settleTab(payload as never, actor.id)
     }),
   )
 }

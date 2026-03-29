@@ -10,6 +10,36 @@ export interface CreateSaleLineInput {
 
 export interface CreateSaleInput {
   items: CreateSaleLineInput[]
+  /** Si se indica, la venta es cargo a pagaré (no suma a caja de este turno). */
+  tabId?: number
+}
+
+export interface CustomerTabSummary {
+  id: number
+  customerName: string
+  openedAt: string
+  balance: number
+}
+
+export interface OpenTabInput {
+  customerName: string
+}
+
+export interface OpenTabResult {
+  id: number
+  customerName: string
+  openedAt: string
+}
+
+export interface SettleTabInput {
+  tabId: number
+}
+
+export interface TabSettlementResult {
+  saleId: number
+  total: number
+  cashSessionId: number
+  createdAt: string
 }
 
 export interface SaleCreated {

@@ -5,6 +5,7 @@ import { ShiftRepository } from '../repositories/shiftRepository'
 import { AuthService } from '../services/authService'
 import { AuthorizationService } from '../services/authorizationService'
 import { ShiftService } from '../services/shiftService'
+import { ValidationError } from '../errors'
 import { createIpcGuards } from './guards'
 import { executeIpc } from './response'
 
@@ -28,8 +29,23 @@ export function registerShiftHandlers() {
   )
   ipcMain.handle(shiftChannels.open, (_event, payload) =>
     executeIpc(() => {
-      guards.requireRole('employee')
-      return service.open(payload)
+      const actor = guards.requireRole('employee')
+      return service.open(payload, actor.id)
+    }),
+  )
+  ipcMain.handle(shiftChannels.listHistory, () =>
+    executeIpc(() => {
+      const actor = guards.requireUser()
+      return service.listHistory(actor)
+    }),
+  )
+  ipcMain.handle(shiftChannels.getSessionDetail, (_event, sessionId: unknown) =>
+    executeIpc(() => {
+      const actor = guards.requireUser()
+      if (typeof sessionId !== 'number' || Number.isNaN(sessionId)) {
+        throw new ValidationError('Sesion invalida.')
+      }
+      return service.getSessionDetail(sessionId, actor)
     }),
   )
   ipcMain.handle(shiftChannels.close, (_event, payload) =>

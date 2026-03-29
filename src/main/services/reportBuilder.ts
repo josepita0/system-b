@@ -23,8 +23,9 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
 
   const inventory = inventoryRepository.getInventoryBalance()
   const replenishment = inventoryRepository.getReplenishmentList()
-  const daySalesTotal = getDaySalesTotal(db, session.businessDate)
+  const daySalesTotal = getDayCashSalesTotal(db, session.businessDate)
   const productsSold = getProductsSold(db, session.businessDate)
+  const shiftPendingReconcile = session.pendingReconcileTotal ?? 0
   const pdfPath = await createPdf({
     sessionId,
     businessDate: session.businessDate,
@@ -44,6 +45,7 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
     })),
     shiftCash: session.countedCash ?? session.expectedCash ?? session.openingCash,
     daySalesTotal,
+    shiftPendingReconcile,
     productsSold,
     pdfPath: '',
   })
@@ -67,18 +69,20 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
     })),
     shiftCash: session.countedCash ?? session.expectedCash ?? session.openingCash,
     daySalesTotal,
+    shiftPendingReconcile,
     productsSold,
     pdfPath,
   } satisfies ShiftCloseReport
 }
 
-function getDaySalesTotal(db: Database.Database, businessDate: string) {
+function getDayCashSalesTotal(db: Database.Database, businessDate: string) {
   const row = db
     .prepare(
       `SELECT COALESCE(SUM(sales.total), 0) AS total
        FROM sales
        INNER JOIN cash_sessions ON cash_sessions.id = sales.cash_session_id
-       WHERE cash_sessions.business_date = ?`,
+       WHERE cash_sessions.business_date = ?
+         AND sales.sale_type IN ('pos', 'tab_payment')`,
     )
     .get(businessDate) as { total: number }
   return row.total
@@ -116,7 +120,8 @@ async function createPdf(report: ShiftCloseReport) {
   writeLine(`Fecha operativa: ${report.businessDate}`)
   writeLine(`Turno: ${report.shiftName}`)
   writeLine(`Caja turno: ${report.shiftCash.toFixed(2)}`)
-  writeLine(`Ventas acumuladas del dia: ${report.daySalesTotal.toFixed(2)}`)
+  writeLine(`Ventas efectivo del dia (contado + cobros cuenta): ${report.daySalesTotal.toFixed(2)}`)
+  writeLine(`Por conciliar (cargos este turno, cuentas abiertas): ${report.shiftPendingReconcile.toFixed(2)}`)
   cursorY -= 8
   writeLine('Productos vendidos:', 13)
   report.productsSold.slice(0, 12).forEach((item) => writeLine(`- ${item.productName}: ${item.quantity} / ${item.total.toFixed(2)}`))

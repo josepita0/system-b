@@ -82,12 +82,17 @@ const api = {
     posProducts: (categoryId: number) => invokeIpc(salesChannels.posProducts, categoryId),
     posComplementProducts: (rootCategoryId: number) => invokeIpc(salesChannels.posComplementProducts, rootCategoryId),
     create: (payload: unknown) => invokeIpc(salesChannels.create, payload),
+    openTab: (payload: unknown) => invokeIpc(salesChannels.openTab, payload),
+    listOpenTabs: () => invokeIpc(salesChannels.listOpenTabs),
+    settleTab: (payload: unknown) => invokeIpc(salesChannels.settleTab, payload),
   },
   shifts: {
     definitions: () => invokeIpc(shiftChannels.definitions),
     current: () => invokeIpc(shiftChannels.current),
     open: (payload: unknown) => invokeIpc(shiftChannels.open, payload),
     close: (payload: unknown) => invokeIpc(shiftChannels.close, payload),
+    listHistory: () => invokeIpc(shiftChannels.listHistory),
+    getSessionDetail: (sessionId: number) => invokeIpc(shiftChannels.getSessionDetail, sessionId),
   },
   reports: {
     generateShiftClose: (sessionId: number) => invokeIpc(reportChannels.generateShiftClose, sessionId),

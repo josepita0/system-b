@@ -34,6 +34,14 @@ function randomKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+function roundMoney2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+function moneyToCents(n: number): number {
+  return Math.round(roundMoney2(n) * 100)
+}
+
 export function SalesPage() {
   const queryClient = useQueryClient()
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
@@ -41,6 +49,12 @@ export function SalesPage() {
   const [configProduct, setConfigProduct] = useState<Product | null>(null)
   const [pickedFormatId, setPickedFormatId] = useState<number | null>(null)
   const [pickedComplementId, setPickedComplementId] = useState<number | null>(null)
+  const [saleMode, setSaleMode] = useState<'cash' | 'tab'>('cash')
+  const [selectedTabId, setSelectedTabId] = useState<number | null>(null)
+  const [newTabModalOpen, setNewTabModalOpen] = useState(false)
+  const [newTabName, setNewTabName] = useState('')
+  const [cashPaymentModalOpen, setCashPaymentModalOpen] = useState(false)
+  const [cashReceivedInput, setCashReceivedInput] = useState('')
 
   const currentShiftQuery = useQuery({
     queryKey: ['shift', 'current'],
@@ -50,6 +64,12 @@ export function SalesPage() {
   const catalogQuery = useQuery({
     queryKey: ['sales', 'posCatalog'],
     queryFn: () => window.api.sales.posCatalog(),
+    enabled: Boolean(currentShiftQuery.data),
+  })
+
+  const openTabsQuery = useQuery({
+    queryKey: ['sales', 'openTabs'],
+    queryFn: () => window.api.sales.listOpenTabs(),
     enabled: Boolean(currentShiftQuery.data),
   })
 
@@ -95,6 +115,27 @@ export function SalesPage() {
     },
   })
 
+  const openTabMutation = useMutation({
+    mutationFn: (customerName: string) => window.api.sales.openTab({ customerName }),
+    onSuccess: async (data) => {
+      setSelectedTabId(data.id)
+      setNewTabModalOpen(false)
+      setNewTabName('')
+      await queryClient.invalidateQueries({ queryKey: ['sales', 'openTabs'] })
+    },
+  })
+
+  const settleTabMutation = useMutation({
+    mutationFn: (tabId: number) => window.api.sales.settleTab({ tabId }),
+    onSuccess: async (_, tabId) => {
+      if (selectedTabId === tabId) {
+        setSelectedTabId(null)
+      }
+      await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
+      await queryClient.invalidateQueries({ queryKey: ['sales'] })
+    },
+  })
+
   const saleMutation = useMutation({
     mutationFn: () =>
       window.api.sales.create({
@@ -105,9 +146,12 @@ export function SalesPage() {
           saleFormatId: line.saleFormatId,
           complementProductId: line.complementProductId,
         })),
+        tabId: saleMode === 'tab' && selectedTabId != null ? selectedTabId : undefined,
       }),
     onSuccess: async () => {
       setCart([])
+      setCashPaymentModalOpen(false)
+      setCashReceivedInput('')
       await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
       await queryClient.invalidateQueries({ queryKey: ['sales'] })
     },
@@ -222,6 +266,37 @@ export function SalesPage() {
     [cart],
   )
 
+  const totalDue = useMemo(() => roundMoney2(cartTotal), [cartTotal])
+
+  const parsedReceived = useMemo(() => {
+    const t = cashReceivedInput.trim()
+    if (t === '') {
+      return null
+    }
+    const n = Number(t.replace(',', '.'))
+    if (!Number.isFinite(n) || n < 0) {
+      return null
+    }
+    return roundMoney2(n)
+  }, [cashReceivedInput])
+
+  const totalDueCents = moneyToCents(totalDue)
+  const cashPaymentSufficient =
+    parsedReceived != null && moneyToCents(parsedReceived) >= totalDueCents && totalDueCents >= 0
+
+  const changeAmount =
+    cashPaymentSufficient && parsedReceived != null ? roundMoney2(parsedReceived - totalDue) : null
+
+  const shortfall =
+    parsedReceived != null && totalDueCents > 0 && !cashPaymentSufficient
+      ? roundMoney2(totalDue - parsedReceived)
+      : null
+
+  const closeCashPaymentModal = useCallback(() => {
+    setCashPaymentModalOpen(false)
+    setCashReceivedInput('')
+  }, [])
+
   const closeConfigurator = useCallback(() => {
     setConfigProduct(null)
     setPickedFormatId(null)
@@ -250,6 +325,67 @@ export function SalesPage() {
               <p className="text-sm text-slate-400">
                 Sesion de caja #{currentShiftQuery.data.id} · Fecha operativa {currentShiftQuery.data.businessDate}
               </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+              <h2 className="mb-3 text-lg font-medium text-white">Contado o cuenta (pagaré)</h2>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                    saleMode === 'cash' ? 'bg-cyan-600 text-slate-950' : 'bg-slate-800 text-slate-300'
+                  }`}
+                  onClick={() => {
+                    setSaleMode('cash')
+                    setSelectedTabId(null)
+                  }}
+                  type="button"
+                >
+                  Contado
+                </button>
+                <button
+                  className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                    saleMode === 'tab' ? 'bg-amber-600 text-slate-950' : 'bg-slate-800 text-slate-300'
+                  }`}
+                  onClick={() => setSaleMode('tab')}
+                  type="button"
+                >
+                  Cuenta abierta
+                </button>
+              </div>
+              {saleMode === 'tab' ? (
+                <div className="mt-4 space-y-3">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="block min-w-[200px] flex-1 text-sm text-slate-300">
+                      Cuenta activa
+                      <select
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setSelectedTabId(v === '' ? null : Number(v))
+                        }}
+                        value={selectedTabId ?? ''}
+                      >
+                        <option value="">Seleccione una cuenta...</option>
+                        {openTabsQuery.data?.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.customerName} — {t.balance.toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="rounded-lg bg-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-600"
+                      onClick={() => setNewTabModalOpen(true)}
+                      type="button"
+                    >
+                      Nueva cuenta
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Los cargos van al pagaré (no suman a la caja de este turno hasta liquidar en efectivo).
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
@@ -364,12 +500,157 @@ export function SalesPage() {
             </div>
             <button
               className="w-full rounded-lg bg-cyan-500 px-4 py-2.5 font-medium text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={cart.length === 0 || saleMutation.isPending}
-              onClick={() => saleMutation.mutate()}
+              disabled={
+                cart.length === 0 ||
+                saleMutation.isPending ||
+                (saleMode === 'tab' && selectedTabId == null)
+              }
+              onClick={() => {
+                if (saleMode === 'tab') {
+                  saleMutation.mutate()
+                } else {
+                  setCashPaymentModalOpen(true)
+                }
+              }}
               type="button"
             >
-              {saleMutation.isPending ? 'Registrando...' : 'Confirmar venta'}
+              {saleMutation.isPending
+                ? 'Registrando...'
+                : saleMode === 'tab'
+                  ? 'Registrar a cuenta'
+                  : 'Confirmar venta'}
             </button>
+            {saleMutation.isError ? (
+              <p className="mt-2 text-sm text-rose-400">
+                {(saleMutation.error as Error)?.message ?? 'No se pudo registrar la venta.'}
+              </p>
+            ) : null}
+
+            <div className="mt-6 border-t border-slate-800 pt-4">
+              <h3 className="mb-2 text-sm font-medium text-slate-200">Liquidar cuenta (efectivo)</h3>
+              {openTabsQuery.isLoading ? (
+                <p className="text-xs text-slate-500">Cargando cuentas...</p>
+              ) : !openTabsQuery.data?.length ? (
+                <p className="text-xs text-slate-500">No hay cuentas abiertas.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {openTabsQuery.data.map((t) => (
+                    <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2" key={t.id}>
+                      <div>
+                        <p className="text-sm font-medium text-slate-100">{t.customerName}</p>
+                        <p className="text-xs text-slate-500">Saldo: {t.balance.toFixed(2)}</p>
+                      </div>
+                      <button
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                        disabled={t.balance <= 0 || settleTabMutation.isPending}
+                        onClick={() => settleTabMutation.mutate(t.id)}
+                        type="button"
+                      >
+                        Cobrar y cerrar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {settleTabMutation.isError ? (
+                <p className="mt-2 text-xs text-rose-400">
+                  {(settleTabMutation.error as Error)?.message ?? 'No se pudo liquidar.'}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {newTabModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-white">Nueva cuenta</h3>
+            <p className="mt-1 text-sm text-slate-400">Nombre del cliente (obligatorio)</p>
+            <input
+              className="mt-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+              onChange={(e) => setNewTabName(e.target.value)}
+              placeholder="Ej. Maria Lopez"
+              type="text"
+              value={newTabName}
+            />
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                className="rounded-lg px-4 py-2 text-slate-300 hover:bg-slate-800"
+                onClick={() => {
+                  setNewTabModalOpen(false)
+                  setNewTabName('')
+                }}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="rounded-lg bg-cyan-500 px-4 py-2 text-slate-950 disabled:opacity-40"
+                disabled={!newTabName.trim() || openTabMutation.isPending}
+                onClick={() => openTabMutation.mutate(newTabName.trim())}
+                type="button"
+              >
+                {openTabMutation.isPending ? 'Abriendo...' : 'Abrir cuenta'}
+              </button>
+            </div>
+            {openTabMutation.isError ? (
+              <p className="mt-2 text-sm text-rose-400">{(openTabMutation.error as Error)?.message}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {cashPaymentModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-white">Cobro en efectivo</h3>
+            <p className="mt-1 text-sm text-slate-400">Confirme el monto recibido y el cambio antes de registrar la venta.</p>
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-slate-200">
+              <span>Total a cobrar</span>
+              <span className="text-lg font-semibold text-cyan-300">{totalDue.toFixed(2)}</span>
+            </div>
+            <label className="mt-4 block text-sm text-slate-300">
+              Monto recibido
+              <input
+                autoFocus
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                min={0}
+                onChange={(e) => setCashReceivedInput(e.target.value)}
+                step={0.01}
+                type="number"
+                value={cashReceivedInput}
+              />
+            </label>
+            {cashPaymentSufficient && changeAmount != null ? (
+              <div className="mt-4 flex items-center justify-between text-slate-200">
+                <span>Cambio</span>
+                <span className="text-lg font-semibold text-cyan-300">{changeAmount.toFixed(2)}</span>
+              </div>
+            ) : null}
+            {shortfall != null ? (
+              <p className="mt-3 text-sm text-amber-400">Falta {shortfall.toFixed(2)} para cubrir el total.</p>
+            ) : null}
+            {parsedReceived == null && cashReceivedInput.trim() !== '' ? (
+              <p className="mt-3 text-sm text-rose-400">Indique un monto valido.</p>
+            ) : null}
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                className="rounded-lg px-4 py-2 text-slate-300 hover:bg-slate-800"
+                onClick={closeCashPaymentModal}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="rounded-lg bg-cyan-500 px-4 py-2 text-slate-950 disabled:opacity-40"
+                disabled={!cashPaymentSufficient || saleMutation.isPending}
+                onClick={() => saleMutation.mutate()}
+                type="button"
+              >
+                {saleMutation.isPending ? 'Registrando...' : 'Confirmar venta'}
+              </button>
+            </div>
             {saleMutation.isError ? (
               <p className="mt-2 text-sm text-rose-400">
                 {(saleMutation.error as Error)?.message ?? 'No se pudo registrar la venta.'}
@@ -377,7 +658,7 @@ export function SalesPage() {
             ) : null}
           </div>
         </div>
-      )}
+      ) : null}
 
       {configProduct ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">

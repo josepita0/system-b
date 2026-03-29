@@ -10,6 +10,7 @@ import { InventoryRepository } from '../../src/main/repositories/inventoryReposi
 import { ProductRepository } from '../../src/main/repositories/productRepository'
 import { RecipeRepository } from '../../src/main/repositories/recipeRepository'
 import { SaleRepository } from '../../src/main/repositories/saleRepository'
+import { TabRepository } from '../../src/main/repositories/tabRepository'
 import { SaleFormatRepository } from '../../src/main/repositories/saleFormatRepository'
 import { ShiftRepository } from '../../src/main/repositories/shiftRepository'
 import { CategoryService } from '../../src/main/services/categoryService'
@@ -36,6 +37,7 @@ function buildSaleService(db: ReturnType<typeof createDatabase>) {
   const sales = new SaleRepository(db)
   const recipes = new RecipeRepository(db)
   const inventory = new InventoryRepository(db)
+  const tabs = new TabRepository(db)
   return {
     saleService: new SaleService(
       shifts,
@@ -46,6 +48,7 @@ function buildSaleService(db: ReturnType<typeof createDatabase>) {
       sales,
       recipes,
       inventory,
+      tabs,
     ),
     shifts,
     products,
@@ -92,11 +95,18 @@ describe('SaleService', () => {
     runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
 
     const shiftService = new ShiftService(new ShiftRepository(db))
-    shiftService.open({
-      shiftCode: 'day',
-      businessDate: '2026-03-20',
-      openingCash: 0,
-    })
+    const openerId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('O','P','employee',1)`).run()
+        .lastInsertRowid,
+    )
+    shiftService.open(
+      {
+        shiftCode: 'day',
+        businessDate: '2026-03-20',
+        openingCash: 0,
+      },
+      openerId,
+    )
 
     const { saleService, categories, products } = buildSaleService(db)
     const productService = new ProductService(products, categories)
@@ -124,5 +134,56 @@ describe('SaleService', () => {
       .prepare('SELECT COUNT(*) AS c FROM sale_items WHERE sale_id = ?')
       .get(created.id) as { c: number }
     expect(row.c).toBe(1)
+  })
+
+  it('tab charge does not increase cash session total; settlement does', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-sale-tab-'))
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
+
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+
+    const shiftService = new ShiftService(new ShiftRepository(db))
+    const openerTab = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('O','T','employee',1)`).run()
+        .lastInsertRowid,
+    )
+    shiftService.open(
+      {
+        shiftCode: 'day',
+        businessDate: '2026-03-20',
+        openingCash: 100,
+      },
+      openerTab,
+    )
+
+    const { saleService, categories, products, shifts } = buildSaleService(db)
+    const productService = new ProductService(products, categories)
+    const refrescos = categories.getBySlug('refrescos')!
+    const product = productService.create({
+      sku: 'SALE-TAB-1',
+      name: 'Cerveza',
+      type: 'simple',
+      categoryId: refrescos.id,
+      salePrice: 5,
+      minStock: 0,
+    })
+
+    const empId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('T','U','employee',1)`).run()
+        .lastInsertRowid,
+    )
+
+    const session = shifts.getCurrentSession()!
+    const tab = saleService.openTab({ customerName: 'Cliente Prueba' }, empId)
+
+    saleService.createSale({ items: [{ productId: product.id, quantity: 2 }], tabId: tab.id }, empId)
+
+    expect(shifts.getSalesTotalForSession(session.id)).toBe(0)
+
+    const settled = saleService.settleTab({ tabId: tab.id }, empId)
+    expect(settled.total).toBe(10)
+    expect(shifts.getSalesTotalForSession(session.id)).toBe(10)
   })
 })

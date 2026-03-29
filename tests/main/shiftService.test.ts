@@ -32,12 +32,19 @@ describe('ShiftService', () => {
     cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
 
     runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+    const openerId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('A','B','employee',1)`).run()
+        .lastInsertRowid,
+    )
     const service = new ShiftService(new ShiftRepository(db))
-    const opened = service.open({
-      shiftCode: 'day',
-      businessDate: '2026-03-18',
-      openingCash: 100,
-    })
+    const opened = service.open(
+      {
+        shiftCode: 'day',
+        businessDate: '2026-03-18',
+        openingCash: 100,
+      },
+      openerId,
+    )
 
     expect(opened.status).toBe('open')
 

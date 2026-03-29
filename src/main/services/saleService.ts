@@ -1,7 +1,16 @@
 import { ZodError } from 'zod'
 import type { CategoryTreeNode } from '../../shared/types/product'
-import type { CreateSaleInput, PosCatalogResponse, SaleCreated } from '../../shared/types/sale'
-import { createSaleSchema } from '../../shared/schemas/saleSchema'
+import type {
+  CreateSaleInput,
+  CustomerTabSummary,
+  OpenTabInput,
+  OpenTabResult,
+  PosCatalogResponse,
+  SaleCreated,
+  SettleTabInput,
+  TabSettlementResult,
+} from '../../shared/types/sale'
+import { createSaleSchema, openTabSchema, settleTabSchema } from '../../shared/schemas/saleSchema'
 import { ShiftStateError, StockError, ValidationError } from '../errors'
 import { CategoryRepository } from '../repositories/categoryRepository'
 import { InventoryRepository } from '../repositories/inventoryRepository'
@@ -9,6 +18,7 @@ import { ProductRepository } from '../repositories/productRepository'
 import { RecipeRepository } from '../repositories/recipeRepository'
 import type { SaleLineInsert } from '../repositories/saleRepository'
 import { SaleRepository } from '../repositories/saleRepository'
+import { TabRepository } from '../repositories/tabRepository'
 import { SaleFormatRepository } from '../repositories/saleFormatRepository'
 import { ShiftRepository } from '../repositories/shiftRepository'
 import { CategoryService } from './categoryService'
@@ -44,6 +54,7 @@ export class SaleService {
     private readonly sales: SaleRepository,
     private readonly recipes: RecipeRepository,
     private readonly inventory: InventoryRepository,
+    private readonly tabs: TabRepository,
   ) {}
 
   getPosCatalog(): PosCatalogResponse {
@@ -72,6 +83,65 @@ export class SaleService {
   }
 
   /** Productos activos en una categoria raiz y sus descendientes (p. ej. complementos de un combinado). */
+  openTab(input: OpenTabInput, employeeId: number): OpenTabResult {
+    const parsed = openTabSchema.safeParse(input)
+    if (!parsed.success) {
+      throw new ValidationError(normalizeZodError(parsed.error))
+    }
+
+    const session = this.shifts.getCurrentSession()
+    if (!session) {
+      throw new ShiftStateError('No hay turno de caja abierto.')
+    }
+
+    const id = this.tabs.create(parsed.data.customerName, session.id, employeeId)
+    const row = this.tabs.getById(id)
+    if (!row) {
+      throw new ValidationError('No se pudo crear la cuenta.')
+    }
+
+    return {
+      id: row.id,
+      customerName: row.customerName,
+      openedAt: row.openedAt,
+    }
+  }
+
+  listOpenTabs(): CustomerTabSummary[] {
+    return this.tabs.listOpenWithBalances()
+  }
+
+  settleTab(input: SettleTabInput, employeeId: number): TabSettlementResult {
+    const parsed = settleTabSchema.safeParse(input)
+    if (!parsed.success) {
+      throw new ValidationError(normalizeZodError(parsed.error))
+    }
+
+    const session = this.shifts.getCurrentSession()
+    if (!session) {
+      throw new ShiftStateError('No hay turno de caja abierto.')
+    }
+
+    const tab = this.tabs.getById(parsed.data.tabId)
+    if (!tab || tab.status !== 'open') {
+      throw new ValidationError('La cuenta no existe o ya fue liquidada.')
+    }
+
+    const total = roundMoney(this.tabs.getTabChargeTotal(parsed.data.tabId))
+    if (total <= 0) {
+      throw new ValidationError('La cuenta no tiene saldo pendiente.')
+    }
+
+    const created = this.sales.settleTabWithPayment(session.id, employeeId, total, parsed.data.tabId)
+
+    return {
+      saleId: created.id,
+      total: created.total,
+      cashSessionId: created.cashSessionId,
+      createdAt: created.createdAt,
+    }
+  }
+
   listPosComplementProducts(rootCategoryId: number) {
     const root = this.categories.getById(rootCategoryId)
     if (!root || !root.isActive) {
@@ -91,6 +161,13 @@ export class SaleService {
     const session = this.shifts.getCurrentSession()
     if (!session) {
       throw new ShiftStateError('No hay turno de caja abierto.')
+    }
+
+    if (parsed.data.tabId != null) {
+      const tab = this.tabs.getById(parsed.data.tabId)
+      if (!tab || tab.status !== 'open') {
+        throw new ValidationError('La cuenta no existe o ya fue liquidada.')
+      }
     }
 
     const tree = this.categoryService.listTree()
@@ -211,6 +288,9 @@ export class SaleService {
       }
     }
 
-    return this.sales.createSaleWithItems(session.id, employeeId, total, lines, inventoryExits)
+    const saleType = parsed.data.tabId != null ? 'tab_charge' : 'pos'
+    const tabId = parsed.data.tabId ?? null
+
+    return this.sales.createSaleWithItems(session.id, employeeId, total, lines, inventoryExits, saleType, tabId)
   }
 }

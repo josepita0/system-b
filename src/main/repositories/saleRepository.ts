@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import { ConflictError } from '../errors'
 
 export type SaleLineInsert = {
   productId: number
@@ -25,14 +26,16 @@ export class SaleRepository {
     total: number,
     lines: SaleLineInsert[],
     inventoryExits: InventoryExitInsert[],
+    saleType: 'pos' | 'tab_charge' = 'pos',
+    tabId: number | null = null,
   ) {
     const run = this.db.transaction(() => {
       const saleResult = this.db
         .prepare(
-          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total)
-           VALUES (?, ?, 'pos', ?)`,
+          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total, tab_id)
+           VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(cashSessionId, employeeId, total)
+        .run(cashSessionId, employeeId, saleType, total, tabId)
 
       const saleId = Number(saleResult.lastInsertRowid)
 
@@ -72,5 +75,33 @@ export class SaleRepository {
     })
 
     return run()
+  }
+
+  /** Pago en efectivo + cierre de cuenta en una sola transacción. */
+  settleTabWithPayment(cashSessionId: number, employeeId: number, total: number, tabId: number) {
+    return this.db.transaction(() => {
+      const saleResult = this.db
+        .prepare(
+          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total, tab_id)
+           VALUES (?, ?, 'tab_payment', ?, ?)`,
+        )
+        .run(cashSessionId, employeeId, total, tabId)
+
+      const saleId = Number(saleResult.lastInsertRowid)
+      const upd = this.db
+        .prepare(
+          `UPDATE customer_tabs
+           SET status = 'settled',
+               settled_at = CURRENT_TIMESTAMP,
+               settled_cash_session_id = ?
+           WHERE id = ? AND status = 'open'`,
+        )
+        .run(cashSessionId, tabId)
+      if (upd.changes === 0) {
+        throw new ConflictError('La cuenta no pudo liquidarse (estado inesperado).')
+      }
+      const row = this.db.prepare('SELECT created_at FROM sales WHERE id = ?').get(saleId) as { created_at: string }
+      return { id: saleId, total, cashSessionId, createdAt: row.created_at }
+    })()
   }
 }
