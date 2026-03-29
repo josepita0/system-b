@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { BootstrapCredentialsBlock } from '@renderer/components/setup/BootstrapCredentialsBlock'
 
 export function SetupWelcomePage() {
   const setupQuery = useQuery({
@@ -18,32 +19,23 @@ export function SetupWelcomePage() {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-300">
-        {setupStatus?.bootstrapFilePath ? (
-          <>
-            <p className="font-medium text-white">Ruta del acceso inicial</p>
-            <p className="mt-2 break-all text-cyan-300">{setupStatus.bootstrapFilePath}</p>
-            <p className="mt-3">
-              Abra ese archivo local para obtener el usuario `admin`, la clave temporal y los codigos de recuperacion. Esa informacion deja de ser valida cuando se cambie la clave inicial.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="font-medium text-white">Continuar instalacion</p>
-            <p className="mt-2">
-              El acceso bootstrap ya no esta pendiente. Inicie sesion con la cuenta administrativa actual para terminar la instalacion del sistema.
-            </p>
-          </>
-        )}
-      </div>
+      {setupStatus?.bootstrapDisplay ? (
+        <BootstrapCredentialsBlock display={setupStatus.bootstrapDisplay} filePath={setupStatus.bootstrapFilePath} />
+      ) : (
+        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-300">
+          <p className="font-medium text-white">Continuar instalacion</p>
+          <p className="mt-2">
+            El acceso bootstrap ya no esta pendiente. Inicie sesion con la cuenta administrativa actual para terminar la instalacion del sistema.
+          </p>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-300">
         <p className="font-medium text-white">Orden recomendado</p>
         <ol className="mt-2 space-y-2">
-          <li>1. Ubique el archivo `initial-admin-access.json`.</li>
-          <li>2. Inicie sesion con el usuario `admin`.</li>
-          <li>3. Cambie la clave temporal desde el siguiente paso del wizard.</li>
-          <li>4. Finalice la instalacion para desbloquear la operacion normal.</li>
+          <li>1. Inicie sesion con el usuario y la contrasena temporal indicados arriba.</li>
+          <li>2. Cambie la contrasena temporal cuando el sistema se lo solicite.</li>
+          <li>3. Finalice la instalacion en el ultimo paso del wizard para desbloquear la operacion normal.</li>
         </ol>
       </div>
 

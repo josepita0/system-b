@@ -90,7 +90,7 @@ export default function App() {
   }
 
   const setupStatus = setupQuery.data
-  const shouldRunSetupWizard = Boolean(setupStatus?.mustRunWizard)
+  const shouldRunSetupWizard = Boolean(setupStatus?.mustRunWizard || setupStatus?.bootstrapPending)
 
   if (!user) {
     if (shouldRunSetupWizard) {

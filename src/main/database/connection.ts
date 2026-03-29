@@ -1,6 +1,16 @@
-import Database from 'better-sqlite3'
+import type Database from 'better-sqlite3'
 import fs from 'node:fs'
 import path from 'node:path'
+
+/** Carga diferida: si el .node falla (ABI, antivirus), el error ocurre dentro de getDb() tras whenReady y puede mostrarse al usuario. */
+let DatabaseCtor: (new (path: string) => Database.Database) | null = null
+
+function getDatabaseConstructor(): new (path: string) => Database.Database {
+  if (!DatabaseCtor) {
+    DatabaseCtor = require('better-sqlite3') as new (path: string) => Database.Database
+  }
+  return DatabaseCtor
+}
 
 function getElectronApp() {
   try {
@@ -33,6 +43,7 @@ export function getDatabasePath() {
 }
 
 export function createDatabase(databasePath = getDatabasePath()) {
+  const Database = getDatabaseConstructor()
   const db = new Database(databasePath)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')

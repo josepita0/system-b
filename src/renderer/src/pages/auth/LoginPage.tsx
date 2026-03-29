@@ -1,8 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
+import { BootstrapCredentialsBlock } from '@renderer/components/setup/BootstrapCredentialsBlock'
 import { getSetupStatusSafe } from '@renderer/lib/setup'
 import { useAuthStore } from '@renderer/store/authStore'
+import {
+  DEFAULT_INITIAL_ADMIN_PASSWORD,
+  DEFAULT_INITIAL_ADMIN_RECOVERY_CODES,
+} from '@shared/constants/initialAdmin'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -15,6 +20,20 @@ export function LoginPage() {
     queryKey: ['setup', 'status'],
     queryFn: getSetupStatusSafe,
   })
+
+  const bootstrapDisplay = setupQuery.data?.bootstrapDisplay
+  const showBootstrapHelp = Boolean(bootstrapDisplay)
+  const setup = setupQuery.data
+  const showDefaultCredentialsHint = Boolean(
+    setup && !bootstrapDisplay && (setup.mustRunWizard || setup.bootstrapPending),
+  )
+
+  useEffect(() => {
+    const u = bootstrapDisplay?.username
+    if (u) {
+      setIdentifier((prev) => (prev === '' ? u : prev))
+    }
+  }, [bootstrapDisplay])
 
   const loginMutation = useMutation({
     mutationFn: () => window.api.auth.login({ identifier, password }),
@@ -42,10 +61,28 @@ export function LoginPage() {
   })
 
   return (
-    <section className="mx-auto flex min-h-screen max-w-md items-center px-6">
+    <section
+      className={`mx-auto flex min-h-screen items-center px-6 ${showBootstrapHelp || showDefaultCredentialsHint ? 'max-w-xl' : 'max-w-md'}`}
+    >
       <div className="w-full rounded-3xl border border-slate-800 bg-slate-900 p-6">
         <h1 className="text-2xl font-semibold text-white">Iniciar sesion</h1>
-        <p className="mt-2 text-sm text-slate-400">Acceso seguro al sistema de barra. El acceso inicial se entrega solo por el canal operativo definido para la instalacion.</p>
+        <p className="mt-2 text-sm text-slate-400">
+          {showBootstrapHelp
+            ? 'Use las credenciales mostradas abajo para el primer acceso. Debera cambiar la contrasena temporal al continuar.'
+            : showDefaultCredentialsHint
+              ? `No se pudieron cargar las credenciales en pantalla. Primer arranque: usuario admin, contrasena ${DEFAULT_INITIAL_ADMIN_PASSWORD}, codigo de recuperacion ${DEFAULT_INITIAL_ADMIN_RECOVERY_CODES[0]}.`
+              : 'Acceso seguro al sistema de barra.'}
+        </p>
+
+        {bootstrapDisplay ? (
+          <div className="mt-4">
+            <BootstrapCredentialsBlock
+              display={bootstrapDisplay}
+              filePath={setupQuery.data?.bootstrapFilePath}
+              variant="compact"
+            />
+          </div>
+        ) : null}
 
         <form
           className="mt-6 grid gap-4"

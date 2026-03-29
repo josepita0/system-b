@@ -11,6 +11,7 @@ import { AuditLogRepository } from '../repositories/auditLogRepository'
 import { AppSetupRepository } from '../repositories/appSetupRepository'
 import { RecoveryCodeRepository } from '../repositories/recoveryCodeRepository'
 import { UserRepository } from '../repositories/userRepository'
+import { DEFAULT_INITIAL_ADMIN_PASSWORD, DEFAULT_INITIAL_ADMIN_RECOVERY_CODES } from '../../shared/constants/initialAdmin'
 import { randomRecoveryCodes, randomSecret, hashSecret, sha256, verifySecret } from '../security/password'
 import { clearCurrentSession, readCurrentSession, updateCurrentSessionValidation, writeCurrentSession } from '../security/sessionStorage'
 
@@ -87,8 +88,8 @@ export class AuthService {
       return null
     }
 
-    const temporaryPassword = randomSecret(12)
-    const recoveryCodes = randomRecoveryCodes()
+    const temporaryPassword = DEFAULT_INITIAL_ADMIN_PASSWORD
+    const recoveryCodes = [...DEFAULT_INITIAL_ADMIN_RECOVERY_CODES]
     const user = this.users.create({
       firstName: 'Administrador',
       lastName: 'Inicial',
@@ -116,6 +117,21 @@ export class AuthService {
     this.appSetup.requireWizard('v1')
     fs.writeFileSync(getBootstrapInfoPath(), JSON.stringify(payload, null, 2))
     return payload
+  }
+
+  /**
+   * Si el acceso bootstrap sigue vigente pero `app_setup` no exige wizard (p. ej. BD heredada,
+   * migracion anterior o reinstalacion con datos persistentes en AppData), alinea el estado.
+   */
+  ensureWizardAlignedWithBootstrap() {
+    if (!this.getBootstrapInfo()) {
+      return
+    }
+    const row = this.appSetup.get()
+    if (row?.completed_at) {
+      return
+    }
+    this.appSetup.requireWizard('v1')
   }
 
   getBootstrapInfo() {

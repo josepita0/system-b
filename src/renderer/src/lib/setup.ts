@@ -4,6 +4,7 @@ const defaultSetupStatus: SetupStatus = {
   hasAdmin: true,
   bootstrapPending: false,
   bootstrapFilePath: null,
+  bootstrapDisplay: null,
   wizardRequired: false,
   completedAt: null,
   completedByEmployeeId: null,

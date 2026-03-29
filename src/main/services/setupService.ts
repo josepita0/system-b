@@ -29,6 +29,13 @@ export class SetupService {
       hasAdmin,
       bootstrapPending,
       bootstrapFilePath: bootstrapInfo?.filePath ?? null,
+      bootstrapDisplay: bootstrapInfo
+        ? {
+            username: bootstrapInfo.username,
+            temporaryPassword: bootstrapInfo.temporaryPassword,
+            recoveryCodes: bootstrapInfo.recoveryCodes,
+          }
+        : null,
       wizardRequired,
       completedAt: record?.completed_at ?? null,
       completedByEmployeeId: record?.completed_by_employee_id ?? null,

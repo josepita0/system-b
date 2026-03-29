@@ -1,5 +1,8 @@
 appId: com.systembarra.desktop
 productName: Sistema Barra
+# better-sqlite3 (.node) debe ir fuera del asar; electron-builder suele desempaquetarlo solo.
+asarUnpack:
+  - node_modules/better-sqlite3/**
 files:
   - dist/**
   - dist-electron/**
@@ -8,9 +11,17 @@ extraMetadata:
   main: dist-electron/src/main/index.js
 win:
   signAndEditExecutable: false
+  # `store` reduce trabajo de compresion y el tamano del paquete intermedio (menos superficie para fallos al empaquetar).
+  compression: store
+  # Por defecto solo portable: el instalador NSIS usa makensis y puede fallar con "failed creating mmap"
+  # del archivo embebido (.7z o .zip) en Windows (Defender, rutas, NSIS 32 bits). Ver `npm run build:installer`.
   target:
-    - nsis
+    - portable
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  # Si el modo diferencial queda activo, electron-builder ignora useZip y siempre genera .nsis.7z.
+  differentialPackage: false
+  # No usar useZip: true: el instalador falla al instalar ("Error opening ZIP file" / descompresion).
+  # El empaquetado por defecto usa 7z (compatible con el extractor de NSIS en runtime).

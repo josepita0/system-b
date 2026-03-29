@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut } from 'electron'
 import { licenseEvents } from '../shared/ipc/license'
 import { getDb } from './database/connection'
 import { runMigrations } from './database/migrate'
@@ -7,12 +7,38 @@ import { AuthService } from './services/authService'
 import { createMainWindow } from './windows/createMainWindow'
 
 let mainWindow: BrowserWindow | null = null
+/** Evita abrir una ventana sin IPC (p. ej. `activate` en macOS) si el arranque fallo antes de `registerIpcHandlers`. */
+let bootstrapSucceeded = false
 const LICENSE_PANEL_SHORTCUT = 'CommandOrControl+Alt+Shift+L'
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 if (!hasSingleInstanceLock) {
+  dialog.showErrorBox(
+    'Sistema Barra',
+    'Ya hay una instancia en ejecucion. Cierre la otra ventana o el proceso en el administrador de tareas.',
+  )
   app.quit()
 }
+
+let reportedFatalProcessError = false
+function reportFatalProcessError(context: string, error: unknown) {
+  if (reportedFatalProcessError) {
+    return
+  }
+  reportedFatalProcessError = true
+  const detail = error instanceof Error ? error.message : String(error)
+  console.error(`[Sistema Barra] ${context}`, error)
+  try {
+    dialog.showErrorBox('Sistema Barra', `${context}\n\n${detail}`)
+  } catch {
+    // sin UI disponible
+  }
+  app.exit(1)
+}
+
+process.on('uncaughtException', (error) => {
+  reportFatalProcessError('Error no controlado al iniciar:', error)
+})
 
 function registerLicenseShortcut() {
   const registered = globalShortcut.register(LICENSE_PANEL_SHORTCUT, () => {
@@ -45,21 +71,40 @@ function registerSecurityGuards() {
   })
 }
 
-async function bootstrap() {
+function showBootstrapError(error: unknown) {
+  console.error('[Sistema Barra] Fallo al iniciar:', error)
+  const detail = error instanceof Error ? error.message : String(error)
+  dialog.showErrorBox(
+    'Error al iniciar Sistema Barra',
+    `No se pudo inicializar la base de datos o la aplicacion.\n\n${detail}\n\nRevise permisos de la carpeta de datos, espacio en disco y que no haya otro proceso usando la base.`,
+  )
+}
+
+function runBootstrap() {
   const db = getDb()
   runMigrations(db)
-  new AuthService(db).ensureInitialAdmin()
+  const auth = new AuthService(db)
+  auth.ensureInitialAdmin()
+  auth.ensureWizardAlignedWithBootstrap()
   registerIpcHandlers()
   mainWindow = createMainWindow()
   registerLicenseShortcut()
+  bootstrapSucceeded = true
 }
 
 app.whenReady().then(() => {
   registerSecurityGuards()
-  void bootstrap()
+
+  try {
+    runBootstrap()
+  } catch (error) {
+    showBootstrapError(error)
+    app.exit(1)
+    return
+  }
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (BrowserWindow.getAllWindows().length === 0 && bootstrapSucceeded) {
       mainWindow = createMainWindow()
     }
   })
@@ -67,7 +112,9 @@ app.whenReady().then(() => {
 
 app.on('second-instance', () => {
   if (!mainWindow || mainWindow.isDestroyed()) {
-    mainWindow = createMainWindow()
+    if (bootstrapSucceeded) {
+      mainWindow = createMainWindow()
+    }
     return
   }
 

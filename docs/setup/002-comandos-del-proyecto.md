@@ -67,7 +67,7 @@ Recompila `better-sqlite3` para el runtime de `Node`, usado por las pruebas.
 npm run build:main
 ```
 
-Compila el proceso principal, preload y modulos compartidos a `dist-electron`.
+Compila el proceso principal, preload y modulos compartidos a `dist-electron`, y copia las migraciones `.sql` a `dist-electron/src/main/database/migrations` (necesario para la app empaquetada).
 
 ### Build del renderer
 
@@ -87,19 +87,32 @@ Ejecuta:
 
 1. compilacion del main;
 2. compilacion del renderer;
-3. empaquetado con `electron-builder`.
+3. `native:electron` (recompila `better-sqlite3` para el ABI de Electron antes del empaquetado);
+4. empaquetado **portable** (`Sistema Barra <version>.exe` en `dist/`), sin instalador NSIS.
+
+El instalador clásico **Setup** (NSIS) puede fallar al compilar en algunos equipos Windows con `failed creating mmap` (herramienta `makensis` + archivo embebido; a menudo mejora excluyendo la carpeta del proyecto del analisis en tiempo real de Defender). Para intentar solo el Setup:
+
+```bash
+npm run build:installer
+```
+
+No se debe activar `useZip` en la seccion `nsis` de `electron-builder.yml`: en instalacion suele producir "Error opening ZIP file" al descomprimir. El empaquetado interno correcto es el predeterminado (7z).
+
+Tras `npm install` se ejecuta `postinstall` (`electron-builder install-app-deps`) para alinear dependencias nativas con la version de Electron del proyecto.
 
 ## Scripts definidos
 
 Los scripts viven en `package.json` y actualmente incluyen:
 
 - `dev`
+- `postinstall`
 - `native:electron`
 - `native:node`
 - `dev:renderer`
 - `dev:main`
 - `dev:electron`
 - `build`
+- `build:installer`
 - `build:main`
 - `build:renderer`
 - `typecheck`
