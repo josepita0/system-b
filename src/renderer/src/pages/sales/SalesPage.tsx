@@ -51,10 +51,12 @@ export function SalesPage() {
   const [pickedComplementId, setPickedComplementId] = useState<number | null>(null)
   const [saleMode, setSaleMode] = useState<'cash' | 'tab'>('cash')
   const [selectedTabId, setSelectedTabId] = useState<number | null>(null)
+  const [selectedVipCustomerId, setSelectedVipCustomerId] = useState<number | null>(null)
   const [newTabModalOpen, setNewTabModalOpen] = useState(false)
   const [newTabName, setNewTabName] = useState('')
   const [cashPaymentModalOpen, setCashPaymentModalOpen] = useState(false)
   const [cashReceivedInput, setCashReceivedInput] = useState('')
+  const [vipChargedTotalInput, setVipChargedTotalInput] = useState('')
 
   const currentShiftQuery = useQuery({
     queryKey: ['shift', 'current'],
@@ -70,6 +72,12 @@ export function SalesPage() {
   const openTabsQuery = useQuery({
     queryKey: ['sales', 'openTabs'],
     queryFn: () => window.api.sales.listOpenTabs(),
+    enabled: Boolean(currentShiftQuery.data),
+  })
+
+  const vipCustomersQuery = useQuery({
+    queryKey: ['vipCustomers', 'active'],
+    queryFn: () => window.api.vipCustomers.listActive(),
     enabled: Boolean(currentShiftQuery.data),
   })
 
@@ -147,11 +155,18 @@ export function SalesPage() {
           complementProductId: line.complementProductId,
         })),
         tabId: saleMode === 'tab' && selectedTabId != null ? selectedTabId : undefined,
+        vipCustomerId: selectedVipCustomerId ?? undefined,
+        chargedTotal:
+          selectedVipCustomerId != null && vipChargedTotalInput.trim() !== ''
+            ? Number(vipChargedTotalInput.replace(',', '.'))
+            : undefined,
       }),
     onSuccess: async () => {
       setCart([])
       setCashPaymentModalOpen(false)
       setCashReceivedInput('')
+      setVipChargedTotalInput('')
+      setSelectedVipCustomerId(null)
       await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
       await queryClient.invalidateQueries({ queryKey: ['sales'] })
     },
@@ -268,6 +283,36 @@ export function SalesPage() {
 
   const totalDue = useMemo(() => roundMoney2(cartTotal), [cartTotal])
 
+  const selectedVip = useMemo(
+    () => (vipCustomersQuery.data ?? []).find((c) => c.id === selectedVipCustomerId) ?? null,
+    [selectedVipCustomerId, vipCustomersQuery.data],
+  )
+
+  const parsedVipChargedTotal = useMemo(() => {
+    const t = vipChargedTotalInput.trim()
+    if (t === '') {
+      return null
+    }
+    const n = Number(t.replace(',', '.'))
+    if (!Number.isFinite(n) || n < 0) {
+      return null
+    }
+    return roundMoney2(n)
+  }, [vipChargedTotalInput])
+
+  const amountToCharge = useMemo(() => {
+    if (!selectedVip) {
+      return totalDue
+    }
+    if (selectedVip.conditionType === 'exempt') {
+      return 0
+    }
+    if (selectedVip.conditionType === 'discount_manual') {
+      return parsedVipChargedTotal ?? totalDue
+    }
+    return totalDue
+  }, [parsedVipChargedTotal, selectedVip, totalDue])
+
   const parsedReceived = useMemo(() => {
     const t = cashReceivedInput.trim()
     if (t === '') {
@@ -280,21 +325,22 @@ export function SalesPage() {
     return roundMoney2(n)
   }, [cashReceivedInput])
 
-  const totalDueCents = moneyToCents(totalDue)
+  const totalDueCents = moneyToCents(amountToCharge)
   const cashPaymentSufficient =
     parsedReceived != null && moneyToCents(parsedReceived) >= totalDueCents && totalDueCents >= 0
 
   const changeAmount =
-    cashPaymentSufficient && parsedReceived != null ? roundMoney2(parsedReceived - totalDue) : null
+    cashPaymentSufficient && parsedReceived != null ? roundMoney2(parsedReceived - amountToCharge) : null
 
   const shortfall =
     parsedReceived != null && totalDueCents > 0 && !cashPaymentSufficient
-      ? roundMoney2(totalDue - parsedReceived)
+      ? roundMoney2(amountToCharge - parsedReceived)
       : null
 
   const closeCashPaymentModal = useCallback(() => {
     setCashPaymentModalOpen(false)
     setCashReceivedInput('')
+    setVipChargedTotalInput('')
   }, [])
 
   const closeConfigurator = useCallback(() => {
@@ -386,6 +432,35 @@ export function SalesPage() {
                   </p>
                 </div>
               ) : null}
+
+              <div className="mt-4 border-t border-slate-800 pt-4">
+                <h3 className="mb-2 text-sm font-medium text-slate-200">Cliente VIP (opcional)</h3>
+                <label className="block text-sm text-slate-300">
+                  Cliente
+                  <select
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                    disabled={vipCustomersQuery.isLoading}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setSelectedVipCustomerId(v === '' ? null : Number(v))
+                      setVipChargedTotalInput('')
+                    }}
+                    value={selectedVipCustomerId ?? ''}
+                  >
+                    <option value="">{vipCustomersQuery.isLoading ? 'Cargando...' : 'Sin VIP'}</option>
+                    {(vipCustomersQuery.data ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} — {c.conditionType === 'exempt' ? 'Exonerado' : 'Manual'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selectedVip ? (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Condición: {selectedVip.conditionType === 'exempt' ? 'Exoneración (cobra 0)' : 'Precio diferenciado (definir al cobrar)'} · Total real {totalDue.toFixed(2)}
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
@@ -509,6 +584,13 @@ export function SalesPage() {
                 if (saleMode === 'tab') {
                   saleMutation.mutate()
                 } else {
+                  if (selectedVip?.conditionType === 'exempt') {
+                    saleMutation.mutate()
+                    return
+                  }
+                  if (selectedVip?.conditionType === 'discount_manual') {
+                    setVipChargedTotalInput(totalDue.toFixed(2))
+                  }
                   setCashPaymentModalOpen(true)
                 }
               }}
@@ -608,8 +690,28 @@ export function SalesPage() {
             <p className="mt-1 text-sm text-slate-400">Confirme el monto recibido y el cambio antes de registrar la venta.</p>
             <div className="mt-4 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-slate-200">
               <span>Total a cobrar</span>
-              <span className="text-lg font-semibold text-cyan-300">{totalDue.toFixed(2)}</span>
+              <span className="text-lg font-semibold text-cyan-300">{amountToCharge.toFixed(2)}</span>
             </div>
+
+            {selectedVip?.conditionType === 'discount_manual' ? (
+              <label className="mt-4 block text-sm text-slate-300">
+                Monto a cobrar (VIP)
+                <input
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                  min={0}
+                  onChange={(e) => setVipChargedTotalInput(e.target.value)}
+                  step={0.01}
+                  type="number"
+                  value={vipChargedTotalInput}
+                />
+                {parsedVipChargedTotal == null && vipChargedTotalInput.trim() !== '' ? (
+                  <p className="mt-2 text-xs text-rose-400">Indique un monto válido.</p>
+                ) : null}
+                {parsedVipChargedTotal != null && parsedVipChargedTotal > totalDue ? (
+                  <p className="mt-2 text-xs text-rose-400">No puede exceder el total real ({totalDue.toFixed(2)}).</p>
+                ) : null}
+              </label>
+            ) : null}
             <label className="mt-4 block text-sm text-slate-300">
               Monto recibido
               <input
@@ -644,7 +746,12 @@ export function SalesPage() {
               </button>
               <button
                 className="rounded-lg bg-cyan-500 px-4 py-2 text-slate-950 disabled:opacity-40"
-                disabled={!cashPaymentSufficient || saleMutation.isPending}
+                disabled={
+                  !cashPaymentSufficient ||
+                  saleMutation.isPending ||
+                  (selectedVip?.conditionType === 'discount_manual' &&
+                    (parsedVipChargedTotal == null || parsedVipChargedTotal > totalDue))
+                }
                 onClick={() => saleMutation.mutate()}
                 type="button"
               >

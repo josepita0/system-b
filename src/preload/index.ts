@@ -9,6 +9,9 @@ import { salesChannels } from '../shared/ipc/sales'
 import { setupChannels } from '../shared/ipc/setup'
 import { shiftChannels } from '../shared/ipc/shifts'
 import { userChannels } from '../shared/ipc/users'
+import { vipCustomerChannels } from '../shared/ipc/vipCustomers'
+import { inventoryChannels } from '../shared/ipc/inventory'
+import { consumptionChannels } from '../shared/ipc/consumptions'
 
 async function invokeIpc<T>(channel: string, ...args: unknown[]) {
   const result = (await ipcRenderer.invoke(channel, ...args)) as IpcResult<T>
@@ -102,6 +105,30 @@ const api = {
   setup: {
     getStatus: () => invokeIpc(setupChannels.getStatus),
     complete: () => invokeIpc(setupChannels.complete),
+  },
+  vipCustomers: {
+    list: () => invokeIpc(vipCustomerChannels.list),
+    listActive: () => invokeIpc(vipCustomerChannels.listActive),
+    getById: (id: number) => invokeIpc(vipCustomerChannels.getById, id),
+    create: (payload: unknown) => invokeIpc(vipCustomerChannels.create, payload),
+    update: (payload: unknown) => invokeIpc(vipCustomerChannels.update, payload),
+    remove: (id: number) => invokeIpc(vipCustomerChannels.remove, id),
+  },
+  inventory: {
+    listBalance: () => invokeIpc(inventoryChannels.listBalance),
+    postOpening: (payload: unknown) => invokeIpc(inventoryChannels.postOpening, payload),
+    postEntry: (payload: unknown) => invokeIpc(inventoryChannels.postEntry, payload),
+    postAdjustment: (payload: unknown) => invokeIpc(inventoryChannels.postAdjustment, payload),
+    listLots: (ingredientId: number) => invokeIpc(inventoryChannels.listLots, ingredientId),
+    createLots: (payload: unknown) => invokeIpc(inventoryChannels.createLots, payload),
+    updateIngredientProgressiveConfig: (payload: unknown) =>
+      invokeIpc(inventoryChannels.updateIngredientProgressiveConfig, payload),
+  },
+  consumptions: {
+    list: () => invokeIpc(consumptionChannels.list),
+    create: (payload: unknown) => invokeIpc(consumptionChannels.create, payload),
+    update: (payload: unknown) => invokeIpc(consumptionChannels.update, payload),
+    remove: (id: number) => invokeIpc(consumptionChannels.remove, id),
   },
 }
 

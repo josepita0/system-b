@@ -12,6 +12,9 @@ export interface CreateSaleInput {
   items: CreateSaleLineInput[]
   /** Si se indica, la venta es cargo a pagaré (no suma a caja de este turno). */
   tabId?: number
+  vipCustomerId?: number
+  /** Si se indica, el total cobrado se fuerza a este monto (solo para ventas VIP manuales). */
+  chargedTotal?: number
 }
 
 export interface CustomerTabSummary {
@@ -45,6 +48,8 @@ export interface TabSettlementResult {
 export interface SaleCreated {
   id: number
   total: number
+  realTotal?: number
+  chargedTotal?: number
   cashSessionId: number
   createdAt: string
 }

@@ -13,7 +13,7 @@ import type {
 import { createSaleSchema, openTabSchema, settleTabSchema } from '../../shared/schemas/saleSchema'
 import { ShiftStateError, StockError, ValidationError } from '../errors'
 import { CategoryRepository } from '../repositories/categoryRepository'
-import { InventoryRepository } from '../repositories/inventoryRepository'
+import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
 import { ProductRepository } from '../repositories/productRepository'
 import { RecipeRepository } from '../repositories/recipeRepository'
 import type { SaleLineInsert } from '../repositories/saleRepository'
@@ -22,6 +22,8 @@ import { TabRepository } from '../repositories/tabRepository'
 import { SaleFormatRepository } from '../repositories/saleFormatRepository'
 import { ShiftRepository } from '../repositories/shiftRepository'
 import { CategoryService } from './categoryService'
+import { VipCustomerRepository } from '../repositories/vipCustomerRepository'
+import { SaleFormatConsumptionRepository } from '../repositories/saleFormatConsumptionRepository'
 
 function normalizeZodError(error: ZodError) {
   return error.issues.map((issue) => issue.message).join(', ')
@@ -53,8 +55,10 @@ export class SaleService {
     private readonly categoryService: CategoryService,
     private readonly sales: SaleRepository,
     private readonly recipes: RecipeRepository,
-    private readonly inventory: InventoryRepository,
+    private readonly inventory: ProductInventoryRepository,
     private readonly tabs: TabRepository,
+    private readonly vipCustomers: VipCustomerRepository,
+    private readonly consumptions: SaleFormatConsumptionRepository,
   ) {}
 
   getPosCatalog(): PosCatalogResponse {
@@ -170,9 +174,19 @@ export class SaleService {
       }
     }
 
+    const vipCustomerId = parsed.data.vipCustomerId ?? null
+    const vip = vipCustomerId != null ? this.vipCustomers.getById(vipCustomerId) : null
+    if (vipCustomerId != null && (!vip || vip.isActive !== 1)) {
+      throw new ValidationError('Cliente VIP no disponible.')
+    }
+    if (vip?.conditionType === 'exempt' && parsed.data.tabId != null) {
+      throw new ValidationError('No se permite exoneracion VIP en ventas a cuenta.')
+    }
+
     const tree = this.categoryService.listTree()
     const lines: SaleLineInsert[] = []
     const inventoryAccum = new Map<number, number>()
+    const progressiveToConsume = new Map<number, number>()
 
     for (const rawLine of parsed.data.items) {
       const product = this.products.getById(rawLine.productId)
@@ -262,35 +276,85 @@ export class SaleService {
         complementProductId,
       })
 
-      if (product.type === 'compound') {
-        const recipe = this.recipes.getByProductId(product.id)
-        if (recipe && recipe.items.length > 0) {
-          const factor = rawLine.quantity / recipe.yieldQuantity
-          for (const item of recipe.items) {
-            const prev = inventoryAccum.get(item.ingredientId) ?? 0
-            inventoryAccum.set(item.ingredientId, prev - factor * item.quantity)
+      if (product.type === 'simple') {
+        // Consumo unitario (default): descuenta unidades completas.
+        const prev = inventoryAccum.get(product.id) ?? 0
+        inventoryAccum.set(product.id, prev - rawLine.quantity)
+
+        // Consumo progresivo: si hay regla por formato, consume ml del mismo producto.
+        const consumptionRows = this.consumptions.listForProductAndFormat(product.id, saleFormatId)
+        const fallbackRows =
+          consumptionRows.length === 0 && saleFormatId != null
+            ? this.consumptions.listForProductAndFormat(product.id, null)
+            : consumptionRows
+        if (fallbackRows.length) {
+          const c = fallbackRows[0]
+          if (c.unit !== 'ml') {
+            throw new ValidationError('Unidad de consumo no soportada (solo ml).')
           }
+          const amount = rawLine.quantity * c.consumeQuantity
+          if (!Number.isFinite(amount) || amount <= 0) {
+            throw new ValidationError('Cantidad de consumo inválida.')
+          }
+          const prevProg = progressiveToConsume.get(product.id) ?? 0
+          progressiveToConsume.set(product.id, prevProg + amount)
         }
+      }
+
+      if (product.type === 'compound') {
+        // Inventario por productos: los compuestos no descuentan stock aquí.
       }
     }
 
     const total = roundMoney(lines.reduce((sum, line) => sum + line.subtotal, 0))
+    const realTotal = total
+    let chargedTotal = total
+    let vipConditionSnapshot: string | null = null
 
-    const inventoryExits = [...inventoryAccum.entries()].map(([ingredientId, quantity]) => ({
-      ingredientId,
+    if (vip) {
+      if (vip.conditionType === 'exempt') {
+        chargedTotal = 0
+        vipConditionSnapshot = JSON.stringify({ conditionType: 'exempt' })
+      } else if (vip.conditionType === 'discount_manual') {
+        const override = parsed.data.chargedTotal
+        if (override == null) {
+          throw new ValidationError('Indique el monto a cobrar para el cliente VIP.')
+        }
+        if (override > realTotal + 0.0001) {
+          throw new ValidationError('El monto a cobrar no puede exceder el total real.')
+        }
+        chargedTotal = roundMoney(override)
+        vipConditionSnapshot = JSON.stringify({ conditionType: 'discount_manual', chargedTotal })
+      }
+    }
+
+    const inventoryExits = [...inventoryAccum.entries()].map(([productId, quantity]) => ({
+      productId,
       quantity,
     }))
 
     for (const exit of inventoryExits) {
-      const stock = this.inventory.getStockByIngredientId(exit.ingredientId)
+      const stock = this.inventory.getStockByProductId(exit.productId)
       if (stock + exit.quantity < -0.0001) {
-        throw new StockError('Stock insuficiente de ingredientes para completar la venta.')
+        throw new StockError('Stock insuficiente de productos para completar la venta.')
       }
     }
 
     const saleType = parsed.data.tabId != null ? 'tab_charge' : 'pos'
     const tabId = parsed.data.tabId ?? null
 
-    return this.sales.createSaleWithItems(session.id, employeeId, total, lines, inventoryExits, saleType, tabId)
+    return this.sales.createSaleWithItems(
+      session.id,
+      employeeId,
+      chargedTotal,
+      realTotal,
+      lines,
+      inventoryExits,
+      saleType,
+      tabId,
+      vipCustomerId,
+      vipConditionSnapshot,
+      [...progressiveToConsume.entries()].map(([productId, amount]) => ({ productId, amount })),
+    )
   }
 }

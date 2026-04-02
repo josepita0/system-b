@@ -12,6 +12,9 @@ export type UserPermission =
   | 'documents.self'
   | 'sales.use'
   | 'shifts.open'
+  | 'vip.manage'
+  | 'inventory.view'
+  | 'inventory.manage'
 
 export interface User {
   id: number

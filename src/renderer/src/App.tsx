@@ -22,6 +22,9 @@ const UserDetailPage = lazy(() => import('./pages/users/UserDetailPage').then((m
 const UserDocumentsPage = lazy(() => import('./pages/users/UserDocumentsPage').then((module) => ({ default: module.UserDocumentsPage })))
 const UserEditPage = lazy(() => import('./pages/users/UserEditPage').then((module) => ({ default: module.UserEditPage })))
 const UserListPage = lazy(() => import('./pages/users/UserListPage').then((module) => ({ default: module.UserListPage })))
+const VipCustomersPage = lazy(() => import('./pages/vipCustomers/VipCustomersPage').then((module) => ({ default: module.VipCustomersPage })))
+const InventoryPage = lazy(() => import('./pages/inventory/InventoryPage').then((module) => ({ default: module.InventoryPage })))
+const ConsumptionRulesPage = lazy(() => import('./pages/consumptions/ConsumptionRulesPage').then((module) => ({ default: module.ConsumptionRulesPage })))
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-lg px-4 py-2 text-sm ${isActive ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`
@@ -199,6 +202,15 @@ export default function App() {
                 <NavLink className={linkClass} to="/reportes">
                   Reportes
                 </NavLink>
+                <NavLink className={linkClass} to="/inventario">
+                  Inventario
+                </NavLink>
+                <NavLink className={linkClass} to="/consumos">
+                  Consumos
+                </NavLink>
+                <NavLink className={linkClass} to="/clientes-vip">
+                  Clientes VIP
+                </NavLink>
                 <NavLink className={linkClass} to="/usuarios">
                   Usuarios
                 </NavLink>
@@ -243,6 +255,30 @@ export default function App() {
                   </ProtectedRoute>
                 }
                 path="/reportes"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <InventoryPage />
+                  </ProtectedRoute>
+                }
+                path="/inventario"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <ConsumptionRulesPage />
+                  </ProtectedRoute>
+                }
+                path="/consumos"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <VipCustomersPage />
+                  </ProtectedRoute>
+                }
+                path="/clientes-vip"
               />
               <Route
                 element={

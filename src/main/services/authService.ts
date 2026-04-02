@@ -51,6 +51,9 @@ function buildPermissions(role: User['role']): UserPermission[] {
         'shifts.manage',
         'documents.self',
         'sales.use',
+        'vip.manage',
+        'inventory.view',
+        'inventory.manage',
       ]
     case 'manager':
       return [
@@ -61,10 +64,13 @@ function buildPermissions(role: User['role']): UserPermission[] {
         'shifts.manage',
         'documents.self',
         'sales.use',
+        'vip.manage',
+        'inventory.view',
+        'inventory.manage',
       ]
     case 'employee':
     default:
-      return ['sales.use', 'documents.self', 'shifts.open']
+      return ['sales.use', 'documents.self', 'shifts.open', 'inventory.view']
   }
 }
 

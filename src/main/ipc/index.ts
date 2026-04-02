@@ -7,6 +7,9 @@ import { registerSaleHandlers } from './saleHandlers'
 import { registerSetupHandlers } from './setupHandlers'
 import { registerShiftHandlers } from './shiftHandlers'
 import { registerUserHandlers } from './userHandlers'
+import { registerVipCustomerHandlers } from './vipCustomerHandlers'
+import { registerInventoryHandlers } from './inventoryHandlers'
+import { registerConsumptionHandlers } from './consumptionHandlers'
 
 export function registerIpcHandlers() {
   registerAuthHandlers()
@@ -18,4 +21,7 @@ export function registerIpcHandlers() {
   registerShiftHandlers()
   registerReportHandlers()
   registerSetupHandlers()
+  registerVipCustomerHandlers()
+  registerInventoryHandlers()
+  registerConsumptionHandlers()
 }

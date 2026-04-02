@@ -2,13 +2,15 @@ import { ipcMain } from 'electron'
 import { salesChannels } from '../../shared/ipc/sales'
 import { getDb } from '../database/connection'
 import { CategoryRepository } from '../repositories/categoryRepository'
-import { InventoryRepository } from '../repositories/inventoryRepository'
+import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
 import { ProductRepository } from '../repositories/productRepository'
 import { RecipeRepository } from '../repositories/recipeRepository'
 import { SaleRepository } from '../repositories/saleRepository'
 import { TabRepository } from '../repositories/tabRepository'
 import { SaleFormatRepository } from '../repositories/saleFormatRepository'
 import { ShiftRepository } from '../repositories/shiftRepository'
+import { VipCustomerRepository } from '../repositories/vipCustomerRepository'
+import { SaleFormatConsumptionRepository } from '../repositories/saleFormatConsumptionRepository'
 import { ValidationError } from '../errors'
 import { AuthService } from '../services/authService'
 import { AuthorizationService } from '../services/authorizationService'
@@ -26,8 +28,10 @@ export function registerSaleHandlers() {
   const categoryService = new CategoryService(categories, saleFormats)
   const sales = new SaleRepository(db)
   const recipes = new RecipeRepository(db)
-  const inventory = new InventoryRepository(db)
+  const inventory = new ProductInventoryRepository(db)
   const tabs = new TabRepository(db)
+  const vipCustomers = new VipCustomerRepository(db)
+  const consumptions = new SaleFormatConsumptionRepository(db)
   const saleService = new SaleService(
     shifts,
     products,
@@ -38,6 +42,8 @@ export function registerSaleHandlers() {
     recipes,
     inventory,
     tabs,
+    vipCustomers,
+    consumptions,
   )
   const auth = new AuthService(db)
   const guards = createIpcGuards(auth, new AuthorizationService())

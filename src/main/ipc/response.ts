@@ -8,6 +8,7 @@ export async function executeIpc<T>(handler: () => Promise<T> | T): Promise<IpcR
       data: await handler(),
     }
   } catch (error) {
+    console.error('[IPC]', error)
     return {
       ok: false,
       error: toSerializedIpcError(error),

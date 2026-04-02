@@ -1,10 +1,13 @@
 import type Database from 'better-sqlite3'
 import { ConflictError } from '../errors'
+import { ProductLotRepository } from './productLotRepository'
 
 export type SaleLineInsert = {
   productId: number
   productName: string
   unitPrice: number
+  realUnitPrice?: number
+  chargedUnitPrice?: number
   discount: number
   quantity: number
   subtotal: number
@@ -13,7 +16,7 @@ export type SaleLineInsert = {
 }
 
 export type InventoryExitInsert = {
-  ingredientId: number
+  productId: number
   quantity: number
 }
 
@@ -23,28 +26,34 @@ export class SaleRepository {
   createSaleWithItems(
     cashSessionId: number,
     employeeId: number,
-    total: number,
+    chargedTotal: number,
+    realTotal: number,
     lines: SaleLineInsert[],
     inventoryExits: InventoryExitInsert[],
     saleType: 'pos' | 'tab_charge' = 'pos',
     tabId: number | null = null,
+    vipCustomerId: number | null = null,
+    vipConditionSnapshot: string | null = null,
+    progressiveConsumptions: Array<{ productId: number; amount: number }> = [],
   ) {
     const run = this.db.transaction(() => {
       const saleResult = this.db
         .prepare(
-          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total, tab_id)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total, tab_id, vip_customer_id, real_total, charged_total, vip_condition_snapshot)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(cashSessionId, employeeId, saleType, total, tabId)
+        .run(cashSessionId, employeeId, saleType, chargedTotal, tabId, vipCustomerId, realTotal, chargedTotal, vipConditionSnapshot)
 
       const saleId = Number(saleResult.lastInsertRowid)
 
       const insertLine = this.db.prepare(
         `INSERT INTO sale_items (
-           sale_id, product_id, product_name, unit_price, discount, quantity, subtotal,
-           sale_format_id, complement_product_id
+           sale_id, product_id, product_name,
+           unit_price, discount, quantity, subtotal,
+           sale_format_id, complement_product_id,
+           real_unit_price, charged_unit_price
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
 
       for (const line of lines) {
@@ -58,20 +67,29 @@ export class SaleRepository {
           line.subtotal,
           line.saleFormatId,
           line.complementProductId,
+          line.realUnitPrice ?? line.unitPrice,
+          line.chargedUnitPrice ?? line.unitPrice,
         )
       }
 
       const insertMovement = this.db.prepare(
-        `INSERT INTO inventory_movements (ingredient_id, movement_type, quantity, reference_type, reference_id)
-         VALUES (?, 'exit', ?, 'sale', ?)`,
+        `INSERT INTO product_inventory_movements (product_id, movement_type, quantity, reference_type, reference_id)
+         VALUES (?, 'sale', ?, 'sale', ?)`,
       )
 
       for (const exit of inventoryExits) {
-        insertMovement.run(exit.ingredientId, exit.quantity, saleId)
+        insertMovement.run(exit.productId, exit.quantity, saleId)
+      }
+
+      if (progressiveConsumptions.length) {
+        const lots = new ProductLotRepository(this.db)
+        for (const c of progressiveConsumptions) {
+          lots.consumeProgressive(c.productId, c.amount, 'sale', saleId)
+        }
       }
 
       const row = this.db.prepare('SELECT created_at FROM sales WHERE id = ?').get(saleId) as { created_at: string }
-      return { id: saleId, total, cashSessionId, createdAt: row.created_at }
+      return { id: saleId, total: chargedTotal, realTotal, chargedTotal, cashSessionId, createdAt: row.created_at }
     })
 
     return run()
@@ -82,10 +100,10 @@ export class SaleRepository {
     return this.db.transaction(() => {
       const saleResult = this.db
         .prepare(
-          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total, tab_id)
-           VALUES (?, ?, 'tab_payment', ?, ?)`,
+          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total, tab_id, real_total, charged_total)
+           VALUES (?, ?, 'tab_payment', ?, ?, ?, ?)`,
         )
-        .run(cashSessionId, employeeId, total, tabId)
+        .run(cashSessionId, employeeId, total, tabId, total, total)
 
       const saleId = Number(saleResult.lastInsertRowid)
       const upd = this.db
@@ -101,7 +119,7 @@ export class SaleRepository {
         throw new ConflictError('La cuenta no pudo liquidarse (estado inesperado).')
       }
       const row = this.db.prepare('SELECT created_at FROM sales WHERE id = ?').get(saleId) as { created_at: string }
-      return { id: saleId, total, cashSessionId, createdAt: row.created_at }
+      return { id: saleId, total, realTotal: total, chargedTotal: total, cashSessionId, createdAt: row.created_at }
     })()
   }
 }

@@ -11,6 +11,8 @@ export const createSaleLineSchema = z.object({
 export const createSaleSchema = z.object({
   items: z.array(createSaleLineSchema).min(1, 'Debe incluir al menos una linea.'),
   tabId: z.number().int().positive().optional(),
+  vipCustomerId: z.number().int().positive().optional(),
+  chargedTotal: z.number().nonnegative().optional(),
 })
 
 export const openTabSchema = z.object({

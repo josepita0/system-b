@@ -6,13 +6,15 @@ import { createDatabase } from '../../src/main/database/connection'
 import { runMigrations } from '../../src/main/database/migrate'
 import { ShiftStateError } from '../../src/main/errors'
 import { CategoryRepository } from '../../src/main/repositories/categoryRepository'
-import { InventoryRepository } from '../../src/main/repositories/inventoryRepository'
+import { ProductInventoryRepository } from '../../src/main/repositories/productInventoryRepository'
 import { ProductRepository } from '../../src/main/repositories/productRepository'
 import { RecipeRepository } from '../../src/main/repositories/recipeRepository'
 import { SaleRepository } from '../../src/main/repositories/saleRepository'
 import { TabRepository } from '../../src/main/repositories/tabRepository'
 import { SaleFormatRepository } from '../../src/main/repositories/saleFormatRepository'
 import { ShiftRepository } from '../../src/main/repositories/shiftRepository'
+import { VipCustomerRepository } from '../../src/main/repositories/vipCustomerRepository'
+import { SaleFormatConsumptionRepository } from '../../src/main/repositories/saleFormatConsumptionRepository'
 import { CategoryService } from '../../src/main/services/categoryService'
 import { ProductService } from '../../src/main/services/productService'
 import { SaleService } from '../../src/main/services/saleService'
@@ -36,8 +38,10 @@ function buildSaleService(db: ReturnType<typeof createDatabase>) {
   const categoryService = new CategoryService(categories, saleFormats)
   const sales = new SaleRepository(db)
   const recipes = new RecipeRepository(db)
-  const inventory = new InventoryRepository(db)
+  const inventory = new ProductInventoryRepository(db)
   const tabs = new TabRepository(db)
+  const vipCustomers = new VipCustomerRepository(db)
+  const consumptions = new SaleFormatConsumptionRepository(db)
   return {
     saleService: new SaleService(
       shifts,
@@ -49,6 +53,8 @@ function buildSaleService(db: ReturnType<typeof createDatabase>) {
       recipes,
       inventory,
       tabs,
+      vipCustomers,
+      consumptions,
     ),
     shifts,
     products,
@@ -125,6 +131,11 @@ describe('SaleService', () => {
         .lastInsertRowid,
     )
 
+    db.prepare(
+      `INSERT INTO product_inventory_movements (product_id, movement_type, quantity, reference_type, note)
+       VALUES (?, 'entry', ?, 'test', 'seed')`,
+    ).run(product.id, 100)
+
     const created = saleService.createSale({ items: [{ productId: product.id, quantity: 2 }] }, empId)
 
     expect(created.total).toBe(7)
@@ -177,6 +188,11 @@ describe('SaleService', () => {
 
     const session = shifts.getCurrentSession()!
     const tab = saleService.openTab({ customerName: 'Cliente Prueba' }, empId)
+
+    db.prepare(
+      `INSERT INTO product_inventory_movements (product_id, movement_type, quantity, reference_type, note)
+       VALUES (?, 'entry', ?, 'test', 'seed')`,
+    ).run(product.id, 100)
 
     saleService.createSale({ items: [{ productId: product.id, quantity: 2 }], tabId: tab.id }, empId)
 
