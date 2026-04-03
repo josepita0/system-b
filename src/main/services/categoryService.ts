@@ -4,6 +4,7 @@ import { categorySaleFormatUpdateSchema, categorySchema, categoryUpdateSchema } 
 import { ConflictError, NotFoundError, ValidationError } from '../errors'
 import { CategoryRepository } from '../repositories/categoryRepository'
 import { SaleFormatRepository } from '../repositories/saleFormatRepository'
+import type { CatalogMediaService } from './catalogMediaService'
 
 function normalizeZodError(error: ZodError) {
   return error.issues.map((issue) => issue.message).join(', ')
@@ -13,6 +14,7 @@ export class CategoryService {
   constructor(
     private readonly categories: CategoryRepository,
     private readonly saleFormats: SaleFormatRepository,
+    private readonly catalogMedia: CatalogMediaService,
   ) {}
 
   listTree() {
@@ -37,6 +39,11 @@ export class CategoryService {
         inheritedFromCategoryName: null,
         sortOrder: row.sort_order,
         isActive: row.is_active,
+        imageRelPath: row.image_relpath ?? null,
+        imageMime: row.image_mime ?? null,
+        pdfRelPath: row.pdf_relpath ?? null,
+        pdfMime: row.pdf_mime ?? null,
+        pdfOriginalName: row.pdf_original_name ?? null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         productCount: row.product_count,
@@ -168,6 +175,7 @@ export class CategoryService {
       throw new ValidationError('No puede desactivar una categoria con productos activos.')
     }
 
+    this.catalogMedia.purgeCategoryFiles(id)
     this.categories.softDelete(id)
     return { success: true as const }
   }

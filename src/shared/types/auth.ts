@@ -16,6 +16,11 @@ export interface ChangePasswordInput {
   newPassword: string
 }
 
+/** Confirmar acciones sensibles con la contrasena del usuario en sesion. */
+export interface VerifyPasswordInput {
+  password: string
+}
+
 export interface SessionInfo {
   user: AuthenticatedUser
 }

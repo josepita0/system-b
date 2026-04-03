@@ -1,6 +1,12 @@
 import type Database from 'better-sqlite3'
-import { ConflictError } from '../errors'
+import { ConflictError, ValidationError } from '../errors'
+import { ProductInventoryRepository } from './productInventoryRepository'
 import { ProductLotRepository } from './productLotRepository'
+import type { SaleFormatConsumptionRepository } from './saleFormatConsumptionRepository'
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100
+}
 
 export type SaleLineInsert = {
   productId: number
@@ -121,5 +127,112 @@ export class SaleRepository {
       const row = this.db.prepare('SELECT created_at FROM sales WHERE id = ?').get(saleId) as { created_at: string }
       return { id: saleId, total, realTotal: total, chargedTotal: total, cashSessionId, createdAt: row.created_at }
     })()
+  }
+
+  /**
+   * Quita una línea de un cargo a cuenta abierto y revierte inventario (unidad o consumo progresivo).
+   */
+  removeTabChargeSaleItem(saleItemId: number, consumptions: SaleFormatConsumptionRepository): { tabId: number; newBalance: number } {
+    type LineRow = {
+      sale_id: number
+      product_id: number
+      quantity: number
+      subtotal: number
+      sale_format_id: number | null
+      sale_type: string
+      tab_id: number
+    }
+
+    const row = this.db
+      .prepare(
+        `SELECT si.sale_id AS sale_id, si.product_id AS product_id, si.quantity AS quantity, si.subtotal AS subtotal,
+                si.sale_format_id AS sale_format_id, s.sale_type AS sale_type, s.tab_id AS tab_id
+         FROM sale_items si
+         INNER JOIN sales s ON s.id = si.sale_id
+         WHERE si.id = ?`,
+      )
+      .get(saleItemId) as LineRow | undefined
+
+    if (!row) {
+      throw new ValidationError('Linea no encontrada.')
+    }
+    if (row.sale_type !== 'tab_charge') {
+      throw new ValidationError('Solo se pueden quitar lineas de cargos a cuenta.')
+    }
+
+    const tabStatus = this.db.prepare('SELECT status FROM customer_tabs WHERE id = ?').get(row.tab_id) as
+      | { status: string }
+      | undefined
+    if (!tabStatus || tabStatus.status !== 'open') {
+      throw new ValidationError('La cuenta no esta abierta.')
+    }
+
+    const product = this.db
+      .prepare(`SELECT id, type, consumption_mode FROM products WHERE id = ?`)
+      .get(row.product_id) as { id: number; type: string; consumption_mode: string } | undefined
+
+    const inventory = new ProductInventoryRepository(this.db)
+    const lots = new ProductLotRepository(this.db)
+
+    const run = this.db.transaction(() => {
+      if (product?.type === 'simple') {
+        if (product.consumption_mode === 'unit') {
+          inventory.insertMovement({
+            productId: row.product_id,
+            movementType: 'adjustment',
+            quantity: row.quantity,
+            referenceType: 'tab_charge_line_removal',
+            referenceId: saleItemId,
+            note: 'Devolucion por quitar linea de cuenta',
+          })
+        } else if (product.consumption_mode === 'progressive') {
+          const consumptionRows = consumptions.listForProductAndFormat(row.product_id, row.sale_format_id)
+          const fallbackRows =
+            consumptionRows.length === 0 && row.sale_format_id != null
+              ? consumptions.listForProductAndFormat(row.product_id, null)
+              : consumptionRows
+          if (fallbackRows.length) {
+            const c = fallbackRows[0]
+            if (c.unit !== 'ml') {
+              throw new ValidationError('Consumo no soportado para esta linea.')
+            }
+            const amount = row.quantity * c.consumeQuantity
+            try {
+              lots.adjustOpenLotRemaining(row.product_id, amount, 'tab_line_removal', saleItemId)
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : 'Error de inventario'
+              throw new ValidationError(
+                `No se pudo revertir el consumo progresivo (${msg}). Pruebe otra linea o contacte al administrador.`,
+              )
+            }
+          }
+        }
+      }
+
+      this.db.prepare('DELETE FROM sale_items WHERE id = ?').run(saleItemId)
+
+      const sumRow = this.db
+        .prepare('SELECT COALESCE(SUM(subtotal), 0) AS s FROM sale_items WHERE sale_id = ?')
+        .get(row.sale_id) as { s: number }
+      const newSum = roundMoney(Number(sumRow.s))
+
+      if (newSum < 0.0001) {
+        this.db.prepare('DELETE FROM sales WHERE id = ?').run(row.sale_id)
+      } else {
+        this.db
+          .prepare('UPDATE sales SET total = ?, real_total = ?, charged_total = ? WHERE id = ?')
+          .run(newSum, newSum, newSum, row.sale_id)
+      }
+    })
+
+    run()
+
+    const balRow = this.db
+      .prepare(
+        `SELECT COALESCE(SUM(total), 0) AS t FROM sales WHERE tab_id = ? AND sale_type = 'tab_charge'`,
+      )
+      .get(row.tab_id) as { t: number }
+
+    return { tabId: row.tab_id, newBalance: roundMoney(Number(balRow.t)) }
   }
 }

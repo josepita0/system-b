@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type Database from 'better-sqlite3'
-import type { BootstrapAdminInfo, ChangePasswordInput, LoginInput, SessionInfo } from '../../shared/types/auth'
+import type { BootstrapAdminInfo, ChangePasswordInput, LoginInput, SessionInfo, VerifyPasswordInput } from '../../shared/types/auth'
 import type { AuthenticatedUser, User, UserPermission } from '../../shared/types/user'
-import { changePasswordSchema, loginSchema, recoverPasswordSchema } from '../../shared/schemas/authSchema'
+import { changePasswordSchema, loginSchema, recoverPasswordSchema, verifyPasswordSchema } from '../../shared/schemas/authSchema'
 import { AuthenticationError, ConflictError, LockedAccountError, NotFoundError, RecoveryCodeError, ValidationError } from '../errors'
 import { getDataDirectory } from '../database/connection'
 import { AuthSessionRepository } from '../repositories/authSessionRepository'
@@ -272,6 +272,25 @@ export class AuthService {
     })
     clearCurrentSession()
     return { success: true as const }
+  }
+
+  /**
+   * Comprueba la contrasena del usuario actual (p. ej. confirmar cierre de turno).
+   * No altera la sesion ni el hash.
+   */
+  verifyPassword(input: VerifyPasswordInput): { ok: true } {
+    const actor = this.requireCurrentUser()
+    const parsed = verifyPasswordSchema.safeParse(input)
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues.map((issue) => issue.message).join(', '))
+    }
+
+    const userRow = this.users.getAuthById(actor.id)
+    if (!userRow?.password_hash || !verifySecret(parsed.data.password, userRow.password_hash)) {
+      throw new AuthenticationError('Contrasena incorrecta.')
+    }
+
+    return { ok: true }
   }
 
   changePassword(input: ChangePasswordInput): SessionInfo {

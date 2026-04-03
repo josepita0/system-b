@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import type { AccountOpenedInShift } from '../../shared/types/report'
 import type {
   CashSession,
   CashSessionHistoryEntry,
@@ -288,8 +289,12 @@ export class ShiftRepository {
   getSessionSalesDetail(sessionId: number): ShiftSessionSaleDetail[] {
     const sales = this.db
       .prepare(
-        `SELECT id, sale_type, total, created_at, tab_id
-         FROM sales WHERE cash_session_id = ? ORDER BY id ASC`,
+        `SELECT s.id, s.sale_type, s.total, s.created_at, s.tab_id,
+                ct.customer_name AS tab_customer_name
+         FROM sales s
+         LEFT JOIN customer_tabs ct ON ct.id = s.tab_id
+         WHERE s.cash_session_id = ?
+         ORDER BY s.id ASC`,
       )
       .all(sessionId) as Array<{
       id: number
@@ -297,6 +302,7 @@ export class ShiftRepository {
       total: number
       created_at: string
       tab_id: number | null
+      tab_customer_name: string | null
     }>
 
     const lineStmt = this.db.prepare(
@@ -309,6 +315,7 @@ export class ShiftRepository {
       total: Number(s.total),
       createdAt: s.created_at,
       tabId: s.tab_id != null ? Number(s.tab_id) : null,
+      tabCustomerName: s.tab_customer_name?.trim() ? s.tab_customer_name.trim() : null,
       lines: (lineStmt.all(s.id) as Array<{ product_name: string; quantity: number; subtotal: number }>).map(
         (li) => ({
           productName: li.product_name,
@@ -317,6 +324,57 @@ export class ShiftRepository {
         }),
       ),
     }))
+  }
+
+  /** Cuentas de cliente cuya apertura ocurrió en esta sesión de caja, con consumos cargados a la cuenta. */
+  getAccountsOpenedInSession(sessionId: number): AccountOpenedInShift[] {
+    const tabs = this.db
+      .prepare(
+        `SELECT id, customer_name, opened_at
+         FROM customer_tabs
+         WHERE opened_cash_session_id = ?
+         ORDER BY id ASC`,
+      )
+      .all(sessionId) as Array<{
+      id: number
+      customer_name: string
+      opened_at: string
+    }>
+
+    const linesStmt = this.db.prepare(
+      `SELECT si.product_name AS product_name, si.quantity AS quantity, si.subtotal AS subtotal
+       FROM sale_items si
+       INNER JOIN sales s ON s.id = si.sale_id
+       WHERE s.tab_id = ? AND s.sale_type = 'tab_charge'
+       ORDER BY s.id ASC, si.id ASC`,
+    )
+
+    const balanceStmt = this.db.prepare(
+      `SELECT COALESCE(SUM(si.subtotal), 0) AS t
+       FROM sale_items si
+       INNER JOIN sales s ON s.id = si.sale_id
+       WHERE s.tab_id = ? AND s.sale_type = 'tab_charge'`,
+    )
+
+    return tabs.map((t) => {
+      const rawLines = linesStmt.all(t.id) as Array<{
+        product_name: string
+        quantity: number
+        subtotal: number
+      }>
+      const balRow = balanceStmt.get(t.id) as { t: number }
+      return {
+        tabId: t.id,
+        customerName: t.customer_name,
+        openedAt: t.opened_at,
+        consumptionLines: rawLines.map((li) => ({
+          productName: li.product_name,
+          quantity: Number(li.quantity),
+          subtotal: Number(li.subtotal),
+        })),
+        balanceTotal: Math.round(Number(balRow.t) * 100) / 100,
+      }
+    })
   }
 
   getSessionTabsDetail(sessionId: number): ShiftSessionTabDetail[] {

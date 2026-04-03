@@ -37,6 +37,9 @@ describe('AuthService', () => {
 
     expect(session.user.role).toBe('admin')
     expect(service.getCurrentUser()?.username).toBe('admin')
+
+    expect(service.verifyPassword({ password: bootstrapInfo!.temporaryPassword })).toEqual({ ok: true })
+    expect(() => service.verifyPassword({ password: 'incorrecta' })).toThrow()
   })
 
   it('resets password with a personal recovery code', () => {

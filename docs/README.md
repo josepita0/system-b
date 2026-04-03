@@ -27,6 +27,13 @@ Cada cambio importante debe dejar al menos uno de estos registros:
 - `setup/001-entorno-windows.md`
 - `implementation/semana-1.md`
 
+## Piloto (operación en sitio)
+
+- `pilot/01-checklist-y-criterios.md`: checklist y criterios de aceptación.
+- `pilot/02-seed-y-backup.md`: datos iniciales, rutas de la base y backup.
+- `pilot/03-audit-ipc-y-performance.md`: IPC, riesgo de bloqueo del main y decisiones.
+- `pilot/04-smtp-operacion.md`: SMTP, variables de entorno y cola de correo.
+
 ## Estado actual
 
 Al cierre de la jornada actual, el proyecto ya cuenta con:

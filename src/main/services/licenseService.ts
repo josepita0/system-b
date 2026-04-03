@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import crypto from 'node:crypto'
 import {
   activateLicenseByKeySchema,
   activateLicenseManualSchema,
@@ -13,18 +14,22 @@ import type {
   LicenseAccessSession,
   LicenseFeatureFlags,
   LicensedFeatureKey,
+  LicensePanelCodeResult,
   LicensePlanType,
   LicenseStatus,
   LicenseStatusInfo,
   RenewLicenseInput,
   ValidateLicenseSecretInput,
 } from '../../shared/types/license'
-import { LicenseAccessError, LicenseRestrictionError, ValidationError } from '../errors'
+import { AuthorizationError, LicenseAccessError, LicenseRestrictionError, ValidationError } from '../errors'
 import { AuditLogRepository } from '../repositories/auditLogRepository'
+import { LicensePanelTempCodeRepository } from '../repositories/licensePanelTempCodeRepository'
 import { LicenseRepository, type LicenseActivationRecord } from '../repositories/licenseRepository'
+import { UserRepository } from '../repositories/userRepository'
 import { randomSecret, sha256 } from '../security/password'
 
 const ACCESS_WINDOW_MINUTES = 5
+const PANEL_CODE_TTL_MINUTES = 15
 const DAY_IN_MS = 24 * 60 * 60 * 1000
 type ResolvedLicenseStatus = Exclude<LicenseStatus, 'missing'>
 
@@ -39,6 +44,11 @@ function normalizeLicenseKey(value: string) {
 
 function normalizeSecret(value: string) {
   return value.trim().toUpperCase()
+}
+
+function generateHumanPanelCode() {
+  const raw = crypto.randomBytes(4).toString('hex').toUpperCase()
+  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}`
 }
 
 function nowIso() {
@@ -103,11 +113,15 @@ function buildStatusMessage(status: LicenseStatus, expiresAt: string | null) {
 export class LicenseService {
   private readonly licenses: LicenseRepository
   private readonly audit: AuditLogRepository
+  private readonly users: UserRepository
+  private readonly panelTempCodes: LicensePanelTempCodeRepository
   private readonly accessSessions = new Map<number, { tokenHash: string; expiresAt: string }>()
 
   constructor(db: Database.Database) {
     this.licenses = new LicenseRepository(db)
     this.audit = new AuditLogRepository(db)
+    this.users = new UserRepository(db)
+    this.panelTempCodes = new LicensePanelTempCodeRepository(db)
   }
 
   getStatus(): LicenseStatusInfo {
@@ -166,7 +180,16 @@ export class LicenseService {
       throw new ValidationError(parsed.error.issues.map((issue) => issue.message).join(', '))
     }
 
-    if (normalizeSecret(parsed.data.secret) !== normalizeSecret(this.getPanelSecret())) {
+    const normalized = normalizeSecret(parsed.data.secret)
+    let authorized = false
+    const envSecret = process.env.SYSTEM_BARRA_LICENSE_PANEL_SECRET?.trim()
+    if (envSecret && normalized === normalizeSecret(envSecret)) {
+      authorized = true
+    }
+    if (!authorized) {
+      authorized = this.panelTempCodes.tryConsume(actorEmployeeId, sha256(normalized))
+    }
+    if (!authorized) {
       throw new LicenseAccessError('La clave administrativa para licencias es invalida.')
     }
 
@@ -186,6 +209,35 @@ export class LicenseService {
     })
 
     return { accessToken, expiresAt }
+  }
+
+  /**
+   * Codigo de un solo uso (hasta agotar TTL) para desbloquear el panel; solo el administrador
+   * puede generarlo y unicamente para su propio `employee_id`.
+   */
+  generateTemporaryPanelCode(actorEmployeeId: number, targetEmployeeId: number): LicensePanelCodeResult {
+    if (actorEmployeeId !== targetEmployeeId) {
+      throw new AuthorizationError('Solo puede generar el codigo desde la accion de su propio usuario.')
+    }
+    const user = this.users.getById(actorEmployeeId)
+    if (!user || user.role !== 'admin') {
+      throw new AuthorizationError('Solo el administrador puede generar este codigo.')
+    }
+
+    const plain = generateHumanPanelCode()
+    const hash = sha256(normalizeSecret(plain))
+    const expiresAt = plusMinutesIso(PANEL_CODE_TTL_MINUTES)
+    this.panelTempCodes.insert(actorEmployeeId, hash, expiresAt)
+
+    this.audit.create({
+      actorEmployeeId,
+      action: 'license.panel_temp_code_issued',
+      targetType: 'employee',
+      targetId: actorEmployeeId,
+      details: { expiresAt },
+    })
+
+    return { code: plain, expiresAt }
   }
 
   activateByKey(actorEmployeeId: number, input: ActivateLicenseByKeyInput) {
@@ -416,16 +468,5 @@ export class LicenseService {
     if (session.tokenHash !== sha256(accessToken)) {
       throw new LicenseAccessError('El token de acceso para licencias no es valido.')
     }
-  }
-
-  private getPanelSecret() {
-    const configuredSecret = process.env.SYSTEM_BARRA_LICENSE_PANEL_SECRET?.trim()
-    if (!configuredSecret) {
-      throw new LicenseAccessError(
-        'El panel de licencias no esta configurado en este entorno. Defina SYSTEM_BARRA_LICENSE_PANEL_SECRET antes de usarlo.',
-      )
-    }
-
-    return configuredSecret
   }
 }

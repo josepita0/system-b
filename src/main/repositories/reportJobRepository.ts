@@ -72,6 +72,14 @@ export class ReportJobRepository {
   }
 
   getPrimaryRecipientEmail() {
+    const settingsRow = this.db
+      .prepare('SELECT report_recipient_email FROM settings WHERE id = 1')
+      .get() as { report_recipient_email?: string | null } | undefined
+    const fromSettings = settingsRow?.report_recipient_email?.trim()
+    if (fromSettings) {
+      return fromSettings
+    }
+
     const row = this.db
       .prepare('SELECT email FROM report_recipients WHERE is_primary = 1 ORDER BY id ASC LIMIT 1')
       .get() as { email?: string } | undefined

@@ -52,6 +52,25 @@ describe('LicenseService', () => {
     expect(actions.map((item) => item.action)).toContain('license.blocked_feature_attempt')
   })
 
+  it('validates panel access with a temporary code when env secret is unset', () => {
+    const { auth, license } = setupServices('barra-license-temp-panel-')
+    delete process.env.SYSTEM_BARRA_LICENSE_PANEL_SECRET
+    const bootstrap = auth.ensureInitialAdmin()!
+    auth.login({
+      identifier: bootstrap.username,
+      password: bootstrap.temporaryPassword,
+    })
+
+    const actor = auth.getCurrentUser()!
+    const issued = license.generateTemporaryPanelCode(actor.id, actor.id)
+    expect(issued.code).toMatch(/^[0-9A-F]{4}-[0-9A-F]{4}$/)
+
+    const access = license.validateSecretAccess(actor.id, { secret: issued.code })
+    expect(access.accessToken).toBeTruthy()
+
+    expect(() => license.validateSecretAccess(actor.id, { secret: issued.code })).toThrowError(/invalida/i)
+  })
+
   it('validates secret access and activates a key-based license', () => {
     const { db, auth, license } = setupServices('barra-license-key-')
     const bootstrap = auth.ensureInitialAdmin()!

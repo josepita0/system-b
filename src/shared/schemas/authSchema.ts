@@ -15,3 +15,7 @@ export const changePasswordSchema = z.object({
   currentPassword: z.string().min(8),
   newPassword: z.string().min(10),
 })
+
+export const verifyPasswordSchema = z.object({
+  password: z.string().min(8, 'La contrasena debe tener al menos 8 caracteres.'),
+})

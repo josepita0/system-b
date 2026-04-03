@@ -4,6 +4,8 @@ Aqui se documentaran los avances relevantes del proyecto por sprint, modulo o en
 
 ## Indice actual
 
+Documentación de **piloto** (checklist, backup, SMTP, IPC): `../pilot/`.
+
 - `2026-03-18-avances.md`
 - `2026-03-18-seguridad-usuarios.md`
 - `2026-03-18-github-hardening.md`

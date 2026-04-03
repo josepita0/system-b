@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { authChannels } from '../../shared/ipc/auth'
+import type { VerifyPasswordInput } from '../../shared/types/auth'
 import { getDb } from '../database/connection'
 import { AuthService } from '../services/authService'
 import { executeIpc } from './response'
@@ -17,4 +18,5 @@ export function registerAuthHandlers() {
   )
   ipcMain.handle(authChannels.changePassword, (_event, payload) => executeIpc(() => service.changePassword(payload)))
   ipcMain.handle(authChannels.recoverPassword, (_event, payload) => executeIpc(() => service.recoverPassword(payload)))
+  ipcMain.handle(authChannels.verifyPassword, (_event, payload) => executeIpc(() => service.verifyPassword(payload as VerifyPasswordInput)))
 }

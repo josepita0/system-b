@@ -6,11 +6,18 @@ import type {
   OpenTabInput,
   OpenTabResult,
   PosCatalogResponse,
+  RemoveTabChargeLineInput,
   SaleCreated,
   SettleTabInput,
+  TabChargeDetail,
   TabSettlementResult,
 } from '../../shared/types/sale'
-import { createSaleSchema, openTabSchema, settleTabSchema } from '../../shared/schemas/saleSchema'
+import {
+  createSaleSchema,
+  openTabSchema,
+  removeTabChargeLineSchema,
+  settleTabSchema,
+} from '../../shared/schemas/saleSchema'
 import { ShiftStateError, StockError, ValidationError } from '../errors'
 import { CategoryRepository } from '../repositories/categoryRepository'
 import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
@@ -133,7 +140,13 @@ export class SaleService {
 
     const total = roundMoney(this.tabs.getTabChargeTotal(parsed.data.tabId))
     if (total <= 0) {
-      throw new ValidationError('La cuenta no tiene saldo pendiente.')
+      const closed = this.tabs.markTabSettledWithoutPayment(parsed.data.tabId, session.id)
+      return {
+        saleId: null,
+        total: 0,
+        cashSessionId: session.id,
+        createdAt: closed.createdAt,
+      }
     }
 
     const created = this.sales.settleTabWithPayment(session.id, employeeId, total, parsed.data.tabId)
@@ -144,6 +157,26 @@ export class SaleService {
       cashSessionId: created.cashSessionId,
       createdAt: created.createdAt,
     }
+  }
+
+  getTabChargeDetail(tabId: number): TabChargeDetail {
+    const tab = this.tabs.getById(tabId)
+    if (!tab || tab.status !== 'open') {
+      throw new ValidationError('La cuenta no existe o ya fue liquidada.')
+    }
+    const detail = this.tabs.getTabChargeDetail(tabId)
+    if (!detail) {
+      throw new ValidationError('No se pudo cargar el detalle de la cuenta.')
+    }
+    return detail
+  }
+
+  removeTabChargeLine(input: RemoveTabChargeLineInput): { tabId: number; newBalance: number } {
+    const parsed = removeTabChargeLineSchema.safeParse(input)
+    if (!parsed.success) {
+      throw new ValidationError(normalizeZodError(parsed.error))
+    }
+    return this.sales.removeTabChargeSaleItem(parsed.data.saleItemId, this.consumptions)
   }
 
   listPosComplementProducts(rootCategoryId: number) {

@@ -74,6 +74,8 @@ export interface ShiftSessionSaleDetail {
   total: number
   createdAt: string
   tabId: number | null
+  /** Cliente de la cuenta (pagaré), si la venta está vinculada a `customer_tabs`. */
+  tabCustomerName: string | null
   lines: ShiftSessionSaleLineDetail[]
 }
 

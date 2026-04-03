@@ -7,6 +7,7 @@ import { runMigrations } from '../../src/main/database/migrate'
 import { CategoryRepository } from '../../src/main/repositories/categoryRepository'
 import { ProductRepository } from '../../src/main/repositories/productRepository'
 import { SaleFormatRepository } from '../../src/main/repositories/saleFormatRepository'
+import { CatalogMediaService } from '../../src/main/services/catalogMediaService'
 import { CategoryService } from '../../src/main/services/categoryService'
 import { ProductService } from '../../src/main/services/productService'
 
@@ -29,7 +30,9 @@ describe('CategoryService', () => {
     runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
     const categories = new CategoryRepository(db)
     const saleFormats = new SaleFormatRepository(db)
-    const service = new CategoryService(categories, saleFormats)
+    const products = new ProductRepository(db)
+    const catalogMedia = new CatalogMediaService(categories, products)
+    const service = new CategoryService(categories, saleFormats, catalogMedia)
     const licores = categories.getBySlug('licores')
     const combinado = saleFormats.getByCode('combinado')
     const licoresRow = service.listTree().find((category) => category.slug === 'licores')
@@ -65,7 +68,9 @@ describe('CategoryService', () => {
     runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
     const categories = new CategoryRepository(db)
     const saleFormats = new SaleFormatRepository(db)
-    const service = new CategoryService(categories, saleFormats)
+    const products = new ProductRepository(db)
+    const catalogMedia = new CatalogMediaService(categories, products)
+    const service = new CategoryService(categories, saleFormats, catalogMedia)
 
     const createdParent = service.create({
       name: 'Destilados',
@@ -99,8 +104,10 @@ describe('CategoryService', () => {
     runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
     const categories = new CategoryRepository(db)
     const saleFormats = new SaleFormatRepository(db)
-    const service = new CategoryService(categories, saleFormats)
-    const productService = new ProductService(new ProductRepository(db), categories)
+    const products = new ProductRepository(db)
+    const catalogMedia = new CatalogMediaService(categories, products)
+    const service = new CategoryService(categories, saleFormats, catalogMedia)
+    const productService = new ProductService(products, categories, catalogMedia)
     const refrescos = categories.getBySlug('refrescos')
 
     productService.create({
@@ -124,7 +131,9 @@ describe('CategoryService', () => {
     runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
     const categories = new CategoryRepository(db)
     const saleFormats = new SaleFormatRepository(db)
-    const service = new CategoryService(categories, saleFormats)
+    const products = new ProductRepository(db)
+    const catalogMedia = new CatalogMediaService(categories, products)
+    const service = new CategoryService(categories, saleFormats, catalogMedia)
     const ron = categories.getBySlug('ron')
 
     expect(() =>
@@ -148,7 +157,9 @@ describe('CategoryService', () => {
     runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
     const categories = new CategoryRepository(db)
     const saleFormats = new SaleFormatRepository(db)
-    const service = new CategoryService(categories, saleFormats)
+    const products = new ProductRepository(db)
+    const catalogMedia = new CatalogMediaService(categories, products)
+    const service = new CategoryService(categories, saleFormats, catalogMedia)
     const ron = categories.getBySlug('ron')
     const combinado = saleFormats.getByCode('combinado')
 
@@ -193,8 +204,10 @@ describe('CategoryService', () => {
     runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
     const categories = new CategoryRepository(db)
     const saleFormats = new SaleFormatRepository(db)
-    const service = new CategoryService(categories, saleFormats)
-    const productService = new ProductService(new ProductRepository(db), categories)
+    const products = new ProductRepository(db)
+    const catalogMedia = new CatalogMediaService(categories, products)
+    const service = new CategoryService(categories, saleFormats, catalogMedia)
+    const productService = new ProductService(products, categories, catalogMedia)
     const licores = categories.getBySlug('licores')
     const cervezas = categories.getBySlug('cervezas')
 

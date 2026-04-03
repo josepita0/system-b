@@ -1,4 +1,6 @@
 import type Database from 'better-sqlite3'
+import { ConflictError } from '../errors'
+import type { TabChargeDetail, TabChargeLineDetail } from '../../shared/types/sale'
 
 export type CustomerTabRow = {
   id: number
@@ -69,5 +71,71 @@ export class TabRepository {
       )
       .get(tabId) as { total: number }
     return row.total
+  }
+
+  getTabChargeDetail(tabId: number): TabChargeDetail | null {
+    const tab = this.db
+      .prepare(`SELECT id, customer_name, status FROM customer_tabs WHERE id = ?`)
+      .get(tabId) as { id: number; customer_name: string; status: string } | undefined
+
+    if (!tab || tab.status !== 'open') {
+      return null
+    }
+
+    const rows = this.db
+      .prepare(
+        `SELECT si.id AS sale_item_id, s.id AS sale_id, s.created_at AS created_at,
+                si.product_name AS product_name, si.quantity AS quantity, si.subtotal AS subtotal
+         FROM sale_items si
+         INNER JOIN sales s ON s.id = si.sale_id
+         WHERE s.tab_id = ? AND s.sale_type = 'tab_charge'
+         ORDER BY s.id ASC, si.id ASC`,
+      )
+      .all(tabId) as Array<{
+      sale_item_id: number
+      sale_id: number
+      created_at: string
+      product_name: string
+      quantity: number
+      subtotal: number
+    }>
+
+    const lines: TabChargeLineDetail[] = rows.map((r) => ({
+      saleItemId: r.sale_item_id,
+      saleId: r.sale_id,
+      createdAt: r.created_at,
+      productName: r.product_name,
+      quantity: Number(r.quantity),
+      subtotal: Number(r.subtotal),
+    }))
+
+    const balance = this.getTabChargeTotal(tabId)
+
+    return {
+      tabId: tab.id,
+      customerName: tab.customer_name,
+      balance: Math.round(balance * 100) / 100,
+      lines,
+    }
+  }
+
+  /** Cierra cuenta sin venta de cobro (saldo 0). */
+  markTabSettledWithoutPayment(tabId: number, cashSessionId: number) {
+    return this.db.transaction(() => {
+      const upd = this.db
+        .prepare(
+          `UPDATE customer_tabs
+           SET status = 'settled',
+               settled_at = CURRENT_TIMESTAMP,
+               settled_cash_session_id = ?
+           WHERE id = ? AND status = 'open'`,
+        )
+        .run(cashSessionId, tabId)
+      if (upd.changes === 0) {
+        throw new ConflictError('La cuenta no pudo cerrarse (estado inesperado).')
+      }
+      const row = this.db.prepare('SELECT CURRENT_TIMESTAMP AS created_at').get() as { created_at: string }
+      return { createdAt: row.created_at }
+    })()
   }
 }

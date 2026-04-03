@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Category, CategoryInput } from '@shared/types/product'
+import { CatalogEntityMediaPanel } from './CatalogEntityMediaPanel'
 
 interface CategoryFormProps {
   category?: Category | null
@@ -7,8 +8,11 @@ interface CategoryFormProps {
   onSubmit: (payload: CategoryInput) => Promise<void>
   onCancel: () => void
   onDelete?: () => Promise<void>
+  onMediaChanged?: () => Promise<void>
   submitLabel?: string
 }
+
+const noopMedia = async () => {}
 
 interface FormState {
   name: string
@@ -44,6 +48,7 @@ export function CategoryForm({
   onSubmit,
   onCancel,
   onDelete,
+  onMediaChanged = noopMedia,
   submitLabel = 'Guardar categoria',
 }: CategoryFormProps) {
   const [form, setForm] = useState<FormState>(buildInitialState(category))
@@ -191,6 +196,14 @@ export function CategoryForm({
           </button>
         ) : null}
       </div>
+      <CatalogEntityMediaPanel
+        entityId={category?.id ?? null}
+        imageRelPath={category?.imageRelPath ?? null}
+        kind="category"
+        onChanged={onMediaChanged}
+        pdfOriginalName={category?.pdfOriginalName ?? null}
+        pdfRelPath={category?.pdfRelPath ?? null}
+      />
     </form>
   )
 }

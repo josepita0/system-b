@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { LicensePlanType } from '@shared/types/license'
+import { SmtpSettingsPanel } from './SmtpSettingsPanel'
 
 function toPlanLabel(value: LicensePlanType | null) {
   switch (value) {
@@ -36,6 +37,7 @@ const tabClassName = (selected: boolean) =>
 
 export function LicenseAdminPage() {
   const queryClient = useQueryClient()
+  const [sectionTab, setSectionTab] = useState<'license' | 'smtp'>('license')
   const [activeTab, setActiveTab] = useState<'key' | 'manual'>('key')
   const [panelSecret, setPanelSecret] = useState('')
   const [accessToken, setAccessToken] = useState<string | null>(null)
@@ -201,8 +203,22 @@ export function LicenseAdminPage() {
           <h1 className="text-2xl font-semibold text-white">Licencia administrativa</h1>
           <p className="mt-1 text-sm text-slate-400">Panel oculto para activar o renovar la licencia local del producto.</p>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <button className={tabClassName(sectionTab === 'license')} onClick={() => setSectionTab('license')} type="button">
+            Licencia
+          </button>
+          <button className={tabClassName(sectionTab === 'smtp')} onClick={() => setSectionTab('smtp')} type="button">
+            Correo (SMTP)
+          </button>
+        </div>
       </div>
 
+      <div className={sectionTab === 'smtp' ? 'contents' : 'hidden'}>
+        <SmtpSettingsPanel />
+      </div>
+
+      <div className={sectionTab === 'license' ? 'contents' : 'hidden'}>
+      <>
       <div className={panelClassName}>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatusItem label="Estado" value={toStatusLabel(status.status)} />
@@ -220,7 +236,10 @@ export function LicenseAdminPage() {
 
       <div className={panelClassName}>
         <h2 className="text-lg font-semibold text-white">Clave administrativa</h2>
-        <p className="mt-1 text-sm text-slate-400">Antes de activar o renovar, valida la clave especial de este panel.</p>
+        <p className="mt-1 text-sm text-slate-400">
+          Antes de activar o renovar, ingresa el codigo temporal generado en Usuarios (Acciones en tu propia fila como administrador) o la
+          clave fija definida en el entorno del sistema si aplica.
+        </p>
         <form
           className="mt-4 flex flex-wrap gap-3"
           onSubmit={(event) => {
@@ -386,6 +405,8 @@ export function LicenseAdminPage() {
           La licencia actual ya fue cancelada. Puedes renovarla desde cualquiera de las pestañas superiores cuando el panel este desbloqueado.
         </div>
       ) : null}
+      </>
+      </div>
     </section>
   )
 }

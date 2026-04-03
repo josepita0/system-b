@@ -1,12 +1,15 @@
 import { parentPort, workerData } from 'node:worker_threads'
-import { createDatabase, getDatabasePath } from '../database/connection'
+import { createDatabase } from '../database/connection'
 import { generateShiftCloseReport } from '../services/reportBuilder'
 
+type WorkerPayload = { sessionId: number; databasePath: string }
+
 async function run() {
-  const db = createDatabase(getDatabasePath())
+  const { sessionId, databasePath } = workerData as WorkerPayload
+  const db = createDatabase(databasePath)
 
   try {
-    const result = await generateShiftCloseReport(db, Number(workerData.sessionId))
+    const result = await generateShiftCloseReport(db, Number(sessionId))
     parentPort?.postMessage({ ok: true, data: result })
   } catch (error) {
     parentPort?.postMessage({

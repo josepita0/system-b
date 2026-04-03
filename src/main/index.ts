@@ -1,10 +1,23 @@
-import { app, BrowserWindow, dialog, globalShortcut } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, protocol } from 'electron'
 import { licenseEvents } from '../shared/ipc/license'
 import { getDb } from './database/connection'
 import { runMigrations } from './database/migrate'
 import { registerIpcHandlers } from './ipc'
 import { AuthService } from './services/authService'
+import { registerCatalogMediaProtocol } from './protocol/registerCatalogMediaProtocol'
 import { createMainWindow } from './windows/createMainWindow'
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'catalog-media',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+])
 
 let mainWindow: BrowserWindow | null = null
 /** Evita abrir una ventana sin IPC (p. ej. `activate` en macOS) si el arranque fallo antes de `registerIpcHandlers`. */
@@ -94,6 +107,7 @@ function runBootstrap() {
 
 app.whenReady().then(() => {
   registerSecurityGuards()
+  registerCatalogMediaProtocol()
 
   try {
     runBootstrap()

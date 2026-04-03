@@ -5,8 +5,10 @@ import type {
   OpenTabInput,
   OpenTabResult,
   PosCatalogResponse,
+  RemoveTabChargeLineInput,
   SaleCreated,
   SettleTabInput,
+  TabChargeDetail,
   TabSettlementResult,
 } from '../types/sale'
 
@@ -18,6 +20,8 @@ export const salesChannels = {
   openTab: 'sales:openTab',
   listOpenTabs: 'sales:listOpenTabs',
   settleTab: 'sales:settleTab',
+  tabChargeDetail: 'sales:tabChargeDetail',
+  removeTabChargeLine: 'sales:removeTabChargeLine',
 } as const
 
 export interface SalesApi {
@@ -28,4 +32,6 @@ export interface SalesApi {
   openTab: (payload: OpenTabInput) => Promise<OpenTabResult>
   listOpenTabs: () => Promise<CustomerTabSummary[]>
   settleTab: (payload: SettleTabInput) => Promise<TabSettlementResult>
+  tabChargeDetail: (tabId: number) => Promise<TabChargeDetail>
+  removeTabChargeLine: (payload: RemoveTabChargeLineInput) => Promise<{ tabId: number; newBalance: number }>
 }

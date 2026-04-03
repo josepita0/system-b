@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron'
 import { licenseChannels } from '../../shared/ipc/license'
+import { generateLicensePanelCodeSchema } from '../../shared/schemas/licenseSchema'
 import { getDb } from '../database/connection'
+import { ValidationError } from '../errors'
 import { AuthService } from '../services/authService'
 import { AuthorizationService } from '../services/authorizationService'
 import { LicenseService } from '../services/licenseService'
@@ -24,6 +26,17 @@ export function registerLicenseHandlers() {
     executeIpc(() => {
       guards.requireUser()
       return service.getFeatureFlags()
+    }),
+  )
+
+  ipcMain.handle(licenseChannels.generatePanelAccessCode, (_event, payload) =>
+    executeIpc(() => {
+      const actor = guards.requireRole('admin')
+      const parsed = generateLicensePanelCodeSchema.safeParse(payload)
+      if (!parsed.success) {
+        throw new ValidationError(parsed.error.issues.map((issue) => issue.message).join(', '))
+      }
+      return service.generateTemporaryPanelCode(actor.id, parsed.data.targetEmployeeId)
     }),
   )
 

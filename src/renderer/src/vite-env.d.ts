@@ -12,6 +12,7 @@ import type { UserApi } from '@shared/ipc/users'
 import type { VipCustomersApi } from '@shared/ipc/vipCustomers'
 import type { InventoryApi } from '@shared/ipc/inventory'
 import type { ConsumptionsApi } from '@shared/ipc/consumptions'
+import type { SettingsApi } from '@shared/ipc/settings'
 
 declare global {
   interface Window {
@@ -28,6 +29,7 @@ declare global {
       vipCustomers: VipCustomersApi
       inventory: InventoryApi
       consumptions: ConsumptionsApi
+      settings: SettingsApi
     }
   }
 }

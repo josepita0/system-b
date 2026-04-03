@@ -39,10 +39,31 @@ export interface SettleTabInput {
 }
 
 export interface TabSettlementResult {
-  saleId: number
+  /** `null` si se cerró la cuenta con saldo 0 sin cobro en efectivo. */
+  saleId: number | null
   total: number
   cashSessionId: number
   createdAt: string
+}
+
+export interface TabChargeLineDetail {
+  saleItemId: number
+  saleId: number
+  createdAt: string
+  productName: string
+  quantity: number
+  subtotal: number
+}
+
+export interface TabChargeDetail {
+  tabId: number
+  customerName: string
+  balance: number
+  lines: TabChargeLineDetail[]
+}
+
+export interface RemoveTabChargeLineInput {
+  saleItemId: number
 }
 
 export interface SaleCreated {

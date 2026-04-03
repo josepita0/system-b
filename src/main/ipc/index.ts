@@ -10,6 +10,7 @@ import { registerUserHandlers } from './userHandlers'
 import { registerVipCustomerHandlers } from './vipCustomerHandlers'
 import { registerInventoryHandlers } from './inventoryHandlers'
 import { registerConsumptionHandlers } from './consumptionHandlers'
+import { registerSettingsHandlers } from './settingsHandlers'
 
 export function registerIpcHandlers() {
   registerAuthHandlers()
@@ -20,6 +21,7 @@ export function registerIpcHandlers() {
   registerSaleHandlers()
   registerShiftHandlers()
   registerReportHandlers()
+  registerSettingsHandlers()
   registerSetupHandlers()
   registerVipCustomerHandlers()
   registerInventoryHandlers()

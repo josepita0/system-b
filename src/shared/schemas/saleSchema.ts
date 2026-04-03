@@ -22,3 +22,7 @@ export const openTabSchema = z.object({
 export const settleTabSchema = z.object({
   tabId: z.number().int().positive(),
 })
+
+export const removeTabChargeLineSchema = z.object({
+  saleItemId: z.number().int().positive(),
+})

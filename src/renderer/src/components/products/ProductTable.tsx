@@ -1,4 +1,5 @@
 import type { Product } from '@shared/types/product'
+import { catalogMediaUrl } from '@shared/lib/catalogMediaUrl'
 
 interface ProductTableProps {
   products: Product[]
@@ -14,6 +15,7 @@ export function ProductTable({ products, onEdit, onDelete, selectedProductId }: 
         <thead className="bg-slate-800/70 text-slate-300">
           <tr>
             <th className="px-4 py-3">SKU</th>
+            <th className="px-4 py-3 w-16">Img</th>
             <th className="px-4 py-3">Nombre</th>
             <th className="px-4 py-3">Categoria</th>
             <th className="px-4 py-3">Tipo</th>
@@ -26,6 +28,13 @@ export function ProductTable({ products, onEdit, onDelete, selectedProductId }: 
           {products.map((product) => (
             <tr className={`border-t border-slate-800 ${selectedProductId === product.id ? 'bg-slate-800/40' : ''}`} key={product.id}>
               <td className="px-4 py-3">{product.sku}</td>
+              <td className="px-4 py-3">
+                {catalogMediaUrl(product.imageRelPath) ? (
+                  <img alt="" className="h-10 w-10 rounded-md border border-slate-700 object-cover" src={catalogMediaUrl(product.imageRelPath)!} />
+                ) : (
+                  <span className="text-slate-600">—</span>
+                )}
+              </td>
               <td className="px-4 py-3">{product.name}</td>
               <td className="px-4 py-3">{product.categoryName}</td>
               <td className="px-4 py-3 capitalize">{product.type}</td>
@@ -43,7 +52,7 @@ export function ProductTable({ products, onEdit, onDelete, selectedProductId }: 
           ))}
           {products.length === 0 ? (
             <tr>
-              <td className="px-4 py-6 text-slate-400" colSpan={7}>
+              <td className="px-4 py-6 text-slate-400" colSpan={8}>
                 No hay productos registrados.
               </td>
             </tr>

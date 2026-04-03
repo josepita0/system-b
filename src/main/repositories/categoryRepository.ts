@@ -11,6 +11,11 @@ type CategoryRow = {
   inherits_sale_formats: number
   sort_order: number
   is_active: number
+  image_relpath: string | null
+  image_mime: string | null
+  pdf_relpath: string | null
+  pdf_mime: string | null
+  pdf_original_name: string | null
   created_at: string
   updated_at: string
 }
@@ -36,6 +41,11 @@ function mapCategory(row: CategoryRow): Category {
     inheritedFromCategoryName: null,
     sortOrder: row.sort_order,
     isActive: row.is_active,
+    imageRelPath: row.image_relpath ?? null,
+    imageMime: row.image_mime ?? null,
+    pdfRelPath: row.pdf_relpath ?? null,
+    pdfMime: row.pdf_mime ?? null,
+    pdfOriginalName: row.pdf_original_name ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -196,6 +206,47 @@ export class CategoryRepository {
       )
       .all(categoryId)
       .map((row: any) => Number(row.sale_format_id))
+  }
+
+  patchMedia(
+    id: number,
+    patch: {
+      imageRelPath?: string | null
+      imageMime?: string | null
+      pdfRelPath?: string | null
+      pdfMime?: string | null
+      pdfOriginalName?: string | null
+    },
+  ) {
+    const assignments: string[] = []
+    const values: Record<string, unknown> = { id }
+    if (patch.imageRelPath !== undefined) {
+      assignments.push('image_relpath = @imageRelPath')
+      values.imageRelPath = patch.imageRelPath
+    }
+    if (patch.imageMime !== undefined) {
+      assignments.push('image_mime = @imageMime')
+      values.imageMime = patch.imageMime
+    }
+    if (patch.pdfRelPath !== undefined) {
+      assignments.push('pdf_relpath = @pdfRelPath')
+      values.pdfRelPath = patch.pdfRelPath
+    }
+    if (patch.pdfMime !== undefined) {
+      assignments.push('pdf_mime = @pdfMime')
+      values.pdfMime = patch.pdfMime
+    }
+    if (patch.pdfOriginalName !== undefined) {
+      assignments.push('pdf_original_name = @pdfOriginalName')
+      values.pdfOriginalName = patch.pdfOriginalName
+    }
+    if (assignments.length === 0) {
+      return
+    }
+    assignments.push('updated_at = CURRENT_TIMESTAMP')
+    this.db
+      .prepare(`UPDATE categories SET ${assignments.join(', ')} WHERE id = @id`)
+      .run(values)
   }
 
   getDescendantIds(id: number) {

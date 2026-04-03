@@ -2,7 +2,9 @@ import { Suspense, lazy, useEffect, type ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
+import { Button } from './components/ui/Button'
 import { getSetupStatusSafe } from './lib/setup'
+import { cn } from './lib/cn'
 import { useAuthStore } from './store/authStore'
 import { usePosStore } from './store/posStore'
 
@@ -27,7 +29,10 @@ const InventoryPage = lazy(() => import('./pages/inventory/InventoryPage').then(
 const ConsumptionRulesPage = lazy(() => import('./pages/consumptions/ConsumptionRulesPage').then((module) => ({ default: module.ConsumptionRulesPage })))
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-lg px-4 py-2 text-sm ${isActive ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`
+  cn(
+    'block rounded-lg px-4 py-2 text-sm transition-colors',
+    isActive ? 'bg-brand font-medium text-brand-fg' : 'bg-surface-card text-slate-200 hover:bg-slate-800/80',
+  )
 
 export default function App() {
   const navigate = useNavigate()
@@ -79,13 +84,13 @@ export default function App() {
   })
 
   if (meQuery.isLoading || setupQuery.isLoading) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">Cargando sesion...</div>
+    return <div className="flex min-h-screen items-center justify-center bg-surface text-slate-300">Cargando sesion...</div>
   }
 
   if (setupQuery.error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6">
-        <div className="w-full max-w-xl rounded-3xl border border-rose-800 bg-slate-900 p-6 text-sm text-rose-300">
+      <div className="flex min-h-screen items-center justify-center bg-surface px-6">
+        <div className="w-full max-w-xl rounded-3xl border border-rose-800 bg-surface-card p-6 text-sm text-rose-300">
           {setupQuery.error instanceof Error ? setupQuery.error.message : 'No fue posible cargar el estado de instalacion.'}
         </div>
       </div>
@@ -161,16 +166,16 @@ export default function App() {
 
   if (user.mustChangePassword) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6">
-        <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-900 p-6">
+      <div className="flex min-h-screen items-center justify-center bg-surface px-6">
+        <div className="w-full max-w-lg rounded-3xl border border-border bg-surface-card p-6">
           <div className="mb-6 flex items-center justify-between gap-4">
             <div>
               <h1 className="text-xl font-semibold text-white">Cambio obligatorio de clave</h1>
               <p className="mt-1 text-sm text-slate-400">Debes actualizar tu contrasena antes de continuar.</p>
             </div>
-            <button className="rounded-lg bg-slate-800 px-4 py-2 text-sm text-slate-200" onClick={() => logoutMutation.mutate()} type="button">
+            <Button className="text-left" onClick={() => logoutMutation.mutate()} variant="secondary">
               Cerrar sesion
-            </button>
+            </Button>
           </div>
           <Routes>
             <Route element={<Suspense fallback={<PageLoader />}><ChangePasswordPage /></Suspense>} path="/cambiar-clave" />
@@ -182,10 +187,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-surface text-slate-100">
       <div className="mx-auto grid min-h-screen max-w-7xl grid-cols-[240px_1fr] gap-6 px-6 py-6">
-        <aside className="rounded-3xl border border-slate-800 bg-slate-900 p-5">
-          <h1 className="text-xl font-semibold">Sistema Barra</h1>
+        <aside className="rounded-3xl border border-border bg-surface-card p-5">
+          <h1 className="text-xl font-semibold text-white">Sistema Barra</h1>
           <p className="mt-2 text-sm text-slate-400">{user.firstName} {user.lastName} | {user.role}</p>
           <nav className="mt-6 flex flex-col gap-2">
             <NavLink className={linkClass} to="/ventas">
@@ -221,13 +226,13 @@ export default function App() {
                 Mi documentacion
               </NavLink>
             ) : null}
-            <button className="rounded-lg bg-slate-800 px-4 py-2 text-left text-sm text-slate-200" onClick={() => logoutMutation.mutate()} type="button">
+            <Button className="w-full text-left" onClick={() => logoutMutation.mutate()} variant="secondary">
               Cerrar sesion
-            </button>
+            </Button>
           </nav>
         </aside>
 
-        <main className="rounded-3xl border border-slate-800 bg-slate-950 p-2">
+        <main className="rounded-3xl border border-border bg-surface p-2">
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route element={<Navigate replace to={user.role === 'employee' ? '/ventas' : '/'} />} path="/login" />
@@ -357,17 +362,17 @@ function SetupShell({
   children: ReactNode
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6">
-      <div className="w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-900 p-6">
+    <div className="flex min-h-screen items-center justify-center bg-surface px-6">
+      <div className="w-full max-w-3xl rounded-3xl border border-border bg-surface-card p-6">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold text-white">{title}</h1>
             <p className="mt-1 text-sm text-slate-400">{description}</p>
           </div>
           {onLogout ? (
-            <button className="rounded-lg bg-slate-800 px-4 py-2 text-sm text-slate-200" onClick={onLogout} type="button">
+            <Button onClick={onLogout} variant="secondary">
               Cerrar sesion
-            </button>
+            </Button>
           ) : null}
         </div>
         {children}

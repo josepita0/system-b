@@ -15,6 +15,7 @@ import { SaleFormatRepository } from '../../src/main/repositories/saleFormatRepo
 import { ShiftRepository } from '../../src/main/repositories/shiftRepository'
 import { VipCustomerRepository } from '../../src/main/repositories/vipCustomerRepository'
 import { SaleFormatConsumptionRepository } from '../../src/main/repositories/saleFormatConsumptionRepository'
+import { CatalogMediaService } from '../../src/main/services/catalogMediaService'
 import { CategoryService } from '../../src/main/services/categoryService'
 import { ProductService } from '../../src/main/services/productService'
 import { SaleService } from '../../src/main/services/saleService'
@@ -35,7 +36,8 @@ function buildSaleService(db: ReturnType<typeof createDatabase>) {
   const products = new ProductRepository(db)
   const saleFormats = new SaleFormatRepository(db)
   const categories = new CategoryRepository(db)
-  const categoryService = new CategoryService(categories, saleFormats)
+  const catalogMedia = new CatalogMediaService(categories, products)
+  const categoryService = new CategoryService(categories, saleFormats, catalogMedia)
   const sales = new SaleRepository(db)
   const recipes = new RecipeRepository(db)
   const inventory = new ProductInventoryRepository(db)
@@ -59,6 +61,7 @@ function buildSaleService(db: ReturnType<typeof createDatabase>) {
     shifts,
     products,
     categories,
+    catalogMedia,
   }
 }
 
@@ -70,8 +73,8 @@ describe('SaleService', () => {
     cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
 
     runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
-    const { saleService, categories, products } = buildSaleService(db)
-    const productService = new ProductService(products, categories)
+    const { saleService, categories, products, catalogMedia } = buildSaleService(db)
+    const productService = new ProductService(products, categories, catalogMedia)
     const refrescos = categories.getBySlug('refrescos')!
     const product = productService.create({
       sku: 'SALE-NS-1',
@@ -114,8 +117,8 @@ describe('SaleService', () => {
       openerId,
     )
 
-    const { saleService, categories, products } = buildSaleService(db)
-    const productService = new ProductService(products, categories)
+    const { saleService, categories, products, catalogMedia } = buildSaleService(db)
+    const productService = new ProductService(products, categories, catalogMedia)
     const refrescos = categories.getBySlug('refrescos')!
     const product = productService.create({
       sku: 'SALE-OK-1',
@@ -169,8 +172,8 @@ describe('SaleService', () => {
       openerTab,
     )
 
-    const { saleService, categories, products, shifts } = buildSaleService(db)
-    const productService = new ProductService(products, categories)
+    const { saleService, categories, products, shifts, catalogMedia } = buildSaleService(db)
+    const productService = new ProductService(products, categories, catalogMedia)
     const refrescos = categories.getBySlug('refrescos')!
     const product = productService.create({
       sku: 'SALE-TAB-1',
@@ -201,5 +204,64 @@ describe('SaleService', () => {
     const settled = saleService.settleTab({ tabId: tab.id }, empId)
     expect(settled.total).toBe(10)
     expect(shifts.getSalesTotalForSession(session.id)).toBe(10)
+  })
+
+  it('closing shift persists pending reconcile when a tab charge stays open', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-sale-close-pending-'))
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
+
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+
+    const shiftService = new ShiftService(new ShiftRepository(db))
+    const openerTab = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('O','T','employee',1)`).run()
+        .lastInsertRowid,
+    )
+    shiftService.open(
+      {
+        shiftCode: 'day',
+        businessDate: '2026-03-21',
+        openingCash: 50,
+      },
+      openerTab,
+    )
+
+    const { saleService, categories, products, shifts, catalogMedia } = buildSaleService(db)
+    const productService = new ProductService(products, categories, catalogMedia)
+    const refrescos = categories.getBySlug('refrescos')!
+    const product = productService.create({
+      sku: 'SALE-PEND-1',
+      name: 'Gaseosa',
+      type: 'simple',
+      categoryId: refrescos.id,
+      salePrice: 4,
+      minStock: 0,
+    })
+
+    const empId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('T','U','employee',1)`).run()
+        .lastInsertRowid,
+    )
+
+    const session = shifts.getCurrentSession()!
+    const tab = saleService.openTab({ customerName: 'Cliente Cuenta' }, empId)
+
+    db.prepare(
+      `INSERT INTO product_inventory_movements (product_id, movement_type, quantity, reference_type, note)
+       VALUES (?, 'entry', ?, 'test', 'seed')`,
+    ).run(product.id, 100)
+
+    saleService.createSale({ items: [{ productId: product.id, quantity: 3 }], tabId: tab.id }, empId)
+
+    const closed = shiftService.close({
+      sessionId: session.id,
+      countedCash: 50,
+    })
+
+    expect(closed.status).toBe('closed')
+    expect(closed.pendingReconcileTotal).toBe(12)
+    expect(shifts.getSalesTotalForSession(session.id)).toBe(0)
   })
 })

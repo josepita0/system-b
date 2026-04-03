@@ -36,6 +36,15 @@ export interface LicenseAccessSession {
   expiresAt: string
 }
 
+export interface GenerateLicensePanelCodeInput {
+  targetEmployeeId: number
+}
+
+export interface LicensePanelCodeResult {
+  code: string
+  expiresAt: string
+}
+
 export interface ActivateLicenseByKeyInput {
   accessToken: string
   licenseKey: string

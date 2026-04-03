@@ -27,6 +27,15 @@ export const productChannels = {
   updateSaleFormat: 'products:updateSaleFormat',
   removeSaleFormat: 'products:removeSaleFormat',
   setCategorySaleFormats: 'products:setCategorySaleFormats',
+  setCategoryImage: 'products:setCategoryImage',
+  clearCategoryImage: 'products:clearCategoryImage',
+  setCategoryPdf: 'products:setCategoryPdf',
+  clearCategoryPdf: 'products:clearCategoryPdf',
+  setProductImage: 'products:setProductImage',
+  clearProductImage: 'products:clearProductImage',
+  setProductPdf: 'products:setProductPdf',
+  clearProductPdf: 'products:clearProductPdf',
+  openCatalogPdf: 'products:openCatalogPdf',
 } as const
 
 export interface ProductApi {
@@ -44,4 +53,13 @@ export interface ProductApi {
   updateSaleFormat: (payload: SaleFormatUpdateInput) => Promise<SaleFormat>
   removeSaleFormat: (id: number) => Promise<{ success: true }>
   setCategorySaleFormats: (payload: CategorySaleFormatUpdateInput) => Promise<{ success: true }>
+  setCategoryImage: (categoryId: number) => Promise<Category>
+  clearCategoryImage: (categoryId: number) => Promise<Category>
+  setCategoryPdf: (categoryId: number) => Promise<Category>
+  clearCategoryPdf: (categoryId: number) => Promise<Category>
+  setProductImage: (productId: number) => Promise<Product>
+  clearProductImage: (productId: number) => Promise<Product>
+  setProductPdf: (productId: number) => Promise<Product>
+  clearProductPdf: (productId: number) => Promise<Product>
+  openCatalogPdf: (relPath: string) => Promise<void>
 }

@@ -14,6 +14,11 @@ export interface Category {
   inheritedFromCategoryName: string | null
   sortOrder: number
   isActive: number
+  imageRelPath: string | null
+  imageMime: string | null
+  pdfRelPath: string | null
+  pdfMime: string | null
+  pdfOriginalName: string | null
   createdAt: string
   updatedAt: string
 }
@@ -47,6 +52,11 @@ export interface Product {
   salePrice: number
   minStock: number
   isActive: number
+  imageRelPath: string | null
+  imageMime: string | null
+  pdfRelPath: string | null
+  pdfMime: string | null
+  pdfOriginalName: string | null
   createdAt: string
   updatedAt: string
 }

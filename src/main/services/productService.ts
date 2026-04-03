@@ -4,6 +4,7 @@ import { productSchema, productUpdateSchema } from '../../shared/schemas/product
 import { ConflictError, NotFoundError, ValidationError } from '../errors'
 import { CategoryRepository } from '../repositories/categoryRepository'
 import { ProductRepository } from '../repositories/productRepository'
+import type { CatalogMediaService } from './catalogMediaService'
 
 function normalizeZodError(error: ZodError) {
   return error.issues.map((issue) => issue.message).join(', ')
@@ -13,6 +14,7 @@ export class ProductService {
   constructor(
     private readonly repository: ProductRepository,
     private readonly categories: CategoryRepository,
+    private readonly catalogMedia: CatalogMediaService,
   ) {}
 
   list(categoryId?: number) {
@@ -82,6 +84,7 @@ export class ProductService {
       throw new NotFoundError('Producto no encontrado.')
     }
 
+    this.catalogMedia.purgeProductFiles(id)
     this.repository.softDelete(id)
     return { success: true as const }
   }

@@ -61,6 +61,11 @@ export function ProductsPage() {
         inheritedFromCategoryName: category.inheritedFromCategoryName ?? null,
         sortOrder: category.sortOrder,
         isActive: category.isActive,
+        imageRelPath: category.imageRelPath ?? null,
+        imageMime: category.imageMime ?? null,
+        pdfRelPath: category.pdfRelPath ?? null,
+        pdfMime: category.pdfMime ?? null,
+        pdfOriginalName: category.pdfOriginalName ?? null,
         createdAt: category.createdAt,
         updatedAt: category.updatedAt,
       })),
@@ -256,6 +261,7 @@ export function ProductsPage() {
             categories={categoryEntities}
             category={editingCategory}
             onCancel={() => setEditingCategory(null)}
+            onMediaChanged={refreshCategories}
             onDelete={
               editingCategory
                 ? async () => {
@@ -292,6 +298,9 @@ export function ProductsPage() {
             defaultCategoryId={selectedCategoryId}
             product={selected}
             submitLabel={selected ? 'Guardar producto' : 'Crear producto'}
+            onMediaChanged={async () => {
+              await Promise.all([refreshProducts(), refreshCategories()])
+            }}
             onSubmit={async (payload) => {
               setErrorMessage(null)
               if (selected) {

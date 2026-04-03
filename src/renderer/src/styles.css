@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand: #06b6d4;
+  --color-brand-fg: #0c1222;
+  --color-surface: #020617;
+  --color-surface-card: #0f172a;
+  --color-border: #1e293b;
+  --font-sans: Inter, system-ui, sans-serif;
+}
+
 :root {
   color-scheme: dark;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 body {

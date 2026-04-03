@@ -6,9 +6,13 @@ interface UserTableProps {
   users: User[]
   onEdit: (userId: number) => void
   onView: (userId: number) => void
+  /** Solo administrador, solo en la fila del propio usuario administrador. */
+  currentUserId?: number | null
+  currentUserRole?: User['role'] | null
+  onGenerateLicensePanelCode?: (userId: number) => void
 }
 
-export function UserTable({ users, onEdit, onView }: UserTableProps) {
+export function UserTable({ users, onEdit, onView, currentUserId, currentUserRole, onGenerateLicensePanelCode }: UserTableProps) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900">
       <div className="overflow-x-auto">
@@ -34,7 +38,18 @@ export function UserTable({ users, onEdit, onView }: UserTableProps) {
                 <td className="px-4 py-3">{formatUserRole(user.role)}</td>
                 <td className="px-4 py-3">{formatUserStatus(user.isActive)}</td>
                 <td className="px-4 py-3">
-                  <UserActionsMenu onEdit={() => onEdit(user.id)} onView={() => onView(user.id)} />
+                  <UserActionsMenu
+                    onEdit={() => onEdit(user.id)}
+                    onGenerateLicensePanelCode={
+                      onGenerateLicensePanelCode &&
+                      currentUserRole === 'admin' &&
+                      currentUserId === user.id &&
+                      user.role === 'admin'
+                        ? () => onGenerateLicensePanelCode(user.id)
+                        : undefined
+                    }
+                    onView={() => onView(user.id)}
+                  />
                 </td>
               </tr>
             ))}

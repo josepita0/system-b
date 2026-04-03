@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Product, ProductInput } from '@shared/types/product'
+import { CatalogEntityMediaPanel } from './CatalogEntityMediaPanel'
 
 export interface ProductCategoryOption {
   id: number
@@ -11,8 +12,11 @@ interface ProductFormProps {
   categories: ProductCategoryOption[]
   defaultCategoryId?: number | null
   onSubmit: (payload: ProductInput) => Promise<void>
+  onMediaChanged?: () => Promise<void>
   submitLabel?: string
 }
+
+const noopMedia = async () => {}
 
 function createInitialState(categoryId?: number | null): ProductInput {
   return {
@@ -30,6 +34,7 @@ export function ProductForm({
   categories,
   defaultCategoryId,
   onSubmit,
+  onMediaChanged = noopMedia,
   submitLabel = 'Guardar producto',
 }: ProductFormProps) {
   const initialState = createInitialState(defaultCategoryId ?? categories[0]?.id ?? null)
@@ -136,6 +141,14 @@ export function ProductForm({
       <button className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 disabled:opacity-50" disabled={!categories.length} type="submit">
         {submitLabel}
       </button>
+      <CatalogEntityMediaPanel
+        entityId={product?.id ?? null}
+        imageRelPath={product?.imageRelPath ?? null}
+        kind="product"
+        onChanged={onMediaChanged}
+        pdfOriginalName={product?.pdfOriginalName ?? null}
+        pdfRelPath={product?.pdfRelPath ?? null}
+      />
     </form>
   )
 }

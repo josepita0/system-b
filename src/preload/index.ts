@@ -12,6 +12,7 @@ import { userChannels } from '../shared/ipc/users'
 import { vipCustomerChannels } from '../shared/ipc/vipCustomers'
 import { inventoryChannels } from '../shared/ipc/inventory'
 import { consumptionChannels } from '../shared/ipc/consumptions'
+import { settingsChannels } from '../shared/ipc/settings'
 
 async function invokeIpc<T>(channel: string, ...args: unknown[]) {
   const result = (await ipcRenderer.invoke(channel, ...args)) as IpcResult<T>
@@ -33,11 +34,13 @@ const api = {
     me: () => invokeIpc(authChannels.me),
     changePassword: (payload: unknown) => invokeIpc(authChannels.changePassword, payload),
     recoverPassword: (payload: unknown) => invokeIpc(authChannels.recoverPassword, payload),
+    verifyPassword: (payload: unknown) => invokeIpc(authChannels.verifyPassword, payload),
   },
   license: {
     getStatus: () => invokeIpc(licenseChannels.getStatus),
     getFeatureFlags: () => invokeIpc(licenseChannels.getFeatureFlags),
     validateSecretAccess: (payload: unknown) => invokeIpc(licenseChannels.validateSecretAccess, payload),
+    generatePanelAccessCode: (payload: unknown) => invokeIpc(licenseChannels.generatePanelAccessCode, payload),
     activateByKey: (payload: unknown) => invokeIpc(licenseChannels.activateByKey, payload),
     activateManual: (payload: unknown) => invokeIpc(licenseChannels.activateManual, payload),
     renew: (payload: unknown) => invokeIpc(licenseChannels.renew, payload),
@@ -79,6 +82,15 @@ const api = {
     updateSaleFormat: (payload: unknown) => invokeIpc(productChannels.updateSaleFormat, payload),
     removeSaleFormat: (id: number) => invokeIpc(productChannels.removeSaleFormat, id),
     setCategorySaleFormats: (payload: unknown) => invokeIpc(productChannels.setCategorySaleFormats, payload),
+    setCategoryImage: (categoryId: number) => invokeIpc(productChannels.setCategoryImage, categoryId),
+    clearCategoryImage: (categoryId: number) => invokeIpc(productChannels.clearCategoryImage, categoryId),
+    setCategoryPdf: (categoryId: number) => invokeIpc(productChannels.setCategoryPdf, categoryId),
+    clearCategoryPdf: (categoryId: number) => invokeIpc(productChannels.clearCategoryPdf, categoryId),
+    setProductImage: (productId: number) => invokeIpc(productChannels.setProductImage, productId),
+    clearProductImage: (productId: number) => invokeIpc(productChannels.clearProductImage, productId),
+    setProductPdf: (productId: number) => invokeIpc(productChannels.setProductPdf, productId),
+    clearProductPdf: (productId: number) => invokeIpc(productChannels.clearProductPdf, productId),
+    openCatalogPdf: (relPath: string) => invokeIpc(productChannels.openCatalogPdf, relPath),
   },
   sales: {
     posCatalog: () => invokeIpc(salesChannels.posCatalog),
@@ -88,6 +100,8 @@ const api = {
     openTab: (payload: unknown) => invokeIpc(salesChannels.openTab, payload),
     listOpenTabs: () => invokeIpc(salesChannels.listOpenTabs),
     settleTab: (payload: unknown) => invokeIpc(salesChannels.settleTab, payload),
+    tabChargeDetail: (tabId: number) => invokeIpc(salesChannels.tabChargeDetail, tabId),
+    removeTabChargeLine: (payload: unknown) => invokeIpc(salesChannels.removeTabChargeLine, payload),
   },
   shifts: {
     definitions: () => invokeIpc(shiftChannels.definitions),
@@ -129,6 +143,11 @@ const api = {
     create: (payload: unknown) => invokeIpc(consumptionChannels.create, payload),
     update: (payload: unknown) => invokeIpc(consumptionChannels.update, payload),
     remove: (id: number) => invokeIpc(consumptionChannels.remove, id),
+  },
+  settings: {
+    getSmtpSettings: () => invokeIpc(settingsChannels.getSmtpSettings),
+    updateSmtpSettings: (payload: unknown) => invokeIpc(settingsChannels.updateSmtpSettings, payload),
+    testSmtp: () => invokeIpc(settingsChannels.testSmtp),
   },
 }
 

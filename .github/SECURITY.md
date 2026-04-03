@@ -18,8 +18,9 @@ Si detectas una vulnerabilidad o una exposicion de datos:
 ## Riesgos conocidos en seguimiento
 
 - exposicion del acceso inicial de administrador via `bootstrapInfo`;
-- persistencia local de sesion en texto plano;
+- persistencia local de sesion: mitigacion parcial con `safeStorage` cuando el SO lo permite (ver `src/main/security/sessionStorage.ts`);
 - manejo local de `app.key`;
-- almacenamiento de `smtp_password` en la base local;
-- falta de `Content-Security-Policy` explicita en el renderer;
-- evaluacion pendiente de `sandbox` en Electron.
+- almacenamiento de `smtp_password` en la base local: mitigar con `enc:` y/o `SYSTEM_BARRA_SMTP_PASSWORD` (ver `docs/pilot/04-smtp-operacion.md`);
+- `Content-Security-Policy` definida en `index.html` (ajustar si se agregan origenes externos);
+- evaluacion pendiente de `sandbox: true` en Electron (ver `src/main/windows/createMainWindow.ts`);
+- **tokens en URL de `git remote`**: rotar y usar SSH o credential helper — ver `docs/setup/005-git-credenciales.md`.

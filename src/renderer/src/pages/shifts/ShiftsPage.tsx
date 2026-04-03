@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '@renderer/components/ui/Button'
+import { Card } from '@renderer/components/ui/Card'
+import { Field } from '@renderer/components/ui/Field'
+import { Input } from '@renderer/components/ui/Input'
 import { resolveShiftForDate } from '@renderer/utils/resolveShiftForDate'
+import type { ShiftCloseReport } from '@shared/types/report'
+import type { ShiftSessionDetail } from '@shared/types/shift'
 
 function displayExpected(row: { status: string; expectedCash: number | null; liveExpectedCash?: number | null }) {
   if (row.status === 'open' && row.liveExpectedCash != null) {
@@ -33,9 +39,102 @@ function saleTypeLabel(saleType: string) {
   return saleType
 }
 
+function formatNowClock(ts: number) {
+  return new Date(ts).toLocaleTimeString('es-ES', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+}
+
+function ShiftSessionMovementsLists(props: {
+  isLoading: boolean
+  error: Error | null
+  detail: ShiftSessionDetail | undefined
+  compact?: boolean
+}) {
+  const { isLoading, error, detail, compact } = props
+  const box = compact ? 'p-2 text-xs' : 'p-3 text-sm'
+  const heading = compact ? 'mb-1.5 text-xs font-medium text-slate-400' : 'mb-2 text-sm font-medium text-slate-300'
+
+  if (isLoading) {
+    return <p className="text-sm text-slate-500">Cargando movimientos...</p>
+  }
+  if (error) {
+    return <p className="text-sm text-rose-400">{error.message ?? 'No se pudo cargar el detalle.'}</p>
+  }
+  if (!detail) {
+    return null
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className={heading}>Movimientos de venta</h4>
+        <ul className={`max-h-48 space-y-2 overflow-y-auto ${compact ? 'pr-1' : ''}`}>
+          {detail.sales.length === 0 ? (
+            <li className="text-sm text-slate-500">Sin ventas registradas.</li>
+          ) : (
+            detail.sales.map((sale) => (
+              <li className={`rounded-lg border border-slate-800 bg-slate-950/40 ${box}`} key={sale.id}>
+                <div className="flex flex-wrap justify-between gap-2 text-slate-200">
+                  <span>
+                    #{sale.id} · {saleTypeLabel(sale.saleType)}
+                    {sale.tabCustomerName ? ` · Cuenta: ${sale.tabCustomerName}` : ''} · {sale.createdAt}
+                  </span>
+                  <span className="font-medium text-cyan-300">{sale.total.toFixed(2)}</span>
+                </div>
+                {sale.lines.length > 0 ? (
+                  <ul className="mt-2 space-y-0.5 text-xs text-slate-400">
+                    {sale.lines.map((line, idx) => (
+                      <li key={`${sale.id}-${idx}`}>
+                        {line.productName} × {line.quantity} = {line.subtotal.toFixed(2)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
+
+      <div>
+        <h4 className={heading}>Cuentas (pagarés)</h4>
+        <ul className={`max-h-36 space-y-2 overflow-y-auto ${compact ? 'pr-1' : ''}`}>
+          {detail.tabs.length === 0 ? (
+            <li className="text-sm text-slate-500">Sin cuentas vinculadas a este turno.</li>
+          ) : (
+            detail.tabs.map((tab) => (
+              <li className={`rounded-lg border border-slate-800 bg-slate-950/40 ${box}`} key={tab.id}>
+                <p className="font-medium text-slate-100">{tab.customerName}</p>
+                <p className="text-xs text-slate-500">
+                  Estado: {tab.status}
+                  {tab.openedHere ? ' · Apertura en este turno' : ''}
+                  {tab.settledHere ? ' · Liquidacion en este turno' : ''}
+                </p>
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 export function ShiftsPage() {
   const queryClient = useQueryClient()
   const [detailSessionId, setDetailSessionId] = useState<number | null>(null)
+  const [closeModalOpen, setCloseModalOpen] = useState(false)
+  const [closePassword, setClosePassword] = useState('')
+  const [closeFeedback, setCloseFeedback] = useState<{ ok: boolean; message: string } | null>(null)
+  const [nowTick, setNowTick] = useState(() => Date.now())
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   const currentQuery = useQuery({
     queryKey: ['shift', 'current'],
@@ -89,6 +188,13 @@ export function ShiftsPage() {
     enabled: typeof detailSessionId === 'number',
   })
 
+  const closeModalSessionId = currentQuery.data?.status === 'open' ? currentQuery.data.id : undefined
+  const closeModalDetailQuery = useQuery({
+    queryKey: ['shift', 'closeModal', closeModalSessionId],
+    queryFn: () => window.api.shifts.getSessionDetail(closeModalSessionId!),
+    enabled: closeModalOpen && typeof closeModalSessionId === 'number',
+  })
+
   const openMutation = useMutation({
     mutationFn: () =>
       window.api.shifts.open({
@@ -102,17 +208,52 @@ export function ShiftsPage() {
     },
   })
 
-  const closeMutation = useMutation({
-    mutationFn: async () => {
+  const confirmCloseMutation = useMutation({
+    mutationFn: async (password: string) => {
       const session = currentQuery.data
-      if (!session) {
-        return null
+      if (!session || session.status !== 'open') {
+        throw new Error('No hay sesion abierta.')
       }
-      return window.api.shifts.close({ sessionId: session.id, countedCash: session.openingCash })
+      await window.api.auth.verifyPassword({ password })
+      await window.api.shifts.close({ sessionId: session.id, countedCash: session.openingCash })
+      try {
+        const report = await window.api.reports.generateShiftClose(session.id)
+        return { report: report as ShiftCloseReport, reportError: null as Error | null }
+      } catch (e) {
+        return {
+          report: null as ShiftCloseReport | null,
+          reportError: e instanceof Error ? e : new Error(String(e)),
+        }
+      }
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
+      setCloseModalOpen(false)
+      setClosePassword('')
       await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
       await queryClient.invalidateQueries({ queryKey: ['shift', 'history'] })
+      await queryClient.invalidateQueries({ queryKey: ['reports', 'pending-emails'] })
+      if (data.reportError) {
+        setCloseFeedback({
+          ok: true,
+          message: `Turno cerrado correctamente. No se pudo generar el PDF o el envío: ${data.reportError.message}`,
+        })
+        return
+      }
+      if (data.report) {
+        const r = data.report
+        let msg = 'Turno cerrado. PDF de cierre generado.'
+        if (r.emailSentImmediately && r.reportRecipientEmail) {
+          msg += ` Correo enviado a ${r.reportRecipientEmail}.`
+        } else if (r.emailEnqueued && r.reportRecipientEmail) {
+          msg += ` No se pudo enviar ahora; correo en cola para ${r.reportRecipientEmail} (reintente desde Reportes).`
+        } else {
+          msg += ' No se configuró envío por correo (revise destinatario en el panel de licencia).'
+        }
+        setCloseFeedback({ ok: true, message: msg })
+      }
+    },
+    onError: (e) => {
+      setCloseFeedback({ ok: false, message: e instanceof Error ? e.message : 'No se pudo cerrar el turno.' })
     },
   })
 
@@ -120,29 +261,119 @@ export function ShiftsPage() {
     setDetailSessionId(null)
   }, [])
 
+  const openCloseModal = () => {
+    setCloseFeedback(null)
+    setClosePassword('')
+    setCloseModalOpen(true)
+  }
+
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-semibold text-white">Turnos y caja</h1>
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 text-slate-200">
+      <div>
+        <h1 className="text-2xl font-semibold text-white">Turnos y caja</h1>
+        <p className="text-sm text-slate-400">Apertura, cierre, histórico y conciliación de pagarés.</p>
+      </div>
+      <Card padding="lg">
         {currentQuery.data ? (
-          <div className="space-y-3">
+          <div className="space-y-3 text-slate-200">
             <p>Sesion abierta: #{currentQuery.data.id}</p>
-            <p>Fecha operativa: {currentQuery.data.businessDate}</p>
-            <button className="rounded-lg bg-amber-500 px-4 py-2 text-slate-950" onClick={() => closeMutation.mutate()} type="button">
+            <p>
+              Fecha operativa: {currentQuery.data.businessDate} · {formatNowClock(nowTick)}
+            </p>
+            {closeFeedback ? (
+              <p className={`text-sm ${closeFeedback.ok ? 'text-emerald-400' : 'text-rose-400'}`}>{closeFeedback.message}</p>
+            ) : null}
+            <Button
+              disabled={confirmCloseMutation.isPending}
+              onClick={openCloseModal}
+              variant="warning"
+            >
               Cerrar turno
-            </button>
+            </Button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 text-slate-200">
             <p>No hay turno activo.</p>
-            <button className="rounded-lg bg-cyan-500 px-4 py-2 text-slate-950" onClick={() => openMutation.mutate()} type="button">
+            <Button onClick={() => openMutation.mutate()} variant="primary">
               Abrir turno actual
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </Card>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+      {closeModalOpen && currentQuery.data?.status === 'open' ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 py-8">
+          <div
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-xl"
+            role="dialog"
+            aria-labelledby="close-shift-title"
+            aria-modal="true"
+          >
+            <h2 className="text-lg font-semibold text-white" id="close-shift-title">
+              Confirmar cierre de turno
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Se cerrará la sesión #{currentQuery.data.id} (fecha operativa {currentQuery.data.businessDate}). Tras el cierre se generará el PDF y se
+              intentará enviar el correo con el adjunto al momento; si el envío falla o falta SMTP, quedará en cola para reintentar desde Reportes.
+              Ingrese su contraseña para confirmar.
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Hora actual: {formatNowClock(nowTick)}
+            </p>
+
+            <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+              <h3 className="mb-2 text-sm font-medium text-slate-200">Movimientos del turno hasta ahora</h3>
+              <ShiftSessionMovementsLists
+                compact
+                detail={closeModalDetailQuery.data}
+                error={closeModalDetailQuery.isError ? (closeModalDetailQuery.error as Error) : null}
+                isLoading={closeModalDetailQuery.isLoading}
+              />
+            </div>
+
+            <form
+              className="mt-4 space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault()
+                confirmCloseMutation.mutate(closePassword)
+              }}
+            >
+              <Field label="Contraseña">
+                <Input
+                  autoComplete="current-password"
+                  onChange={(e) => setClosePassword(e.target.value)}
+                  placeholder="••••••••"
+                  type="password"
+                  value={closePassword}
+                />
+              </Field>
+              {confirmCloseMutation.isError ? (
+                <p className="text-sm text-rose-400">
+                  {(confirmCloseMutation.error as Error)?.message ?? 'Error al confirmar.'}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button
+                  disabled={confirmCloseMutation.isPending}
+                  onClick={() => {
+                    setCloseModalOpen(false)
+                    setClosePassword('')
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  Cancelar
+                </Button>
+                <Button disabled={confirmCloseMutation.isPending || closePassword.length < 8} type="submit" variant="warning">
+                  {confirmCloseMutation.isPending ? 'Cerrando...' : 'Confirmar cierre'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      <Card padding="lg">
         <h2 className="mb-3 text-lg font-medium text-white">Historico de turnos</h2>
         <p className="mb-3 text-sm text-slate-500">
           Incluye el turno en curso (si hay caja abierta) con totales en vivo para seguimiento del efectivo y pagarés.
@@ -208,7 +439,7 @@ export function ShiftsPage() {
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
       {detailSessionId != null ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -241,56 +472,7 @@ export function ShiftsPage() {
             ) : detailQuery.isError ? (
               <p className="text-rose-400">{(detailQuery.error as Error)?.message ?? 'No se pudo cargar el detalle.'}</p>
             ) : detailQuery.data ? (
-              <div className="space-y-6">
-                <div>
-                  <h4 className="mb-2 text-sm font-medium text-slate-300">Movimientos de venta</h4>
-                  <ul className="space-y-3">
-                    {detailQuery.data.sales.length === 0 ? (
-                      <li className="text-sm text-slate-500">Sin ventas registradas.</li>
-                    ) : (
-                      detailQuery.data.sales.map((sale) => (
-                        <li className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-sm" key={sale.id}>
-                          <div className="flex flex-wrap justify-between gap-2 text-slate-200">
-                            <span>
-                              #{sale.id} · {saleTypeLabel(sale.saleType)} · {sale.createdAt}
-                            </span>
-                            <span className="font-medium text-cyan-300">{sale.total.toFixed(2)}</span>
-                          </div>
-                          {sale.lines.length > 0 ? (
-                            <ul className="mt-2 space-y-1 text-xs text-slate-400">
-                              {sale.lines.map((line, idx) => (
-                                <li key={`${sale.id}-${idx}`}>
-                                  {line.productName} × {line.quantity} = {line.subtotal.toFixed(2)}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-
-                <div>
-                  <h4 className="mb-2 text-sm font-medium text-slate-300">Cuentas (pagarés)</h4>
-                  <ul className="space-y-2">
-                    {detailQuery.data.tabs.length === 0 ? (
-                      <li className="text-sm text-slate-500">Sin cuentas vinculadas a este turno.</li>
-                    ) : (
-                      detailQuery.data.tabs.map((tab) => (
-                        <li className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-sm" key={tab.id}>
-                          <p className="font-medium text-slate-100">{tab.customerName}</p>
-                          <p className="text-xs text-slate-500">
-                            Estado: {tab.status}
-                            {tab.openedHere ? ' · Apertura en este turno' : ''}
-                            {tab.settledHere ? ' · Liquidacion en este turno' : ''}
-                          </p>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-              </div>
+              <ShiftSessionMovementsLists detail={detailQuery.data} error={null} isLoading={false} />
             ) : null}
           </div>
         </div>

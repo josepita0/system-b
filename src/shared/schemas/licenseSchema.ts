@@ -9,6 +9,10 @@ export const validateLicenseSecretSchema = z.object({
   secret: z.string().trim().min(4).max(120),
 })
 
+export const generateLicensePanelCodeSchema = z.object({
+  targetEmployeeId: z.number().int().positive(),
+})
+
 export const activateLicenseByKeySchema = z.object({
   accessToken: z.string().trim().min(10).max(200),
   licenseKey: z.string().trim().min(8).max(120),

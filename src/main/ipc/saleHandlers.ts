@@ -14,6 +14,7 @@ import { SaleFormatConsumptionRepository } from '../repositories/saleFormatConsu
 import { ValidationError } from '../errors'
 import { AuthService } from '../services/authService'
 import { AuthorizationService } from '../services/authorizationService'
+import { CatalogMediaService } from '../services/catalogMediaService'
 import { CategoryService } from '../services/categoryService'
 import { SaleService } from '../services/saleService'
 import { createIpcGuards } from './guards'
@@ -25,7 +26,8 @@ export function registerSaleHandlers() {
   const products = new ProductRepository(db)
   const saleFormats = new SaleFormatRepository(db)
   const categories = new CategoryRepository(db)
-  const categoryService = new CategoryService(categories, saleFormats)
+  const catalogMedia = new CatalogMediaService(categories, products)
+  const categoryService = new CategoryService(categories, saleFormats, catalogMedia)
   const sales = new SaleRepository(db)
   const recipes = new RecipeRepository(db)
   const inventory = new ProductInventoryRepository(db)
@@ -100,6 +102,23 @@ export function registerSaleHandlers() {
     executeIpc(() => {
       const actor = guards.requirePermission('sales.use')
       return saleService.settleTab(payload as never, actor.id)
+    }),
+  )
+
+  ipcMain.handle(salesChannels.tabChargeDetail, (_event, tabId: unknown) =>
+    executeIpc(() => {
+      guards.requirePermission('sales.use')
+      if (typeof tabId !== 'number' || Number.isNaN(tabId)) {
+        throw new ValidationError('Cuenta invalida.')
+      }
+      return saleService.getTabChargeDetail(tabId)
+    }),
+  )
+
+  ipcMain.handle(salesChannels.removeTabChargeLine, (_event, payload: unknown) =>
+    executeIpc(() => {
+      guards.requirePermission('sales.use')
+      return saleService.removeTabChargeLine(payload as never)
     }),
   )
 }

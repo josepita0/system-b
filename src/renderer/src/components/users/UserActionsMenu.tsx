@@ -4,9 +4,11 @@ import { createPortal } from 'react-dom'
 interface UserActionsMenuProps {
   onEdit: () => void
   onView: () => void
+  /** Generar codigo temporal para desbloquear el panel de licencias (solo admin, fila propia). */
+  onGenerateLicensePanelCode?: () => void
 }
 
-export function UserActionsMenu({ onEdit, onView }: UserActionsMenuProps) {
+export function UserActionsMenu({ onEdit, onView, onGenerateLicensePanelCode }: UserActionsMenuProps) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
@@ -95,6 +97,15 @@ export function UserActionsMenu({ onEdit, onView }: UserActionsMenuProps) {
               >
                 Editar
               </button>
+              {onGenerateLicensePanelCode ? (
+                <button
+                  className="block w-full rounded-md px-3 py-2 text-left text-sm text-amber-100 hover:bg-slate-800"
+                  onClick={() => handleAction(onGenerateLicensePanelCode)}
+                  type="button"
+                >
+                  Codigo panel licencias
+                </button>
+              ) : null}
             </div>,
             document.body,
           )
