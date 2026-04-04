@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Button } from '@renderer/components/ui/Button'
+import { Card } from '@renderer/components/ui/Card'
+import { cn } from '@renderer/lib/cn'
 import type { LicensePlanType } from '@shared/types/license'
 import { SmtpSettingsPanel } from './SmtpSettingsPanel'
 
@@ -30,10 +33,8 @@ function toStatusLabel(value: string) {
   }
 }
 
-const inputClassName = 'rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-const panelClassName = 'rounded-2xl border border-slate-800 bg-slate-900 p-5'
-const tabClassName = (selected: boolean) =>
-  `rounded-lg px-4 py-2 text-sm ${selected ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`
+const inputClassName =
+  'w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand/30'
 
 export function LicenseAdminPage() {
   const queryClient = useQueryClient()
@@ -185,42 +186,59 @@ export function LicenseAdminPage() {
   })
 
   if (statusQuery.isLoading) {
-    return <div className={panelClassName}>Cargando estado de licencia...</div>
+    return (
+      <section className="flex min-h-0 flex-1 flex-col gap-6">
+        <Card className="shadow-sm" padding="lg">
+          <p className="text-sm text-slate-600">Cargando estado de licencia...</p>
+        </Card>
+      </section>
+    )
   }
 
   if (statusQuery.error || !status) {
     return (
-      <div className="rounded-2xl border border-rose-800 bg-slate-900 p-5 text-sm text-rose-300">
-        {statusQuery.error instanceof Error ? statusQuery.error.message : 'No fue posible cargar la licencia.'}
-      </div>
+      <section className="flex min-h-0 flex-1 flex-col gap-6">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
+          {statusQuery.error instanceof Error ? statusQuery.error.message : 'No fue posible cargar la licencia.'}
+        </div>
+      </section>
     )
   }
 
   return (
-    <section className="space-y-4">
+    <section className="flex min-h-0 flex-1 flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Licencia administrativa</h1>
-          <p className="mt-1 text-sm text-slate-400">Panel oculto para activar o renovar la licencia local del producto.</p>
+          <h1 className="text-2xl font-semibold text-slate-900">Licencia administrativa</h1>
+          <p className="mt-1 text-sm text-slate-500">Panel oculto para activar o renovar la licencia local del producto.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className={tabClassName(sectionTab === 'license')} onClick={() => setSectionTab('license')} type="button">
+          <Button
+            className="px-4 py-2"
+            onClick={() => setSectionTab('license')}
+            type="button"
+            variant={sectionTab === 'license' ? 'primary' : 'secondary'}
+          >
             Licencia
-          </button>
-          <button className={tabClassName(sectionTab === 'smtp')} onClick={() => setSectionTab('smtp')} type="button">
+          </Button>
+          <Button
+            className="px-4 py-2"
+            onClick={() => setSectionTab('smtp')}
+            type="button"
+            variant={sectionTab === 'smtp' ? 'primary' : 'secondary'}
+          >
             Correo (SMTP)
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className={sectionTab === 'smtp' ? 'contents' : 'hidden'}>
+      <div className={sectionTab === 'smtp' ? 'flex min-w-0 flex-col gap-6' : 'hidden'}>
         <SmtpSettingsPanel />
       </div>
 
-      <div className={sectionTab === 'license' ? 'contents' : 'hidden'}>
-      <>
-      <div className={panelClassName}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className={cn('min-w-0 flex-col gap-6', sectionTab === 'license' ? 'flex' : 'hidden')}>
+      <Card className="overflow-hidden border-2 border-slate-200/90 text-slate-900 shadow-md" padding="lg">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatusItem label="Estado" value={toStatusLabel(status.status)} />
           <StatusItem label="Plan" value={toPlanLabel(status.planType)} />
           <StatusItem label="Modo" value={status.activationMode === 'key' ? 'Por clave' : status.activationMode === 'manual' ? 'Manual' : 'Sin definir'} />
@@ -229,14 +247,16 @@ export function LicenseAdminPage() {
           <StatusItem label="Vence" value={status.expiresAt ? new Date(status.expiresAt).toLocaleString() : 'Sin registro'} />
           <StatusItem label="Dias restantes" value={status.daysRemaining === null ? 'Sin registro' : String(status.daysRemaining)} />
         </div>
-        <p className="mt-4 text-sm text-slate-300">{status.message}</p>
-        {status.notes ? <p className="mt-2 text-sm text-slate-400">Notas: {status.notes}</p> : null}
-        {resultMessage ? <p className={`mt-3 text-sm ${resultTone === 'success' ? 'text-cyan-300' : 'text-rose-400'}`}>{resultMessage}</p> : null}
-      </div>
+        <p className="mt-4 text-sm leading-relaxed text-slate-600">{status.message}</p>
+        {status.notes ? <p className="mt-2 text-sm text-slate-500">Notas: {status.notes}</p> : null}
+        {resultMessage ? (
+          <p className={cn('mt-3 text-sm', resultTone === 'success' ? 'text-emerald-700' : 'text-rose-700')}>{resultMessage}</p>
+        ) : null}
+      </Card>
 
-      <div className={panelClassName}>
-        <h2 className="text-lg font-semibold text-white">Clave administrativa</h2>
-        <p className="mt-1 text-sm text-slate-400">
+      <Card className="shadow-sm" padding="lg">
+        <h2 className="text-lg font-semibold text-slate-900">Clave administrativa</h2>
+        <p className="mt-1 text-sm text-slate-500">
           Antes de activar o renovar, ingresa el codigo temporal generado en Usuarios (Acciones en tu propia fila como administrador) o la
           clave fija definida en el entorno del sistema si aplica.
         </p>
@@ -256,33 +276,29 @@ export function LicenseAdminPage() {
             value={panelSecret}
             onChange={(event) => setPanelSecret(event.target.value)}
           />
-          <button
-            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 disabled:opacity-50"
-            disabled={unlockMutation.isPending}
-            type="submit"
-          >
+          <Button disabled={unlockMutation.isPending} type="submit" variant="primary">
             {unlockMutation.isPending ? 'Validando...' : 'Desbloquear panel'}
-          </button>
+          </Button>
         </form>
         {accessUnlocked && accessExpiresAt ? (
-          <p className="mt-3 text-sm text-emerald-300">Panel desbloqueado hasta {new Date(accessExpiresAt).toLocaleTimeString()}.</p>
+          <p className="mt-3 text-sm font-medium text-emerald-800">Panel desbloqueado hasta {new Date(accessExpiresAt).toLocaleTimeString()}.</p>
         ) : null}
-        {accessError ? <p className="mt-3 text-sm text-rose-400">{accessError}</p> : null}
-      </div>
+        {accessError ? <p className="mt-3 text-sm text-rose-700">{accessError}</p> : null}
+      </Card>
 
-      <div className={panelClassName}>
+      <Card className="shadow-sm" padding="lg">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-white">{isRenewal ? 'Renovacion de licencia' : 'Activacion de licencia'}</h2>
-            <p className="mt-1 text-sm text-slate-400">Selecciona primero el tipo de operacion para mostrar solo el formulario necesario.</p>
+            <h2 className="text-lg font-semibold text-slate-900">{isRenewal ? 'Renovacion de licencia' : 'Activacion de licencia'}</h2>
+            <p className="mt-1 text-sm text-slate-500">Selecciona primero el tipo de operacion para mostrar solo el formulario necesario.</p>
           </div>
           <div className="flex gap-2">
-            <button className={tabClassName(activeTab === 'key')} onClick={() => setActiveTab('key')} type="button">
+            <Button onClick={() => setActiveTab('key')} type="button" variant={activeTab === 'key' ? 'primary' : 'secondary'}>
               Por clave
-            </button>
-            <button className={tabClassName(activeTab === 'manual')} onClick={() => setActiveTab('manual')} type="button">
+            </Button>
+            <Button onClick={() => setActiveTab('manual')} type="button" variant={activeTab === 'manual' ? 'primary' : 'secondary'}>
               Manual
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -296,8 +312,8 @@ export function LicenseAdminPage() {
             }}
           >
             <div>
-              <h3 className="text-base font-semibold text-white">{isRenewal ? 'Renovar por clave' : 'Activar por clave'}</h3>
-              <p className="mt-1 text-sm text-slate-400">Registra la clave comercial y la vigencia contratada.</p>
+              <h3 className="text-base font-semibold text-slate-900">{isRenewal ? 'Renovar por clave' : 'Activar por clave'}</h3>
+              <p className="mt-1 text-sm text-slate-500">Registra la clave comercial y la vigencia contratada.</p>
             </div>
             <input
               className={`${inputClassName} w-full`}
@@ -322,13 +338,9 @@ export function LicenseAdminPage() {
               value={keyNotes}
               onChange={(event) => setKeyNotes(event.target.value)}
             />
-            <button
-              className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 disabled:opacity-50"
-              disabled={!accessUnlocked || activateByKeyMutation.isPending}
-              type="submit"
-            >
+            <Button disabled={!accessUnlocked || activateByKeyMutation.isPending} type="submit" variant="primary">
               {activateByKeyMutation.isPending ? 'Guardando...' : isRenewal ? 'Renovar licencia' : 'Activar licencia'}
-            </button>
+            </Button>
           </form>
         ) : (
           <form
@@ -340,8 +352,8 @@ export function LicenseAdminPage() {
             }}
           >
             <div>
-              <h3 className="text-base font-semibold text-white">{isRenewal ? 'Renovacion manual' : 'Activacion manual'}</h3>
-              <p className="mt-1 text-sm text-slate-400">Usa esta via solo para soporte o ajustes controlados por administracion.</p>
+              <h3 className="text-base font-semibold text-slate-900">{isRenewal ? 'Renovacion manual' : 'Activacion manual'}</h3>
+              <p className="mt-1 text-sm text-slate-500">Usa esta via solo para soporte o ajustes controlados por administracion.</p>
             </div>
             <select className={`${inputClassName} w-full`} value={manualPlanType} onChange={(event) => setManualPlanType(event.target.value as LicensePlanType)}>
               <option value="monthly">Mensual</option>
@@ -360,52 +372,45 @@ export function LicenseAdminPage() {
               value={manualNotes}
               onChange={(event) => setManualNotes(event.target.value)}
             />
-            <button
-              className="rounded-lg border border-amber-500 px-4 py-2 text-sm text-amber-200 disabled:opacity-50"
-              disabled={!accessUnlocked || activateManualMutation.isPending}
-              type="submit"
-            >
+            <Button disabled={!accessUnlocked || activateManualMutation.isPending} type="submit" variant="warning">
               {activateManualMutation.isPending ? 'Guardando...' : isRenewal ? 'Renovar manualmente' : 'Activar manualmente'}
-            </button>
+            </Button>
           </form>
         )}
-      </div>
+      </Card>
 
       {status.id && status.status !== 'suspended' ? (
-        <form
-          className={`${panelClassName} space-y-4`}
-          onSubmit={(event) => {
-            event.preventDefault()
-            setResultMessage(null)
-            cancelMutation.mutate()
-          }}
-        >
-          <div>
-            <h2 className="text-lg font-semibold text-white">Cancelar licencia</h2>
-            <p className="mt-1 text-sm text-slate-400">Marca la licencia actual como cancelada y bloquea las funciones administrativas sujetas a licencia.</p>
-          </div>
-          <textarea
-            className={`${inputClassName} min-h-24 w-full`}
-            placeholder="Motivo de cancelacion"
-            value={cancelNotes}
-            onChange={(event) => setCancelNotes(event.target.value)}
-          />
-          <button
-            className="rounded-lg border border-rose-500 px-4 py-2 text-sm text-rose-200 disabled:opacity-50"
-            disabled={!accessUnlocked || cancelMutation.isPending}
-            type="submit"
+        <Card className="shadow-sm" padding="lg">
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              setResultMessage(null)
+              cancelMutation.mutate()
+            }}
           >
-            {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar licencia'}
-          </button>
-        </form>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Cancelar licencia</h2>
+              <p className="mt-1 text-sm text-slate-500">Marca la licencia actual como cancelada y bloquea las funciones administrativas sujetas a licencia.</p>
+            </div>
+            <textarea
+              className={`${inputClassName} min-h-24`}
+              placeholder="Motivo de cancelacion"
+              value={cancelNotes}
+              onChange={(event) => setCancelNotes(event.target.value)}
+            />
+            <Button disabled={!accessUnlocked || cancelMutation.isPending} type="submit" variant="danger">
+              {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar licencia'}
+            </Button>
+          </form>
+        </Card>
       ) : null}
 
       {status.status === 'suspended' ? (
-        <div className="rounded-2xl border border-amber-700 bg-slate-900 p-5 text-sm text-amber-200">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
           La licencia actual ya fue cancelada. Puedes renovarla desde cualquiera de las pestañas superiores cuando el panel este desbloqueado.
         </div>
       ) : null}
-      </>
       </div>
     </section>
   )
@@ -413,9 +418,9 @@ export function LicenseAdminPage() {
 
 function StatusItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-sm text-slate-100">{value}</p>
+    <div className="min-h-[4.25rem] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{label}</p>
+      <p className="mt-2 break-words text-sm font-semibold leading-snug text-slate-900">{value}</p>
     </div>
   )
 }

@@ -4,6 +4,8 @@ import { CatalogEntityMediaPanel } from './CatalogEntityMediaPanel'
 
 interface CategoryFormProps {
   category?: Category | null
+  /** Solo creación: fija la categoría padre (p. ej. nueva subcategoría bajo la raíz elegida). */
+  defaultParentId?: number | null
   categories: Category[]
   onSubmit: (payload: CategoryInput) => Promise<void>
   onCancel: () => void
@@ -31,19 +33,23 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, '')
 }
 
-function buildInitialState(category?: Category | null): FormState {
+function buildInitialState(category?: Category | null, defaultParentId?: number | null): FormState {
+  const isNew = !category
+  const parentId = category?.parentId ?? defaultParentId ?? null
+  const isNewRoot = isNew && parentId == null
   return {
     name: category?.name ?? '',
     slug: category?.slug ?? '',
-    parentId: category?.parentId ?? null,
-    supportsChildren: Boolean(category?.supportsChildren),
-    inheritsSaleFormats: Boolean(category?.inheritsSaleFormats),
+    parentId,
+    supportsChildren: category ? Boolean(category.supportsChildren) : isNewRoot,
+    inheritsSaleFormats: category ? Boolean(category.inheritsSaleFormats) : false,
     sortOrder: category?.sortOrder ?? 0,
   }
 }
 
 export function CategoryForm({
   category,
+  defaultParentId = null,
   categories,
   onSubmit,
   onCancel,
@@ -51,14 +57,14 @@ export function CategoryForm({
   onMediaChanged = noopMedia,
   submitLabel = 'Guardar categoria',
 }: CategoryFormProps) {
-  const [form, setForm] = useState<FormState>(buildInitialState(category))
+  const [form, setForm] = useState<FormState>(buildInitialState(category, defaultParentId))
   const [slugTouched, setSlugTouched] = useState(false)
   const parentChangeLocked = Boolean(category?.structureLocked)
 
   useEffect(() => {
-    setForm(buildInitialState(category))
+    setForm(buildInitialState(category, defaultParentId))
     setSlugTouched(Boolean(category))
-  }, [category])
+  }, [category, defaultParentId])
 
   const parentOptions = useMemo(
     () => categories.filter((item) => item.id !== category?.id && item.isActive === 1 && item.supportsChildren === 1),
@@ -67,29 +73,29 @@ export function CategoryForm({
 
   return (
     <form
-      className="grid gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4"
+      className="grid gap-3 rounded-2xl border border-border bg-surface-card p-1"
       onSubmit={async (event) => {
         event.preventDefault()
         await onSubmit(form)
         if (!category) {
-          setForm(buildInitialState(null))
+          setForm(buildInitialState(null, defaultParentId))
           setSlugTouched(false)
         }
       }}
     >
       <div>
-        <h2 className="text-lg font-semibold text-white">{category ? 'Editar categoria' : 'Nueva categoria'}</h2>
-        <p className="mt-1 text-sm text-slate-400">Las categorias pueden ser raiz o hijas de otra categoria.</p>
+        <h2 className="text-lg font-semibold text-slate-900">{category ? 'Editar categoria' : 'Nueva categoria'}</h2>
+        <p className="mt-1 text-sm text-slate-500">Las categorias pueden ser raiz o hijas de otra categoria.</p>
       </div>
       {parentChangeLocked ? (
-        <div className="rounded-lg border border-amber-700 bg-slate-950 px-3 py-2 text-sm text-amber-200">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           Esta categoria ya entro en operacion y su categoria padre no puede modificarse desde este flujo.
         </div>
       ) : null}
-      <label className="grid gap-1 text-sm text-slate-300">
+      <label className="grid gap-1 text-sm text-slate-700">
         <span>Nombre de la categoria</span>
         <input
-          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
           placeholder="Nombre"
           value={form.name}
           onChange={(event) => {
@@ -102,10 +108,10 @@ export function CategoryForm({
           }}
         />
       </label>
-      <label className="grid gap-1 text-sm text-slate-300">
+      <label className="grid gap-1 text-sm text-slate-700">
         <span>Slug de la categoria</span>
         <input
-          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
           placeholder="Slug"
           value={form.slug}
           onChange={(event) => {
@@ -115,7 +121,7 @@ export function CategoryForm({
         />
       </label>
      
-      <label className="flex items-center gap-2 text-sm text-slate-300">
+      <label className="flex items-center gap-2 text-sm text-slate-700">
         <input
           checked={form.supportsChildren}
           onChange={(event) =>
@@ -131,16 +137,16 @@ export function CategoryForm({
         Puede contener subcategorias
       </label>
       {form.supportsChildren ? (
-        <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-400">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
           {parentChangeLocked
             ? 'Esta categoria podra seguir utilizandose como categoria padre, pero su ubicacion actual ya no puede cambiarse.'
             : 'Esta categoria quedara en el nivel superior y podra utilizarse como categoria padre.'}
         </div>
       ) : (
-        <label className="grid gap-1 text-sm text-slate-300">
+        <label className="grid gap-1 text-sm text-slate-700">
           <span>Categoria padre</span>
           <select
-            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
             disabled={parentChangeLocked}
             value={form.parentId ?? ''}
             onChange={(event) => {
@@ -161,7 +167,7 @@ export function CategoryForm({
           </select>
         </label>
       )}
-      <label className="flex items-center gap-2 text-sm text-slate-300">
+      <label className="flex items-center gap-2 text-sm text-slate-700">
         <input
           checked={form.inheritsSaleFormats}
           disabled={!form.parentId || form.supportsChildren || parentChangeLocked}
@@ -170,10 +176,10 @@ export function CategoryForm({
         />
         Heredar formatos de la categoria padre
       </label>
-      <label className="grid gap-1 text-sm text-slate-300">
+      <label className="grid gap-1 text-sm text-slate-700">
         <span>Orden de visualizacion</span>
         <input
-          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
           min="0"
           placeholder="Orden"
           type="number"
@@ -182,16 +188,19 @@ export function CategoryForm({
         />
       </label>
       <div className="flex flex-wrap gap-2">
-        <button className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950" type="submit">
+        <button
+          className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-fg hover:opacity-90"
+          type="submit"
+        >
           {submitLabel}
         </button>
         {category ? (
-          <button className="rounded-lg bg-slate-700 px-4 py-2 text-sm text-white" onClick={onCancel} type="button">
+          <button className="rounded-xl border border-border bg-slate-100 px-4 py-2 text-sm text-slate-800" onClick={onCancel} type="button">
             Cancelar
           </button>
         ) : null}
         {category && onDelete ? (
-          <button className="rounded-lg bg-rose-700 px-4 py-2 text-sm text-white" onClick={() => void onDelete()} type="button">
+          <button className="rounded-xl bg-rose-600 px-4 py-2 text-sm text-white" onClick={() => void onDelete()} type="button">
             Desactivar
           </button>
         ) : null}

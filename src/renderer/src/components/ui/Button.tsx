@@ -5,10 +5,11 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'warn
 
 const variantClass: Record<ButtonVariant, string> = {
   primary: 'bg-brand text-brand-fg hover:opacity-90 disabled:opacity-50',
-  secondary: 'border border-border bg-surface-card text-slate-200 hover:bg-slate-800/80 disabled:opacity-50',
-  ghost: 'bg-transparent text-slate-200 hover:bg-surface-card disabled:opacity-50',
+  secondary:
+    'border border-border bg-surface-card text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-50',
+  ghost: 'bg-transparent text-slate-700 hover:bg-slate-100 disabled:opacity-50',
   danger: 'bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-50',
-  warning: 'bg-amber-500 text-surface hover:opacity-90 disabled:opacity-50',
+  warning: 'bg-amber-500 text-slate-900 hover:opacity-90 disabled:opacity-50',
 }
 
 type Props = {
@@ -21,7 +22,7 @@ export function Button({ variant = 'secondary', className, children, type = 'but
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-opacity',
+        'inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-opacity',
         variantClass[variant],
         className,
       )}

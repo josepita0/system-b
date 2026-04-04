@@ -306,7 +306,7 @@ function createPdf(report: ShiftCloseReport): string {
 
   autoTable(doc, {
     startY,
-    head: [['Caja al inicio', 'Ventas en efectivo', 'Por conciliar']],
+    head: [['Caja al inicio', 'Ventas', 'Por conciliar']],
     body: [[fmt(report.openingCash), fmt(report.daySalesTotal), fmt(report.shiftPendingReconcile)]],
     theme: 'grid',
     tableWidth: innerW,
@@ -552,12 +552,12 @@ function createPdf(report: ShiftCloseReport): string {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(130, 134, 140)
-  const foot = 'Generado automáticamente por el sistema · system-barra'
+  const foot = 'Generado automáticamente por el sistema'
   doc.text(foot, pageW / 2, footY, { align: 'center' })
 
   const reportsDir = path.join(path.dirname(getDatabasePath()), 'reports')
   fs.mkdirSync(reportsDir, { recursive: true })
-  const pdfPath = path.join(reportsDir, `shift-close-${report.sessionId}.pdf`)
+  const pdfPath = path.join(reportsDir, `cierre-de-turno-${report.closedByLabel}.pdf`)
   const out = doc.output('arraybuffer')
   fs.writeFileSync(pdfPath, Buffer.from(out))
   return pdfPath

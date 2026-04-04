@@ -22,8 +22,8 @@ export function RecoverPasswordPage() {
 
   return (
     <section className="mx-auto flex min-h-screen max-w-md items-center px-6">
-      <div className="w-full rounded-3xl border border-slate-800 bg-slate-900 p-6">
-        <h1 className="text-2xl font-semibold text-white">Recuperar contrasena</h1>
+      <div className="w-full rounded-3xl border border-border bg-surface-card p-6 shadow-sm">
+        <h1 className="text-2xl font-semibold text-slate-900">Recuperar contrasena</h1>
         <p className="mt-2 text-sm text-slate-400">Usa uno de tus codigos personales para restablecerla.</p>
         <form
           className="mt-6 grid gap-4"
@@ -34,19 +34,19 @@ export function RecoverPasswordPage() {
           }}
         >
           <input
-            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
             placeholder="Usuario o correo"
             value={identifier}
             onChange={(event) => setIdentifier(event.target.value)}
           />
           <input
-            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
             placeholder="Codigo de recuperacion"
             value={recoveryCode}
             onChange={(event) => setRecoveryCode(event.target.value)}
           />
           <input
-            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
             placeholder="Nueva contrasena"
             type="password"
             value={newPassword}

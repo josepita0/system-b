@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, protocol } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, Menu, protocol } from 'electron'
 import { licenseEvents } from '../shared/ipc/license'
 import { getDb } from './database/connection'
 import { runMigrations } from './database/migrate'
@@ -94,6 +94,9 @@ function showBootstrapError(error: unknown) {
 }
 
 function runBootstrap() {
+  /** Sin menú nativo File / Edit / View… (la app se usa solo con la UI web). */
+  Menu.setApplicationMenu(null)
+
   const db = getDb()
   runMigrations(db)
   const auth = new AuthService(db)

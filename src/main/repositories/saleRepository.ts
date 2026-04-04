@@ -19,6 +19,7 @@ export type SaleLineInsert = {
   subtotal: number
   saleFormatId: number | null
   complementProductId: number | null
+  priceChangeNote?: string | null
 }
 
 export type InventoryExitInsert = {
@@ -57,9 +58,10 @@ export class SaleRepository {
            sale_id, product_id, product_name,
            unit_price, discount, quantity, subtotal,
            sale_format_id, complement_product_id,
-           real_unit_price, charged_unit_price
+           real_unit_price, charged_unit_price,
+           price_change_note
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
 
       for (const line of lines) {
@@ -75,6 +77,7 @@ export class SaleRepository {
           line.complementProductId,
           line.realUnitPrice ?? line.unitPrice,
           line.chargedUnitPrice ?? line.unitPrice,
+          line.priceChangeNote ?? null,
         )
       }
 

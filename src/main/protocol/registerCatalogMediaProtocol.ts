@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { net, protocol } from 'electron'
+import { catalogRelativePathFromRequestUrl } from '../../shared/lib/catalogMediaUrl'
 import { getCatalogMediaDirectory } from '../catalogMedia/catalogMediaDirectory'
 
 function isPathInsideMediaRoot(root: string, candidate: string): boolean {
@@ -27,9 +28,14 @@ function mimeFor(filePath: string): string {
   return map[ext] ?? 'application/octet-stream'
 }
 
-function resolveUnderMediaRoot(urlPathname: string) {
-  const decoded = decodeURIComponent(urlPathname)
-  const relative = decoded.replace(/^[/\\]+/, '')
+function resolveUnderMediaRoot(relativeFromUrl: string) {
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(relativeFromUrl)
+  } catch {
+    return null
+  }
+  const relative = decoded.replace(/\\/g, '/').replace(/^[/\\]+/, '')
   if (!relative || relative.includes('..')) {
     return null
   }
@@ -43,8 +49,8 @@ function resolveUnderMediaRoot(urlPathname: string) {
 
 export function registerCatalogMediaProtocol() {
   protocol.handle('catalog-media', async (request) => {
-    const pathname = new URL(request.url).pathname
-    const full = resolveUnderMediaRoot(pathname)
+    const rel = catalogRelativePathFromRequestUrl(request.url)
+    const full = rel ? resolveUnderMediaRoot(rel) : null
     if (!full) {
       return new Response('Forbidden', { status: 403 })
     }

@@ -63,7 +63,7 @@ export function CatalogEntityMediaPanel({
           )}
           <div className="flex flex-wrap gap-2">
             <button
-              className="rounded-md bg-slate-700 px-2 py-1 text-xs text-white disabled:opacity-50"
+              className="rounded-md border border-border bg-slate-100 px-2 py-1 text-xs text-slate-800 disabled:opacity-50"
               disabled={busy}
               onClick={() =>
                 run(() =>
@@ -100,7 +100,7 @@ export function CatalogEntityMediaPanel({
           <p className="max-w-[220px] truncate text-xs text-slate-300">{pdfOriginalName ?? 'Sin PDF'}</p>
           <div className="flex flex-wrap gap-2">
             <button
-              className="rounded-md bg-slate-700 px-2 py-1 text-xs text-white disabled:opacity-50"
+              className="rounded-md border border-border bg-slate-100 px-2 py-1 text-xs text-slate-800 disabled:opacity-50"
               disabled={busy}
               onClick={() =>
                 run(() =>

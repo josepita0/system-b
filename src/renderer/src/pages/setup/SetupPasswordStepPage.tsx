@@ -30,7 +30,7 @@ export function SetupPasswordStepPage() {
   return (
     <section className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold text-white">Cambiar clave inicial</h2>
+        <h2 className="text-xl font-semibold text-slate-900">Cambiar clave inicial</h2>
         <p className="mt-2 text-sm text-slate-400">
           Este paso es obligatorio. La clave temporal solo debe usarse una vez y luego quedar invalidada.
         </p>
@@ -45,21 +45,21 @@ export function SetupPasswordStepPage() {
         }}
       >
         <input
-          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
           placeholder="Contrasena actual"
           type="password"
           value={currentPassword}
           onChange={(event) => setCurrentPassword(event.target.value)}
         />
         <input
-          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
           placeholder="Nueva contrasena"
           type="password"
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
         />
-        {message ? <p className={`text-sm ${mutation.isError ? 'text-rose-400' : 'text-cyan-400'}`}>{message}</p> : null}
-        <button className="rounded-lg bg-cyan-500 px-4 py-2 font-medium text-slate-950" disabled={mutation.isPending} type="submit">
+        {message ? <p className={`text-sm ${mutation.isError ? 'text-rose-600' : 'text-brand'}`}>{message}</p> : null}
+        <button className="rounded-xl bg-brand px-4 py-2 font-medium text-brand-fg" disabled={mutation.isPending} type="submit">
           {mutation.isPending ? 'Actualizando...' : 'Actualizar clave y continuar'}
         </button>
       </form>

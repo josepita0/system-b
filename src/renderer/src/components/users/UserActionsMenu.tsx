@@ -28,7 +28,7 @@ export function UserActionsMenu({ onEdit, onView, onGenerateLicensePanelCode }: 
 
       setPosition({
         top: rect.bottom + 8,
-        left: rect.right - 144,
+        left: rect.right - 160,
       })
     }
 
@@ -69,7 +69,7 @@ export function UserActionsMenu({ onEdit, onView, onGenerateLicensePanelCode }: 
   return (
     <div className="relative" ref={containerRef}>
       <button
-        className="rounded-md bg-slate-700 px-3 py-1 text-sm text-white"
+        className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"
         ref={buttonRef}
         onClick={() => setOpen((value) => !value)}
         type="button"
@@ -79,19 +79,19 @@ export function UserActionsMenu({ onEdit, onView, onGenerateLicensePanelCode }: 
       {open
         ? createPortal(
             <div
-              className="fixed z-50 min-w-36 rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-lg"
+              className="fixed z-50 min-w-[10rem] rounded-xl border border-border bg-surface-card py-1 shadow-lg"
               ref={menuRef}
               style={{ left: position.left, top: position.top }}
             >
               <button
-                className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-800"
+                className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
                 onClick={() => handleAction(onView)}
                 type="button"
               >
                 Ver
               </button>
               <button
-                className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-800"
+                className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
                 onClick={() => handleAction(onEdit)}
                 type="button"
               >
@@ -99,7 +99,7 @@ export function UserActionsMenu({ onEdit, onView, onGenerateLicensePanelCode }: 
               </button>
               {onGenerateLicensePanelCode ? (
                 <button
-                  className="block w-full rounded-md px-3 py-2 text-left text-sm text-amber-100 hover:bg-slate-800"
+                  className="block w-full px-3 py-2 text-left text-sm text-amber-800 hover:bg-amber-50"
                   onClick={() => handleAction(onGenerateLicensePanelCode)}
                   type="button"
                 >

@@ -1,11 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CategoryTreeNode, Product, SaleFormat } from '@shared/types/product'
-import { catalogMediaUrl } from '@shared/lib/catalogMediaUrl'
 import { Button } from '@renderer/components/ui/Button'
 import { Card } from '@renderer/components/ui/Card'
 import { Input } from '@renderer/components/ui/Input'
 import { Modal } from '@renderer/components/ui/Modal'
+import { PosAccountsSection } from '@renderer/components/pos/PosAccountsSection'
+import { PosCategoryTabs } from '@renderer/components/pos/PosCategoryTabs'
+import { PosProductGrid } from '@renderer/components/pos/PosProductGrid'
+import { PosTicketPanel } from '@renderer/components/pos/PosTicketPanel'
+import { PosToolbar } from '@renderer/components/pos/PosToolbar'
+import { selectFieldClass } from '@renderer/components/pos/posFieldClasses'
+import { cn } from '@renderer/lib/cn'
+import { findCategoryNode } from '@renderer/lib/posCategoryTree'
 import { requireSalesRemoveTabChargeLine, requireSalesTabChargeDetail } from '@renderer/lib/salesPreload'
 import { resolveShiftForDate } from '@renderer/utils/resolveShiftForDate'
 
@@ -15,25 +22,16 @@ type CartLine = {
   productName: string
   categoryId: number
   unitPrice: number
+  /** Precio de catalogo al crear la linea (referencia para cambios de precio). */
+  catalogUnitPrice: number
   quantity: number
   discount: number
   saleFormatId: number | null
   complementProductId: number | null
   formatLabel?: string | null
   complementLabel?: string | null
-}
-
-function findCategoryNode(nodes: CategoryTreeNode[], id: number): CategoryTreeNode | null {
-  for (const node of nodes) {
-    if (node.id === id) {
-      return node
-    }
-    const child = findCategoryNode(node.children, id)
-    if (child) {
-      return child
-    }
-  }
-  return null
+  /** Motivo si el precio difiere del catalogo (obligatorio sin VIP). */
+  priceChangeNote: string | null
 }
 
 function randomKey() {
@@ -65,6 +63,11 @@ export function SalesPage() {
   const [vipChargedTotalInput, setVipChargedTotalInput] = useState('')
   const [settleModalTabId, setSettleModalTabId] = useState<number | null>(null)
   const [settleCashReceived, setSettleCashReceived] = useState('')
+  const [priceEditLineKey, setPriceEditLineKey] = useState<string | null>(null)
+  const [priceEditUnit, setPriceEditUnit] = useState('')
+  const [priceEditNote, setPriceEditNote] = useState('')
+  const [priceEditError, setPriceEditError] = useState<string | null>(null)
+  const [cartPriceBlockError, setCartPriceBlockError] = useState<string | null>(null)
 
   const currentShiftQuery = useQuery({
     queryKey: ['shift', 'current'],
@@ -178,6 +181,8 @@ export function SalesPage() {
           discount: line.discount,
           saleFormatId: line.saleFormatId,
           complementProductId: line.complementProductId,
+          chargedUnitPrice: line.unitPrice,
+          priceChangeNote: line.priceChangeNote?.trim() ? line.priceChangeNote.trim() : undefined,
         })),
         tabId: saleMode === 'tab' && selectedTabId != null ? selectedTabId : undefined,
         vipCustomerId: selectedVipCustomerId ?? undefined,
@@ -199,6 +204,18 @@ export function SalesPage() {
 
   const tree = catalogQuery.data?.categoryTree ?? []
 
+  useEffect(() => {
+    if (!tree.length) {
+      return
+    }
+    setSelectedCategoryId((prev) => {
+      if (prev != null && findCategoryNode(tree, prev)) {
+        return prev
+      }
+      return tree[0]!.id
+    })
+  }, [tree])
+
   const beginAddProduct = useCallback(
     (product: Product) => {
       const node = findCategoryNode(tree, product.categoryId)
@@ -215,10 +232,12 @@ export function SalesPage() {
             productName: product.name,
             categoryId: product.categoryId,
             unitPrice: product.salePrice,
+            catalogUnitPrice: product.salePrice,
             quantity: 1,
             discount: 0,
             saleFormatId: null,
             complementProductId: null,
+            priceChangeNote: null,
           },
         ])
         return
@@ -240,11 +259,13 @@ export function SalesPage() {
             productName: product.name,
             categoryId: product.categoryId,
             unitPrice: product.salePrice,
+            catalogUnitPrice: product.salePrice,
             quantity: 1,
             discount: 0,
             saleFormatId: onlyId,
             complementProductId: null,
             formatLabel: fmt?.name ?? null,
+            priceChangeNote: null,
           },
         ])
         return
@@ -288,12 +309,14 @@ export function SalesPage() {
         productName: configProduct.name,
         categoryId: configProduct.categoryId,
         unitPrice: configProduct.salePrice,
+        catalogUnitPrice: configProduct.salePrice,
         quantity: 1,
         discount: 0,
         saleFormatId,
         complementProductId: fmt?.requiresComplement === 1 ? pickedComplementId : null,
         formatLabel: fmt?.name ?? null,
         complementLabel: complementName ?? null,
+        priceChangeNote: null,
       },
     ])
     setConfigProduct(null)
@@ -407,34 +430,103 @@ export function SalesPage() {
     setPickedComplementId(null)
   }, [])
 
+  const vipNote =
+    selectedVip != null
+      ? `Condición: ${
+          selectedVip.conditionType === 'exempt' ? 'Exoneración (cobra 0)' : 'Precio diferenciado (definir al cobrar)'
+        } · Total real ${totalDue.toFixed(2)}`
+      : null
+
+  const ticketLines = useMemo(
+    () =>
+      cart.map((line) => ({
+        key: line.key,
+        productName: line.productName,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        catalogUnitPrice: line.catalogUnitPrice,
+        discount: line.discount,
+        formatLabel: line.formatLabel,
+        complementLabel: line.complementLabel,
+        priceChangeNote: line.priceChangeNote,
+      })),
+    [cart],
+  )
+
+  const cartPriceNotesValid = useMemo(() => {
+    if (selectedVipCustomerId != null) {
+      return true
+    }
+    for (const line of cart) {
+      if (Math.abs(line.unitPrice - line.catalogUnitPrice) > 0.001 && !line.priceChangeNote?.trim()) {
+        return false
+      }
+    }
+    return true
+  }, [cart, selectedVipCustomerId])
+
+  useEffect(() => {
+    if (cartPriceNotesValid) {
+      setCartPriceBlockError(null)
+    }
+  }, [cartPriceNotesValid])
+
+  const priceEditLine = useMemo(
+    () => (priceEditLineKey != null ? cart.find((l) => l.key === priceEditLineKey) : undefined),
+    [cart, priceEditLineKey],
+  )
+
+  const handleConfirmSale = () => {
+    if (!cartPriceNotesValid) {
+      setCartPriceBlockError('Indique el motivo del cambio de precio en cada linea con precio distinto al catalogo (cliente sin VIP).')
+      return
+    }
+    setCartPriceBlockError(null)
+    if (saleMode === 'tab') {
+      saleMutation.mutate()
+    } else {
+      if (selectedVip?.conditionType === 'exempt') {
+        saleMutation.mutate()
+        return
+      }
+      if (selectedVip?.conditionType === 'discount_manual') {
+        setVipChargedTotalInput(totalDue.toFixed(2))
+      }
+      setCashPaymentModalOpen(true)
+    }
+  }
+
   return (
-    <section className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Ventas y tickets</h1>
-        <p className="text-sm text-slate-400">POS: contado, pagaré, VIP y catálogo por categoría.</p>
-      </div>
-
+    <section className={cn('flex min-h-0 flex-col gap-4', currentShiftQuery.data && 'flex-1')}>
       {!currentShiftQuery.data ? (
-        <Card padding="lg">
-          <p className="mb-4 text-slate-400">No hay turno de caja abierto. Abra un turno para registrar ventas.</p>
-          <Button onClick={() => openMutation.mutate()} variant="primary">
-            Abrir turno actual
-          </Button>
-        </Card>
+        <>
+          <div className="shrink-0">
+            <h1 className="text-2xl font-semibold text-slate-900">Ventas</h1>
+            {/* <p className="text-sm text-slate-500">POS: contado, pagaré y VIP.</p> */}
+          </div>
+          <Card padding="lg">
+            <p className="mb-4 text-slate-600">No hay turno de caja abierto. Abra un turno para registrar ventas.</p>
+            <Button onClick={() => openMutation.mutate()} variant="primary">
+              Abrir turno actual
+            </Button>
+          </Card>
+        </>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="space-y-4">
-            <Card padding="md">
-              <p className="text-sm text-slate-400">
-                Sesion de caja #{currentShiftQuery.data.id} · Fecha operativa {currentShiftQuery.data.businessDate}
-              </p>
-            </Card>
-
-            <Card padding="md">
-              <h2 className="mb-3 text-lg font-medium text-white">Contado o cuenta (pagaré)</h2>
-              <div className="flex flex-wrap gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch">
+          <div
+            className={cn(
+              'flex min-h-0 min-w-0 flex-1 flex-col gap-4 lg:min-h-0 lg:pr-1',
+              /* Cuenta abierta: un solo scroll para toolbar + categorías + productos (sin caja fija en Productos). */
+              saleMode === 'tab' && 'overflow-y-auto',
+            )}
+          >
+            <div className="sticky top-0 z-20 flex shrink-0 flex-col gap-3 border-b border-border bg-surface py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-semibold text-slate-900">Ventas</h1>
+                {/* <p className="text-sm text-slate-500">POS: contado, pagaré y VIP.</p> */}
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
                 <Button
-                  className={saleMode !== 'cash' ? 'opacity-80' : ''}
                   onClick={() => {
                     setSaleMode('cash')
                     setSelectedTabId(null)
@@ -443,261 +535,131 @@ export function SalesPage() {
                 >
                   Contado
                 </Button>
-                <Button onClick={() => setSaleMode('tab')} variant={saleMode === 'tab' ? 'warning' : 'secondary'}>
+                <Button
+                  onClick={() => {
+                    setSaleMode('tab')
+                  }}
+                  variant={saleMode === 'tab' ? 'warning' : 'secondary'}
+                >
                   Cuenta abierta
                 </Button>
               </div>
-              {saleMode === 'tab' ? (
-                <div className="mt-4 space-y-3">
-                  <div className="flex flex-wrap items-end gap-2">
-                    <label className="block min-w-[200px] flex-1 text-sm text-slate-300">
-                      Cuenta activa
-                      <select
-                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-                        onChange={(e) => {
-                          const v = e.target.value
-                          setSelectedTabId(v === '' ? null : Number(v))
-                        }}
-                        value={selectedTabId ?? ''}
-                      >
-                        <option value="">Seleccione una cuenta...</option>
-                        {openTabsQuery.data?.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.customerName} — {t.balance.toFixed(2)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <Button onClick={() => setNewTabModalOpen(true)} variant="secondary">
-                      Nueva cuenta
-                    </Button>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Los cargos van al pagaré (no suman a la caja de este turno hasta liquidar en efectivo).
-                  </p>
-                </div>
-              ) : null}
+            </div>
 
-              <div className="mt-4 border-t border-slate-800 pt-4">
-                <h3 className="mb-2 text-sm font-medium text-slate-200">Cliente VIP (opcional)</h3>
-                <label className="block text-sm text-slate-300">
-                  Cliente
-                  <select
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-                    disabled={vipCustomersQuery.isLoading}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      setSelectedVipCustomerId(v === '' ? null : Number(v))
-                      setVipChargedTotalInput('')
-                    }}
-                    value={selectedVipCustomerId ?? ''}
-                  >
-                    <option value="">{vipCustomersQuery.isLoading ? 'Cargando...' : 'Sin VIP'}</option>
-                    {(vipCustomersQuery.data ?? []).map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} — {c.conditionType === 'exempt' ? 'Exonerado' : 'Manual'}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {selectedVip ? (
-                  <p className="mt-2 text-xs text-slate-500">
-                    Condición: {selectedVip.conditionType === 'exempt' ? 'Exoneración (cobra 0)' : 'Precio diferenciado (definir al cobrar)'} · Total real {totalDue.toFixed(2)}
-                  </p>
-                ) : null}
-              </div>
+            <PosToolbar
+              onNewTab={() => {
+                setNewTabModalOpen(true)
+              }}
+              onSelectTab={(id) => {
+                setSelectedTabId(id)
+              }}
+              onSelectVip={(id) => {
+                setSelectedVipCustomerId(id)
+                setVipChargedTotalInput('')
+              }}
+              openTabs={openTabsQuery.data ?? []}
+              saleMode={saleMode}
+              selectedTabId={selectedTabId}
+              selectedVipCustomerId={selectedVipCustomerId}
+              tabsLoading={openTabsQuery.isLoading}
+              vipCustomers={vipCustomersQuery.data ?? []}
+              vipLoading={vipCustomersQuery.isLoading}
+              vipNote={vipNote}
+            />
+
+            <Card className="shrink-0" padding="md">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Categorías</h2>
+              <PosCategoryTabs
+                error={catalogQuery.isError}
+                loading={catalogQuery.isLoading}
+                onSelectCategory={setSelectedCategoryId}
+                selectedCategoryId={selectedCategoryId}
+                tree={tree}
+              />
             </Card>
 
-            <Card padding="md">
-              <h2 className="mb-3 text-lg font-medium text-white">Categorias</h2>
-              {catalogQuery.isLoading ? (
-                <p className="text-slate-400">Cargando catalogo...</p>
-              ) : catalogQuery.isError ? (
-                <p className="text-rose-400">No se pudo cargar el catalogo.</p>
-              ) : (
-                <CategoryTreeNav
-                  nodes={tree}
-                  onSelect={(id) => setSelectedCategoryId(id)}
-                  selectedId={selectedCategoryId}
+            <div
+              className={cn(
+                'flex flex-col rounded-2xl border border-border bg-surface-card shadow-sm',
+                saleMode === 'cash' && 'min-h-0 flex-1 overflow-hidden',
+              )}
+            >
+              <h2 className="shrink-0 border-b border-slate-100 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Productos
+              </h2>
+              <div
+                className={cn(
+                  'overflow-x-hidden px-4 pb-4 pt-3',
+                  saleMode === 'cash' ? 'min-h-0 flex-1 overflow-y-auto' : '',
+                )}
+              >
+                <PosProductGrid
+                  loading={productsQuery.isLoading}
+                  onAddProduct={beginAddProduct}
+                  products={productsQuery.data}
+                  selectedCategoryId={selectedCategoryId}
                 />
-              )}
-            </Card>
-
-            <Card padding="md">
-              <h2 className="mb-3 text-lg font-medium text-white">Productos</h2>
-              {!selectedCategoryId ? (
-                <p className="text-slate-400">Seleccione una categoria.</p>
-              ) : productsQuery.isLoading ? (
-                <p className="text-slate-400">Cargando productos...</p>
-              ) : productsQuery.data?.length === 0 ? (
-                <p className="text-slate-400">No hay productos en esta categoria.</p>
-              ) : (
-                <ul className="divide-y divide-slate-800">
-                  {productsQuery.data?.map((product) => (
-                    <li className="flex flex-wrap items-center justify-between gap-2 py-3" key={product.id}>
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        {catalogMediaUrl(product.imageRelPath) ? (
-                          <img
-                            alt=""
-                            className="h-12 w-12 shrink-0 rounded-lg border border-slate-700 object-cover"
-                            src={catalogMediaUrl(product.imageRelPath)!}
-                          />
-                        ) : null}
-                        <div className="min-w-0">
-                          <p className="font-medium text-slate-100">{product.name}</p>
-                          <p className="text-sm text-slate-500">
-                            {product.sku} · {product.salePrice.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                      <Button className="text-cyan-300" onClick={() => beginAddProduct(product)} variant="secondary">
-                        Agregar
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
+              </div>
+            </div>
           </div>
 
-          <Card padding="md">
-            <h2 className="mb-3 text-lg font-medium text-white">Carrito</h2>
-            {cart.length === 0 ? (
-              <p className="text-slate-400">Sin lineas.</p>
-            ) : (
-              <ul className="mb-4 max-h-[420px] space-y-3 overflow-y-auto">
-                {cart.map((line) => (
-                  <li className="rounded-xl border border-slate-800 bg-slate-950/50 p-3" key={line.key}>
-                    <div className="flex justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-medium text-slate-100">{line.productName}</p>
-                        <LineMeta line={line} />
-                      </div>
-                      <button
-                        className="text-xs text-rose-400 hover:underline"
-                        onClick={() => setCart((c) => c.filter((l) => l.key !== line.key))}
-                        type="button"
-                      >
-                        Quitar
-                      </button>
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <label className="flex items-center gap-1 text-xs text-slate-400">
-                        Cant.
-                        <input
-                          className="w-16 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
-                          min={0.01}
-                          onChange={(e) => {
-                            const v = Number(e.target.value)
-                            setCart((c) =>
-                              c.map((l) => (l.key === line.key ? { ...l, quantity: Number.isFinite(v) ? v : l.quantity } : l)),
-                            )
-                          }}
-                          step={0.01}
-                          type="number"
-                          value={line.quantity}
-                        />
-                      </label>
-                      <label className="flex items-center gap-1 text-xs text-slate-400">
-                        Desc.
-                        <input
-                          className="w-20 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
-                          min={0}
-                          onChange={(e) => {
-                            const v = Number(e.target.value)
-                            setCart((c) =>
-                              c.map((l) => (l.key === line.key ? { ...l, discount: Number.isFinite(v) ? v : l.discount } : l)),
-                            )
-                          }}
-                          step={0.01}
-                          type="number"
-                          value={line.discount}
-                        />
-                      </label>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="mb-4 flex items-center justify-between border-t border-slate-800 pt-3 text-slate-200">
-              <span>Total estimado</span>
-              <span className="text-lg font-semibold text-cyan-300">{cartTotal.toFixed(2)}</span>
-            </div>
-            <Button
-              className="w-full py-2.5 font-medium"
-              disabled={
-                cart.length === 0 ||
-                saleMutation.isPending ||
-                (saleMode === 'tab' && selectedTabId == null)
-              }
-              onClick={() => {
-                if (saleMode === 'tab') {
-                  saleMutation.mutate()
-                } else {
-                  if (selectedVip?.conditionType === 'exempt') {
-                    saleMutation.mutate()
+          <div className="flex w-full min-h-0 shrink-0 flex-col gap-4 lg:w-[380px] lg:min-w-[380px] lg:self-stretch">
+            <div className="flex min-h-[260px] flex-1 flex-col lg:min-h-0">
+              <PosTicketPanel
+                cartTotal={cartTotal}
+                hasVipSelected={selectedVipCustomerId != null}
+                lines={ticketLines}
+                onConfirmClick={handleConfirmSale}
+                onDiscountChange={(key, discount) => {
+                  setCart((c) => c.map((l) => (l.key === key ? { ...l, discount } : l)))
+                }}
+                onEditPriceClick={(key) => {
+                  const line = cart.find((l) => l.key === key)
+                  if (!line) {
                     return
                   }
-                  if (selectedVip?.conditionType === 'discount_manual') {
-                    setVipChargedTotalInput(totalDue.toFixed(2))
-                  }
-                  setCashPaymentModalOpen(true)
+                  setPriceEditLineKey(key)
+                  setPriceEditUnit(line.unitPrice.toFixed(2))
+                  setPriceEditNote(line.priceChangeNote ?? '')
+                  setPriceEditError(null)
+                }}
+                onQuantityChange={(key, quantity) => {
+                  setCart((c) => c.map((l) => (l.key === key ? { ...l, quantity } : l)))
+                }}
+                onRemoveLine={(key) => {
+                  setCart((c) => c.filter((l) => l.key !== key))
+                }}
+                saleError={
+                  cartPriceBlockError ??
+                  (saleMutation.isError ? ((saleMutation.error as Error)?.message ?? 'No se pudo registrar la venta.') : null)
                 }
-              }}
-              variant="primary"
-            >
-              {saleMutation.isPending
-                ? 'Registrando...'
-                : saleMode === 'tab'
-                  ? 'Registrar a cuenta'
-                  : 'Confirmar venta'}
-            </Button>
-            {saleMutation.isError ? (
-              <p className="mt-2 text-sm text-rose-400">
-                {(saleMutation.error as Error)?.message ?? 'No se pudo registrar la venta.'}
-              </p>
-            ) : null}
-
-            <div className="mt-6 border-t border-slate-800 pt-4">
-              <h3 className="mb-2 text-sm font-medium text-slate-200">Liquidar cuenta (efectivo)</h3>
-              {openTabsQuery.isLoading ? (
-                <p className="text-xs text-slate-500">Cargando cuentas...</p>
-              ) : !openTabsQuery.data?.length ? (
-                <p className="text-xs text-slate-500">No hay cuentas abiertas.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {openTabsQuery.data.map((t) => (
-                    <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2" key={t.id}>
-                      <div>
-                        <p className="text-sm font-medium text-slate-100">{t.customerName}</p>
-                        <p className="text-xs text-slate-500">Saldo: {t.balance.toFixed(2)}</p>
-                      </div>
-                      <button
-                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
-                        disabled={
-                          t.balance <= 0 ||
-                          settleTabMutation.isPending ||
-                          removeTabChargeLineMutation.isPending
-                        }
-                        onClick={() => {
-                          setSettleCashReceived('')
-                          setSettleModalTabId(t.id)
-                        }}
-                        type="button"
-                      >
-                        Cobrar y cerrar
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {settleTabMutation.isError ? (
-                <p className="mt-2 text-xs text-rose-400">
-                  {(settleTabMutation.error as Error)?.message ?? 'No se pudo liquidar.'}
-                </p>
-              ) : null}
+                saleMode={saleMode}
+                salePending={saleMutation.isPending}
+                selectedTabId={selectedTabId}
+              />
             </div>
-          </Card>
+
+            <PosAccountsSection
+              loading={openTabsQuery.isLoading}
+              onSettleClick={(t) => {
+                setSettleCashReceived('')
+                setSettleModalTabId(t.id)
+              }}
+              openTabs={openTabsQuery.data ?? []}
+              removeLineError={
+                removeTabChargeLineMutation.isError
+                  ? ((removeTabChargeLineMutation.error as Error)?.message ?? 'No se pudo quitar la linea.')
+                  : null
+              }
+              removeLinePending={removeTabChargeLineMutation.isPending}
+              settleError={
+                settleTabMutation.isError
+                  ? ((settleTabMutation.error as Error)?.message ?? 'No se pudo liquidar.')
+                  : null
+              }
+              settlePending={settleTabMutation.isPending}
+            />
+          </div>
         </div>
       )}
 
@@ -729,10 +691,10 @@ export function SalesPage() {
         open={newTabModalOpen}
         title="Nueva cuenta"
       >
-        <p className="text-sm text-slate-400">Nombre del cliente (obligatorio)</p>
+        <p className="text-sm text-slate-600">Nombre del cliente (obligatorio)</p>
         <Input className="mt-4" onChange={(e) => setNewTabName(e.target.value)} placeholder="Ej. Maria Lopez" value={newTabName} />
         {openTabMutation.isError ? (
-          <p className="mt-2 text-sm text-rose-400">{(openTabMutation.error as Error)?.message}</p>
+          <p className="mt-2 text-sm text-rose-600">{(openTabMutation.error as Error)?.message}</p>
         ) : null}
       </Modal>
 
@@ -769,14 +731,14 @@ export function SalesPage() {
             : 'Liquidar cuenta (efectivo)'
         }
       >
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-slate-600">
           Revise los cargos a la cuenta, quite lineas si corresponde e indique el efectivo recibido para calcular el cambio.
         </p>
 
         {tabChargeDetailQuery.isLoading ? (
           <p className="mt-4 text-sm text-slate-500">Cargando detalle...</p>
         ) : tabChargeDetailQuery.isError ? (
-          <p className="mt-4 text-sm text-rose-400">
+          <p className="mt-4 text-sm text-rose-600">
             {(tabChargeDetailQuery.error as Error)?.message ?? 'No se pudo cargar la cuenta.'}
           </p>
         ) : settleDetail ? (
@@ -789,19 +751,19 @@ export function SalesPage() {
                 <ul className="max-h-52 space-y-2 overflow-y-auto pr-1">
                   {settleDetail.lines.map((line) => (
                     <li
-                      className="flex items-start justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm"
+                      className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                       key={line.saleItemId}
                     >
                       <div>
-                        <p className="font-medium text-slate-100">{line.productName}</p>
+                        <p className="font-medium text-slate-900">{line.productName}</p>
                         <p className="text-xs text-slate-500">
                           {line.quantity} u. · {line.createdAt}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        <span className="tabular-nums text-cyan-300">{line.subtotal.toFixed(2)}</span>
+                        <span className="tabular-nums text-brand">{line.subtotal.toFixed(2)}</span>
                         <button
-                          className="text-xs text-rose-400 hover:underline disabled:opacity-40"
+                          className="text-xs text-rose-600 hover:underline disabled:opacity-40"
                           disabled={removeTabChargeLineMutation.isPending}
                           onClick={() => removeTabChargeLineMutation.mutate(line.saleItemId)}
                           type="button"
@@ -815,13 +777,13 @@ export function SalesPage() {
               )}
             </div>
 
-            <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 text-slate-200">
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-slate-50 px-3 py-2 text-slate-800">
               <span>Total a cobrar</span>
-              <span className="text-lg font-semibold text-cyan-300">{settleDetail.balance.toFixed(2)}</span>
+              <span className="text-lg font-semibold text-brand">{settleDetail.balance.toFixed(2)}</span>
             </div>
 
             {settleBalanceCents > 0 ? (
-              <label className="mt-4 block text-sm text-slate-300">
+              <label className="mt-4 block text-sm text-slate-700">
                 Monto recibido
                 <Input
                   autoFocus
@@ -838,27 +800,27 @@ export function SalesPage() {
             )}
 
             {settleChangeAmount != null ? (
-              <div className="mt-4 flex items-center justify-between text-slate-200">
+              <div className="mt-4 flex items-center justify-between text-slate-800">
                 <span>Cambio</span>
-                <span className="text-lg font-semibold text-cyan-300">{settleChangeAmount.toFixed(2)}</span>
+                <span className="text-lg font-semibold text-brand">{settleChangeAmount.toFixed(2)}</span>
               </div>
             ) : null}
             {settleShortfall != null ? (
-              <p className="mt-3 text-sm text-amber-400">Falta {settleShortfall.toFixed(2)} para cubrir el total.</p>
+              <p className="mt-3 text-sm text-amber-700">Falta {settleShortfall.toFixed(2)} para cubrir el total.</p>
             ) : null}
             {parsedSettleReceived == null && settleCashReceived.trim() !== '' && settleBalanceCents > 0 ? (
-              <p className="mt-2 text-xs text-rose-400">Indique un monto valido.</p>
+              <p className="mt-2 text-xs text-rose-600">Indique un monto valido.</p>
             ) : null}
           </>
         ) : null}
 
         {settleTabMutation.isError ? (
-          <p className="mt-3 text-sm text-rose-400">
+          <p className="mt-3 text-sm text-rose-600">
             {(settleTabMutation.error as Error)?.message ?? 'No se pudo liquidar.'}
           </p>
         ) : null}
         {removeTabChargeLineMutation.isError ? (
-          <p className="mt-2 text-sm text-rose-400">
+          <p className="mt-2 text-sm text-rose-600">
             {(removeTabChargeLineMutation.error as Error)?.message ?? 'No se pudo quitar la linea.'}
           </p>
         ) : null}
@@ -888,14 +850,14 @@ export function SalesPage() {
         open={cashPaymentModalOpen}
         title="Cobro en efectivo"
       >
-        <p className="text-sm text-slate-400">Confirme el monto recibido y el cambio antes de registrar la venta.</p>
-        <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 text-slate-200">
+        <p className="text-sm text-slate-600">Confirme el monto recibido y el cambio antes de registrar la venta.</p>
+        <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-slate-50 px-3 py-2 text-slate-800">
           <span>Total a cobrar</span>
-          <span className="text-lg font-semibold text-cyan-300">{amountToCharge.toFixed(2)}</span>
+          <span className="text-lg font-semibold text-brand">{amountToCharge.toFixed(2)}</span>
         </div>
 
         {selectedVip?.conditionType === 'discount_manual' ? (
-          <label className="mt-4 block text-sm text-slate-300">
+          <label className="mt-4 block text-sm text-slate-700">
             Monto a cobrar (VIP)
             <Input
               className="mt-1"
@@ -906,14 +868,14 @@ export function SalesPage() {
               value={vipChargedTotalInput}
             />
             {parsedVipChargedTotal == null && vipChargedTotalInput.trim() !== '' ? (
-              <p className="mt-2 text-xs text-rose-400">Indique un monto válido.</p>
+              <p className="mt-2 text-xs text-rose-600">Indique un monto válido.</p>
             ) : null}
             {parsedVipChargedTotal != null && parsedVipChargedTotal > totalDue ? (
-              <p className="mt-2 text-xs text-rose-400">No puede exceder el total real ({totalDue.toFixed(2)}).</p>
+              <p className="mt-2 text-xs text-rose-600">No puede exceder el total real ({totalDue.toFixed(2)}).</p>
             ) : null}
           </label>
         ) : null}
-        <label className="mt-4 block text-sm text-slate-300">
+        <label className="mt-4 block text-sm text-slate-700">
           Monto recibido
           <Input
             autoFocus
@@ -926,19 +888,19 @@ export function SalesPage() {
           />
         </label>
         {cashPaymentSufficient && changeAmount != null ? (
-          <div className="mt-4 flex items-center justify-between text-slate-200">
+          <div className="mt-4 flex items-center justify-between text-slate-800">
             <span>Cambio</span>
-            <span className="text-lg font-semibold text-cyan-300">{changeAmount.toFixed(2)}</span>
+            <span className="text-lg font-semibold text-brand">{changeAmount.toFixed(2)}</span>
           </div>
         ) : null}
         {shortfall != null ? (
-          <p className="mt-3 text-sm text-amber-400">Falta {shortfall.toFixed(2)} para cubrir el total.</p>
+          <p className="mt-3 text-sm text-amber-700">Falta {shortfall.toFixed(2)} para cubrir el total.</p>
         ) : null}
         {parsedReceived == null && cashReceivedInput.trim() !== '' ? (
-          <p className="mt-3 text-sm text-rose-400">Indique un monto valido.</p>
+          <p className="mt-3 text-sm text-rose-600">Indique un monto valido.</p>
         ) : null}
         {saleMutation.isError ? (
-          <p className="mt-2 text-sm text-rose-400">
+          <p className="mt-2 text-sm text-rose-600">
             {(saleMutation.error as Error)?.message ?? 'No se pudo registrar la venta.'}
           </p>
         ) : null}
@@ -964,13 +926,13 @@ export function SalesPage() {
           open
           title="Configurar linea"
         >
-          <p className="text-sm text-slate-400">{configProduct.name}</p>
+          <p className="text-sm text-slate-600">{configProduct.name}</p>
 
           {(findCategoryNode(tree, configProduct.categoryId)?.effectiveSaleFormatIds.length ?? 0) > 1 ? (
-            <label className="mt-4 block text-sm text-slate-300">
+            <label className="mt-4 block text-sm text-slate-700">
               Formato
               <select
-                className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-slate-100"
+                className={`${selectFieldClass} mt-1`}
                 onChange={(e) => {
                   const v = Number(e.target.value)
                   setPickedFormatId(Number.isFinite(v) ? v : null)
@@ -989,10 +951,10 @@ export function SalesPage() {
           ) : null}
 
           {pickedFormatId && formatById.get(pickedFormatId)?.requiresComplement === 1 ? (
-            <label className="mt-4 block text-sm text-slate-300">
+            <label className="mt-4 block text-sm text-slate-700">
               Complemento
               <select
-                className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-slate-100"
+                className={`${selectFieldClass} mt-1`}
                 disabled={complementQuery.isLoading}
                 onChange={(e) => {
                   const v = Number(e.target.value)
@@ -1011,56 +973,103 @@ export function SalesPage() {
           ) : null}
         </Modal>
       ) : null}
+
+      <Modal
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setPriceEditLineKey(null)
+                setPriceEditUnit('')
+                setPriceEditNote('')
+                setPriceEditError(null)
+              }}
+              variant="secondary"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (priceEditLineKey == null) {
+                  return
+                }
+                const line = cart.find((l) => l.key === priceEditLineKey)
+                if (!line) {
+                  return
+                }
+                const u = Number(priceEditUnit.replace(',', '.'))
+                if (!Number.isFinite(u) || u < 0) {
+                  setPriceEditError('Indique un precio valido.')
+                  return
+                }
+                const rounded = roundMoney2(u)
+                const diff = Math.abs(rounded - line.catalogUnitPrice) > 0.001
+                const note = priceEditNote.trim()
+                if (diff && selectedVipCustomerId == null && !note) {
+                  setPriceEditError('Indique el motivo del cambio de precio.')
+                  return
+                }
+                setPriceEditError(null)
+                setCart((c) =>
+                  c.map((l) =>
+                    l.key === priceEditLineKey
+                      ? { ...l, unitPrice: rounded, priceChangeNote: diff ? note || null : null }
+                      : l,
+                  ),
+                )
+                setPriceEditLineKey(null)
+                setPriceEditUnit('')
+                setPriceEditNote('')
+              }}
+              variant="primary"
+            >
+              Guardar
+            </Button>
+          </>
+        }
+        maxWidthClass="max-w-md"
+        onClose={() => {
+          setPriceEditLineKey(null)
+          setPriceEditUnit('')
+          setPriceEditNote('')
+          setPriceEditError(null)
+        }}
+        open={priceEditLineKey != null}
+        title="Cambiar precio"
+      >
+        {priceEditLine ? (
+          <>
+            <p className="text-sm font-medium text-slate-900">{priceEditLine.productName}</p>
+            <p className="mt-1 text-xs text-slate-500">Precio de catalogo: {priceEditLine.catalogUnitPrice.toFixed(2)}</p>
+            <label className="mt-4 block text-sm text-slate-700">
+              Precio unitario (venta)
+              <Input
+                className="mt-1"
+                min={0}
+                onChange={(e) => setPriceEditUnit(e.target.value)}
+                step={0.01}
+                type="number"
+                value={priceEditUnit}
+              />
+            </label>
+            <label className="mt-4 block text-sm text-slate-700">
+              {selectedVipCustomerId != null
+                ? 'Motivo del cambio (opcional)'
+                : 'Motivo del cambio (obligatorio si el precio difiere del catalogo)'}
+              <textarea
+                className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                onChange={(e) => setPriceEditNote(e.target.value)}
+                placeholder={
+                  selectedVipCustomerId != null ? 'Ej. promocion acordada' : 'Ej. descuento por rotura de empaque'
+                }
+                value={priceEditNote}
+              />
+            </label>
+            {priceEditError ? <p className="mt-2 text-sm text-rose-600">{priceEditError}</p> : null}
+          </>
+        ) : null}
+      </Modal>
     </section>
-  )
-}
-
-function LineMeta({ line }: { line: CartLine }) {
-  const parts: string[] = []
-  if (line.formatLabel) {
-    parts.push(line.formatLabel)
-  }
-  if (line.complementLabel) {
-    parts.push(`+ ${line.complementLabel}`)
-  }
-  if (parts.length === 0) {
-    return null
-  }
-  return <p className="text-xs text-slate-500">{parts.join(' · ')}</p>
-}
-
-function CategoryTreeNav({
-  nodes,
-  depth = 0,
-  selectedId,
-  onSelect,
-}: {
-  nodes: CategoryTreeNode[]
-  depth?: number
-  selectedId: number | null
-  onSelect: (id: number) => void
-}) {
-  return (
-    <ul className="space-y-1">
-      {nodes.map((node) => (
-        <li key={node.id}>
-          <button
-            className={`w-full rounded-lg px-2 py-2 text-left text-sm ${
-              selectedId === node.id ? 'bg-slate-800 text-cyan-300' : 'text-slate-200 hover:bg-slate-800/60'
-            }`}
-            onClick={() => onSelect(node.id)}
-            style={{ paddingLeft: `${8 + depth * 12}px` }}
-            type="button"
-          >
-            {node.name}
-            {node.productCount > 0 ? <span className="text-slate-500"> ({node.productCount})</span> : null}
-          </button>
-          {node.children.length > 0 ? (
-            <CategoryTreeNav depth={depth + 1} nodes={node.children} onSelect={onSelect} selectedId={selectedId} />
-          ) : null}
-        </li>
-      ))}
-    </ul>
   )
 }
 

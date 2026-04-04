@@ -4,6 +4,8 @@ import { Button } from '@renderer/components/ui/Button'
 import { Card } from '@renderer/components/ui/Card'
 import { Field } from '@renderer/components/ui/Field'
 import { Input } from '@renderer/components/ui/Input'
+import { Modal } from '@renderer/components/ui/Modal'
+import { tableTheadClass } from '@renderer/lib/tableStyles'
 import { resolveShiftForDate } from '@renderer/utils/resolveShiftForDate'
 import type { ShiftCloseReport } from '@shared/types/report'
 import type { ShiftSessionDetail } from '@shared/types/shift'
@@ -56,13 +58,15 @@ function ShiftSessionMovementsLists(props: {
 }) {
   const { isLoading, error, detail, compact } = props
   const box = compact ? 'p-2 text-xs' : 'p-3 text-sm'
-  const heading = compact ? 'mb-1.5 text-xs font-medium text-slate-400' : 'mb-2 text-sm font-medium text-slate-300'
+  const heading = compact
+    ? 'mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600'
+    : 'mb-2 text-sm font-semibold text-slate-800'
 
   if (isLoading) {
     return <p className="text-sm text-slate-500">Cargando movimientos...</p>
   }
   if (error) {
-    return <p className="text-sm text-rose-400">{error.message ?? 'No se pudo cargar el detalle.'}</p>
+    return <p className="text-sm text-rose-600">{error.message ?? 'No se pudo cargar el detalle.'}</p>
   }
   if (!detail) {
     return null
@@ -77,16 +81,16 @@ function ShiftSessionMovementsLists(props: {
             <li className="text-sm text-slate-500">Sin ventas registradas.</li>
           ) : (
             detail.sales.map((sale) => (
-              <li className={`rounded-lg border border-slate-800 bg-slate-950/40 ${box}`} key={sale.id}>
-                <div className="flex flex-wrap justify-between gap-2 text-slate-200">
+              <li className={`rounded-xl border border-border bg-slate-50 ${box}`} key={sale.id}>
+                <div className="flex flex-wrap justify-between gap-2 text-slate-800">
                   <span>
                     #{sale.id} · {saleTypeLabel(sale.saleType)}
                     {sale.tabCustomerName ? ` · Cuenta: ${sale.tabCustomerName}` : ''} · {sale.createdAt}
                   </span>
-                  <span className="font-medium text-cyan-300">{sale.total.toFixed(2)}</span>
+                  <span className="font-semibold tabular-nums text-brand">{sale.total.toFixed(2)}</span>
                 </div>
                 {sale.lines.length > 0 ? (
-                  <ul className="mt-2 space-y-0.5 text-xs text-slate-400">
+                  <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
                     {sale.lines.map((line, idx) => (
                       <li key={`${sale.id}-${idx}`}>
                         {line.productName} × {line.quantity} = {line.subtotal.toFixed(2)}
@@ -107,9 +111,9 @@ function ShiftSessionMovementsLists(props: {
             <li className="text-sm text-slate-500">Sin cuentas vinculadas a este turno.</li>
           ) : (
             detail.tabs.map((tab) => (
-              <li className={`rounded-lg border border-slate-800 bg-slate-950/40 ${box}`} key={tab.id}>
-                <p className="font-medium text-slate-100">{tab.customerName}</p>
-                <p className="text-xs text-slate-500">
+              <li className={`rounded-xl border border-border bg-slate-50 ${box}`} key={tab.id}>
+                <p className="font-medium text-slate-900">{tab.customerName}</p>
+                <p className="text-xs text-slate-600">
                   Estado: {tab.status}
                   {tab.openedHere ? ' · Apertura en este turno' : ''}
                   {tab.settledHere ? ' · Liquidacion en este turno' : ''}
@@ -267,32 +271,30 @@ export function ShiftsPage() {
     setCloseModalOpen(true)
   }
 
+  const closeShiftModalOpen = closeModalOpen && currentQuery.data?.status === 'open'
+
   return (
-    <section className="space-y-4">
+    <section className="flex min-h-0 flex-1 flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Turnos y caja</h1>
-        <p className="text-sm text-slate-400">Apertura, cierre, histórico y conciliación de pagarés.</p>
+        <h1 className="text-2xl font-semibold text-slate-900">Turnos y caja</h1>
+        <p className="text-sm text-slate-500">Apertura, cierre, histórico y conciliación de pagarés.</p>
       </div>
-      <Card padding="lg">
+      <Card className="shadow-sm" padding="lg">
         {currentQuery.data ? (
-          <div className="space-y-3 text-slate-200">
-            <p>Sesion abierta: #{currentQuery.data.id}</p>
-            <p>
+          <div className="space-y-3 text-slate-700">
+            <p className="font-medium text-slate-900">Sesión abierta: #{currentQuery.data.id}</p>
+            <p className="text-sm">
               Fecha operativa: {currentQuery.data.businessDate} · {formatNowClock(nowTick)}
             </p>
             {closeFeedback ? (
-              <p className={`text-sm ${closeFeedback.ok ? 'text-emerald-400' : 'text-rose-400'}`}>{closeFeedback.message}</p>
+              <p className={`text-sm ${closeFeedback.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{closeFeedback.message}</p>
             ) : null}
-            <Button
-              disabled={confirmCloseMutation.isPending}
-              onClick={openCloseModal}
-              variant="warning"
-            >
+            <Button disabled={confirmCloseMutation.isPending} onClick={openCloseModal} variant="warning">
               Cerrar turno
             </Button>
           </div>
         ) : (
-          <div className="space-y-3 text-slate-200">
+          <div className="space-y-3 text-slate-700">
             <p>No hay turno activo.</p>
             <Button onClick={() => openMutation.mutate()} variant="primary">
               Abrir turno actual
@@ -301,28 +303,25 @@ export function ShiftsPage() {
         )}
       </Card>
 
-      {closeModalOpen && currentQuery.data?.status === 'open' ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 py-8">
-          <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-xl"
-            role="dialog"
-            aria-labelledby="close-shift-title"
-            aria-modal="true"
-          >
-            <h2 className="text-lg font-semibold text-white" id="close-shift-title">
-              Confirmar cierre de turno
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Se cerrará la sesión #{currentQuery.data.id} (fecha operativa {currentQuery.data.businessDate}). Tras el cierre se generará el PDF y se
-              intentará enviar el correo con el adjunto al momento; si el envío falla o falta SMTP, quedará en cola para reintentar desde Reportes.
+      <Modal
+        maxWidthClass="max-w-2xl"
+        onClose={() => {
+          setCloseModalOpen(false)
+          setClosePassword('')
+        }}
+        open={closeShiftModalOpen}
+        title="Confirmar cierre de turno"
+      >
+        {currentQuery.data?.status === 'open' ? (
+          <>
+            <p className="text-sm leading-relaxed text-slate-600">
+              Se cerrará la sesión #{currentQuery.data.id} (fecha operativa {currentQuery.data.businessDate}).
               Ingrese su contraseña para confirmar.
             </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Hora actual: {formatNowClock(nowTick)}
-            </p>
+            <p className="mt-2 text-xs text-slate-500">Hora actual: {formatNowClock(nowTick)}</p>
 
-            <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-              <h3 className="mb-2 text-sm font-medium text-slate-200">Movimientos del turno hasta ahora</h3>
+            <div className="mt-4 rounded-xl border border-border bg-slate-50 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-slate-800">Movimientos del turno hasta ahora</h3>
               <ShiftSessionMovementsLists
                 compact
                 detail={closeModalDetailQuery.data}
@@ -332,7 +331,7 @@ export function ShiftsPage() {
             </div>
 
             <form
-              className="mt-4 space-y-4"
+              className="mt-4 space-y-4 border-t border-border pt-4"
               onSubmit={(e) => {
                 e.preventDefault()
                 confirmCloseMutation.mutate(closePassword)
@@ -348,9 +347,7 @@ export function ShiftsPage() {
                 />
               </Field>
               {confirmCloseMutation.isError ? (
-                <p className="text-sm text-rose-400">
-                  {(confirmCloseMutation.error as Error)?.message ?? 'Error al confirmar.'}
-                </p>
+                <p className="text-sm text-rose-600">{(confirmCloseMutation.error as Error)?.message ?? 'Error al confirmar.'}</p>
               ) : null}
               <div className="flex flex-wrap justify-end gap-3">
                 <Button
@@ -369,69 +366,71 @@ export function ShiftsPage() {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      ) : null}
+          </>
+        ) : null}
+      </Modal>
 
-      <Card padding="lg">
-        <h2 className="mb-3 text-lg font-medium text-white">Historico de turnos</h2>
-        <p className="mb-3 text-sm text-slate-500">
+      <Card className="shadow-sm" padding="lg">
+        <h2 className="text-lg font-semibold text-slate-900">Historico de turnos</h2>
+        <p className="mt-1 text-sm text-slate-500">
           Incluye el turno en curso (si hay caja abierta) con totales en vivo para seguimiento del efectivo y pagarés.
         </p>
         {currentQuery.isLoading || historyQuery.isLoading ? (
-          <p className="text-sm text-slate-400">Cargando...</p>
+          <p className="mt-4 text-sm text-slate-500">Cargando...</p>
         ) : historyQuery.isError ? (
-          <p className="text-sm text-rose-400">No se pudo cargar el historico.</p>
+          <p className="mt-4 text-sm text-rose-600">No se pudo cargar el historico.</p>
         ) : !historyRows.length ? (
-          <p className="text-sm text-slate-400">No hay datos de turnos para mostrar.</p>
+          <p className="mt-4 text-sm text-slate-500">No hay datos de turnos para mostrar.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-slate-200">
-              <thead>
-                <tr className="border-b border-slate-700 text-slate-400">
-                  <th className="py-2 pr-3">ID</th>
-                  <th className="py-2 pr-3">Estado</th>
-                  <th className="py-2 pr-3">Fecha op.</th>
-                  <th className="py-2 pr-3">Turno</th>
-                  <th className="py-2 pr-3">Abrio</th>
-                  <th className="py-2 pr-3 text-right">Apertura caja</th>
-                  <th className="py-2 pr-3 text-right">Esperado</th>
-                  <th className="py-2 pr-3 text-right">Contado</th>
-                  <th className="py-2 pr-3 text-right">Dif.</th>
-                  <th className="py-2 pr-3 text-right">Por conciliar</th>
-                  <th className="py-2 pr-3" />
+          <div className="mt-4 w-full min-w-0 overflow-x-auto rounded-xl border-2 border-slate-200 bg-white shadow-inner">
+            <table className="min-w-full text-left text-sm text-slate-800">
+              <thead className={tableTheadClass}>
+                <tr>
+                  <th className="px-3 py-3">ID</th>
+                  <th className="px-3 py-3">Estado</th>
+                  <th className="px-3 py-3">Fecha op.</th>
+                  <th className="px-3 py-3">Turno</th>
+                  <th className="px-3 py-3">Abrio</th>
+                  <th className="px-3 py-3 text-right">Apertura caja</th>
+                  <th className="px-3 py-3 text-right">Esperado</th>
+                  <th className="px-3 py-3 text-right">Contado</th>
+                  <th className="px-3 py-3 text-right">Dif.</th>
+                  <th className="px-3 py-3 text-right">Por conciliar</th>
+                  <th className="px-3 py-3" />
                 </tr>
               </thead>
               <tbody>
-                {historyRows.map((row) => (
+                {historyRows.map((row, index) => (
                   <tr
-                    className={`border-b border-slate-800 ${row.status === 'open' ? 'bg-emerald-950/20' : ''}`}
+                    className={`border-t border-slate-200 ${
+                      row.status === 'open'
+                        ? 'bg-emerald-50/90'
+                        : index % 2 === 0
+                          ? 'bg-white hover:bg-slate-50'
+                          : 'bg-slate-50/80 hover:bg-slate-100/80'
+                    }`}
                     key={row.id}
                   >
-                    <td className="py-2 pr-3 font-mono text-slate-300">#{row.id}</td>
-                    <td className="py-2 pr-3">
+                    <td className="px-3 py-3 font-mono text-slate-800">#{row.id}</td>
+                    <td className="px-3 py-3">
                       {row.status === 'open' ? (
-                        <span className="rounded bg-emerald-600/30 px-2 py-0.5 text-xs text-emerald-200">En curso</span>
+                        <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">En curso</span>
                       ) : (
-                        <span className="text-slate-500">Cerrado</span>
+                        <span className="text-slate-600">Cerrado</span>
                       )}
                     </td>
-                    <td className="py-2 pr-3">{row.businessDate}</td>
-                    <td className="py-2 pr-3">{row.shiftName}</td>
-                    <td className="py-2 pr-3">{row.openedByLabel ?? '—'}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{row.openingCash.toFixed(2)}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{displayExpected(row)}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{row.countedCash != null ? row.countedCash.toFixed(2) : '—'}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{row.differenceCash != null ? row.differenceCash.toFixed(2) : '—'}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{displayPendingReconcile(row)}</td>
-                    <td className="py-2 pr-3">
-                      <button
-                        className="text-cyan-400 hover:underline"
-                        onClick={() => setDetailSessionId(row.id)}
-                        type="button"
-                      >
+                    <td className="px-3 py-3 text-slate-800">{row.businessDate}</td>
+                    <td className="px-3 py-3 text-slate-800">{row.shiftName}</td>
+                    <td className="px-3 py-3 text-slate-700">{row.openedByLabel ?? '—'}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-slate-900">{row.openingCash.toFixed(2)}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-slate-900">{displayExpected(row)}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-slate-900">{row.countedCash != null ? row.countedCash.toFixed(2) : '—'}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-slate-900">{row.differenceCash != null ? row.differenceCash.toFixed(2) : '—'}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-slate-900">{displayPendingReconcile(row)}</td>
+                    <td className="px-3 py-3">
+                      <Button className="px-2 py-1.5 text-xs" onClick={() => setDetailSessionId(row.id)} type="button" variant="secondary">
                         Detalle
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -441,42 +440,39 @@ export function ShiftsPage() {
         )}
       </Card>
 
-      {detailSessionId != null ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-xl">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-white">
-                  Detalle turno #{detailSessionId}
-                  {detailQuery.data?.session?.status === 'open' ? (
-                    <span className="ml-2 text-sm font-normal text-emerald-400">(en curso)</span>
-                  ) : null}
-                </h3>
-                {detailQuery.data?.session ? (
-                  <p className="mt-1 text-sm text-slate-400">
-                    {detailQuery.data.session.businessDate} · {detailQuery.data.session.shiftName}
-                  </p>
-                ) : null}
-              </div>
-              <button
-                className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm text-slate-200"
-                onClick={closeDetail}
-                type="button"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            {detailQuery.isLoading ? (
-              <p className="text-slate-400">Cargando...</p>
-            ) : detailQuery.isError ? (
-              <p className="text-rose-400">{(detailQuery.error as Error)?.message ?? 'No se pudo cargar el detalle.'}</p>
-            ) : detailQuery.data ? (
-              <ShiftSessionMovementsLists detail={detailQuery.data} error={null} isLoading={false} />
+      <Modal
+        footer={
+          <Button onClick={closeDetail} type="button" variant="secondary">
+            Cerrar
+          </Button>
+        }
+        maxWidthClass="max-w-3xl"
+        onClose={closeDetail}
+        open={detailSessionId != null}
+        title={detailSessionId != null ? `Detalle de sesión #${detailSessionId}` : 'Detalle de sesión'}
+      >
+        {detailQuery.isLoading ? <p className="text-sm text-slate-500">Cargando...</p> : null}
+        {detailQuery.isError ? (
+          <p className="text-sm text-rose-600">{(detailQuery.error as Error)?.message ?? 'No se pudo cargar el detalle.'}</p>
+        ) : null}
+        {detailQuery.data?.session ? (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+            {detailQuery.data.session.status === 'open' ? (
+              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                En curso
+              </span>
             ) : null}
+            <span>
+              {detailQuery.data.session.businessDate} · {detailQuery.data.session.shiftName}
+            </span>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+        {!detailQuery.isLoading && detailQuery.data ? (
+          <div className="mt-4">
+            <ShiftSessionMovementsLists detail={detailQuery.data} error={null} isLoading={false} />
+          </div>
+        ) : null}
+      </Modal>
     </section>
   )
 }

@@ -18,7 +18,7 @@ export function Modal({ open, title, children, onClose, footer, maxWidthClass = 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
       onClick={onClose}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
@@ -35,10 +35,10 @@ export function Modal({ open, title, children, onClose, footer, maxWidthClass = 
         aria-modal="true"
         aria-labelledby="modal-title"
       >
-        <h3 className="text-lg font-semibold text-white" id="modal-title">
+        <h3 className="text-lg font-semibold text-slate-900" id="modal-title">
           {title}
         </h3>
-        <div className="mt-3">{children}</div>
+        <div className="mt-3 text-slate-700">{children}</div>
         {footer ? <div className="mt-6 flex flex-wrap justify-end gap-2">{footer}</div> : null}
       </div>
     </div>

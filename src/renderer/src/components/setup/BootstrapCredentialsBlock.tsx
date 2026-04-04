@@ -32,7 +32,7 @@ export function BootstrapCredentialsBlock({ display, filePath, variant = 'wizard
 
   return (
     <div className={boxClass}>
-      <p className="font-semibold text-white">Acceso inicial del administrador</p>
+      <p className="font-semibold text-slate-900">Acceso inicial del administrador</p>
       <p className="mt-1 text-slate-400">
         Use estos datos solo en este equipo. La clave deja de mostrarse aqui cuando la cambie por primera vez.
       </p>

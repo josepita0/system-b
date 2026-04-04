@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Button } from '@renderer/components/ui/Button'
+import { Card } from '@renderer/components/ui/Card'
+import { cn } from '@renderer/lib/cn'
+import { tableTheadClass } from '@renderer/lib/tableStyles'
 import type { Product, SaleFormat } from '@shared/types/product'
 import type { SaleFormatConsumptionRuleInput, SaleFormatConsumptionRule } from '@shared/types/consumptionRule'
 
@@ -103,154 +107,183 @@ export function ConsumptionRulesPage() {
 
   const rules = useMemo(() => (rulesQuery.data ?? []).slice(), [rulesQuery.data])
 
+  const inputClass =
+    'mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/30'
+
+  const startNewRule = () => {
+    setSelectedRuleId(null)
+    setForm({ productId: 0, saleFormatId: null, consumeQuantity: 0, unit: 'ml' })
+    setErrorMessage(null)
+  }
+
   return (
-    <div className="grid grid-cols-[520px_1fr] gap-4 rounded-3xl bg-slate-950 p-4">
-      <section className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
-        <h2 className="text-lg font-semibold text-white">Consumos por formato</h2>
-        <p className="mt-1 text-sm text-slate-400">Define cuánto inventario (ml) consume un producto simple según su formato.</p>
+    <section className="flex min-h-0 flex-1 flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">Consumos por formato</h1>
+        <p className="text-sm text-slate-500">
+          Defina cuánto inventario consume un producto simple según su formato de venta (por ejemplo, ml por trago o por unidad).
+        </p>
+      </div>
 
-        {rulesQuery.isLoading ? <div className="mt-4 text-sm text-slate-400">Cargando...</div> : null}
-        {rulesQuery.error ? (
-          <div className="mt-4 rounded-xl border border-rose-900 bg-rose-950/30 p-3 text-sm text-rose-200">
-            {rulesQuery.error instanceof Error ? rulesQuery.error.message : 'No fue posible cargar reglas.'}
-          </div>
-        ) : null}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,520px)_1fr]">
+        <Card className="min-h-0 shadow-sm" padding="lg">
+          <h2 className="text-lg font-semibold text-slate-900">Reglas</h2>
+          <p className="mt-1 text-xs text-slate-500">Seleccione una fila para editarla en el panel derecho.</p>
 
-        <div className="mt-4 space-y-2">
-          {rules.map((r) => {
-            const p = productsById.get(r.productId)
-            const f = r.saleFormatId != null ? formatsById.get(r.saleFormatId) : null
-            const selected = selectedRuleId === r.id
-            return (
-              <button
-                className={`w-full rounded-xl border px-3 py-3 text-left ${
-                  selected ? 'border-cyan-700 bg-slate-800' : 'border-slate-800 bg-slate-950'
-                }`}
-                key={r.id}
-                onClick={() => pick(r)}
-                type="button"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium text-slate-100">{p?.name ?? `Producto #${r.productId}`}</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      Formato: {f?.name ?? (r.saleFormatId == null ? 'Sin formato' : `#${r.saleFormatId}`)}
-                    </div>
-                  </div>
-                  <div className="text-sm text-cyan-300">
-                    {r.consumeQuantity.toFixed(2)} {r.unit}
-                  </div>
-                </div>
-              </button>
-            )
-          })}
-          {!rules.length && !rulesQuery.isLoading ? <div className="text-sm text-slate-400">Sin reglas.</div> : null}
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-white">{selectedRuleId != null ? 'Editar regla' : 'Crear regla'}</h2>
-          <button
-            className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-200"
-            onClick={() => {
-              setSelectedRuleId(null)
-              setForm({ productId: 0, saleFormatId: null, consumeQuantity: 0, unit: 'ml' })
-              setErrorMessage(null)
-            }}
-            type="button"
-          >
-            Nueva
-          </button>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <label className="col-span-2 text-sm text-slate-300">
-            Producto
-            <select
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-              onChange={(e) => setForm((p) => ({ ...p, productId: Number(e.target.value) }))}
-              value={form.productId || ''}
-            >
-              <option value="">Seleccione...</option>
-              {(productsQuery.data ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-sm text-slate-300">
-            Formato (opcional)
-            <select
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-              onChange={(e) => setForm((p) => ({ ...p, saleFormatId: e.target.value === '' ? null : Number(e.target.value) }))}
-              value={form.saleFormatId ?? ''}
-            >
-              <option value="">Sin formato</option>
-              {(formatsQuery.data ?? []).map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-sm text-slate-300">
-            Consumo por venta
-            <input
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-              onChange={(e) => setForm((p) => ({ ...p, consumeQuantity: Number(e.target.value) }))}
-              step={0.01}
-              type="number"
-              value={form.consumeQuantity || ''}
-            />
-          </label>
-
-          <label className="col-span-2 text-sm text-slate-300">
-            Unidad
-            <input
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-              onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))}
-              type="text"
-              value={form.unit ?? 'ml'}
-            />
-          </label>
-        </div>
-
-        {errorMessage ? (
-          <div className="mt-4 rounded-xl border border-rose-900 bg-rose-950/30 p-3 text-sm text-rose-200">{errorMessage}</div>
-        ) : null}
-
-        <div className="mt-4 flex items-center gap-2">
-          <button
-            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 disabled:opacity-50"
-            disabled={createMutation.isPending || updateMutation.isPending || deleteMutation.isPending}
-            onClick={() => {
-              if (selectedRuleId != null) {
-                updateMutation.mutate(form)
-              } else {
-                createMutation.mutate(form)
-              }
-            }}
-            type="button"
-          >
-            {selectedRuleId != null ? 'Guardar' : 'Crear'}
-          </button>
-          {selectedRuleId != null ? (
-            <button
-              className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-              disabled={createMutation.isPending || updateMutation.isPending || deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate(selectedRuleId)}
-              type="button"
-            >
-              Eliminar
-            </button>
+          {rulesQuery.isLoading ? <div className="mt-4 text-sm text-slate-500">Cargando...</div> : null}
+          {rulesQuery.error ? (
+            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+              {rulesQuery.error instanceof Error ? rulesQuery.error.message : 'No fue posible cargar reglas.'}
+            </div>
           ) : null}
-        </div>
-      </section>
-    </div>
+
+          {!rulesQuery.isLoading && !rulesQuery.error ? (
+            <div className="mt-4 w-full min-w-0 overflow-x-auto rounded-xl border-2 border-slate-200 bg-white shadow-inner">
+              <table className="min-w-full text-left text-sm text-slate-800">
+                <thead className={tableTheadClass}>
+                  <tr>
+                    <th className="px-3 py-3">Producto</th>
+                    <th className="px-3 py-3">Formato</th>
+                    <th className="px-3 py-3 text-right">Consumo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rules.map((r, index) => {
+                    const p = productsById.get(r.productId)
+                    const f = r.saleFormatId != null ? formatsById.get(r.saleFormatId) : null
+                    const selected = selectedRuleId === r.id
+                    const formatLabel = f?.name ?? (r.saleFormatId == null ? 'Sin formato' : `#${r.saleFormatId}`)
+                    return (
+                      <tr
+                        aria-label={`Editar regla: ${p?.name ?? `Producto #${r.productId}`}`}
+                        className={cn(
+                          'cursor-pointer border-t border-slate-200 transition-colors',
+                          selected
+                            ? 'bg-brand/10 ring-2 ring-inset ring-brand/40 hover:bg-brand/15'
+                            : index % 2 === 0
+                              ? 'bg-white hover:bg-slate-50'
+                              : 'bg-slate-50/80 hover:bg-slate-100/80',
+                        )}
+                        key={r.id}
+                        onClick={() => pick(r)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            pick(r)
+                          }
+                        }}
+                        tabIndex={0}
+                      >
+                        <td className="px-3 py-3 font-medium text-slate-900">{p?.name ?? `Producto #${r.productId}`}</td>
+                        <td className="px-3 py-3 text-slate-700">{formatLabel}</td>
+                        <td className="px-3 py-3 text-right tabular-nums font-medium text-brand">
+                          {r.consumeQuantity.toFixed(2)} {r.unit}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {!rules.length ? (
+                    <tr>
+                      <td className="px-4 py-10 text-center text-slate-500" colSpan={3}>
+                        Sin reglas.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </Card>
+
+        <Card className="min-h-0 shadow-sm" padding="lg">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-900">{selectedRuleId != null ? 'Editar regla' : 'Crear regla'}</h2>
+            <Button onClick={startNewRule} type="button" variant="secondary">
+              Nueva
+            </Button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <label className="col-span-2 text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Producto</span>
+              <select
+                className={inputClass}
+                onChange={(e) => setForm((p) => ({ ...p, productId: Number(e.target.value) }))}
+                value={form.productId || ''}
+              >
+                <option value="">Seleccione...</option>
+                {(productsQuery.data ?? []).map((prod) => (
+                  <option key={prod.id} value={prod.id}>
+                    {prod.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Formato (opcional)</span>
+              <select
+                className={inputClass}
+                onChange={(e) => setForm((p) => ({ ...p, saleFormatId: e.target.value === '' ? null : Number(e.target.value) }))}
+                value={form.saleFormatId ?? ''}
+              >
+                <option value="">Sin formato</option>
+                {(formatsQuery.data ?? []).map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Consumo por venta</span>
+              <input
+                className={inputClass}
+                onChange={(e) => setForm((p) => ({ ...p, consumeQuantity: Number(e.target.value) }))}
+                step={0.01}
+                type="number"
+                value={form.consumeQuantity || ''}
+              />
+            </label>
+
+            <label className="col-span-2 text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Unidad</span>
+              <input className={inputClass} onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))} type="text" value={form.unit ?? 'ml'} />
+            </label>
+          </div>
+
+          {errorMessage ? (
+            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{errorMessage}</div>
+          ) : null}
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button
+              disabled={createMutation.isPending || updateMutation.isPending || deleteMutation.isPending}
+              onClick={() => {
+                if (selectedRuleId != null) {
+                  updateMutation.mutate(form)
+                } else {
+                  createMutation.mutate(form)
+                }
+              }}
+              variant="primary"
+            >
+              {selectedRuleId != null ? 'Guardar' : 'Crear'}
+            </Button>
+            {selectedRuleId != null ? (
+              <Button
+                disabled={createMutation.isPending || updateMutation.isPending || deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate(selectedRuleId)}
+                variant="danger"
+              >
+                Eliminar
+              </Button>
+            ) : null}
+          </div>
+        </Card>
+      </div>
+    </section>
   )
 }
 

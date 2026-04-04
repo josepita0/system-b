@@ -279,9 +279,21 @@ export class SaleService {
         }
       }
 
-      const unitPrice = product.salePrice
+      const catalogUnitPrice = product.salePrice
+      const chargedUnitPrice =
+        rawLine.chargedUnitPrice !== undefined && rawLine.chargedUnitPrice !== null
+          ? rawLine.chargedUnitPrice
+          : catalogUnitPrice
+      const priceDiffers = Math.abs(chargedUnitPrice - catalogUnitPrice) > 0.000_001
+      if (priceDiffers && !vip) {
+        const note = rawLine.priceChangeNote?.trim() ?? ''
+        if (note.length === 0) {
+          throw new ValidationError('Indique el motivo del cambio de precio en la linea.')
+        }
+      }
+
       const discount = rawLine.discount ?? 0
-      const lineTotal = unitPrice * rawLine.quantity - discount
+      const lineTotal = chargedUnitPrice * rawLine.quantity - discount
       if (lineTotal < 0) {
         throw new ValidationError('Descuento demasiado alto para una linea.')
       }
@@ -301,12 +313,15 @@ export class SaleService {
       lines.push({
         productId: product.id,
         productName,
-        unitPrice,
+        unitPrice: chargedUnitPrice,
+        realUnitPrice: catalogUnitPrice,
+        chargedUnitPrice,
         discount,
         quantity: rawLine.quantity,
         subtotal,
         saleFormatId,
         complementProductId,
+        priceChangeNote: priceDiffers ? (rawLine.priceChangeNote?.trim() || null) : null,
       })
 
       if (product.type === 'simple') {

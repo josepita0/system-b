@@ -30,7 +30,7 @@ export function UserDocumentsPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-semibold text-white">Mi documentacion</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">Mi documentacion</h1>
       <div className="flex flex-wrap gap-3">
         {documentTypes.map((documentType) => (
           <button

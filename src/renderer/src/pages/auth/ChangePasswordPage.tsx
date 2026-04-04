@@ -34,14 +34,14 @@ export function ChangePasswordPage() {
       }}
     >
       <input
-        className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
         placeholder="Contrasena actual"
         type="password"
         value={currentPassword}
         onChange={(event) => setCurrentPassword(event.target.value)}
       />
       <input
-        className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
+        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
         placeholder="Nueva contrasena"
         type="password"
         value={newPassword}

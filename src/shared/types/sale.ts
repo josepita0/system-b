@@ -6,6 +6,8 @@ export interface CreateSaleLineInput {
   discount?: number
   saleFormatId?: number | null
   complementProductId?: number | null
+  chargedUnitPrice?: number
+  priceChangeNote?: string | null
 }
 
 export interface CreateSaleInput {

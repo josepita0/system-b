@@ -64,7 +64,7 @@ export function CategoryTree({ categories, selectedCategoryId, onSelect }: Categ
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-3">
-        <h2 className="text-lg font-semibold text-white">Categorias</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Categorias</h2>
         <p className="mt-1 text-sm text-slate-400">Selecciona una categoria para ver sus productos y formatos.</p>
       </div>
       <ul className="space-y-2">

@@ -13,7 +13,7 @@ export function SetupWelcomePage() {
   return (
     <section className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold text-white">Instalacion inicial</h2>
+        <h2 className="text-xl font-semibold text-slate-900">Instalacion inicial</h2>
         <p className="mt-2 text-sm text-slate-400">
           Este equipo todavia no completa el onboarding operativo. Antes de continuar, valide el acceso inicial y proteja la cuenta administrativa.
         </p>
@@ -23,7 +23,7 @@ export function SetupWelcomePage() {
         <BootstrapCredentialsBlock display={setupStatus.bootstrapDisplay} filePath={setupStatus.bootstrapFilePath} />
       ) : (
         <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-300">
-          <p className="font-medium text-white">Continuar instalacion</p>
+          <p className="font-medium text-slate-900">Continuar instalacion</p>
           <p className="mt-2">
             El acceso bootstrap ya no esta pendiente. Inicie sesion con la cuenta administrativa actual para terminar la instalacion del sistema.
           </p>
@@ -31,7 +31,7 @@ export function SetupWelcomePage() {
       )}
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-300">
-        <p className="font-medium text-white">Orden recomendado</p>
+        <p className="font-medium text-slate-900">Orden recomendado</p>
         <ol className="mt-2 space-y-2">
           <li>1. Inicie sesion con el usuario y la contrasena temporal indicados arriba.</li>
           <li>2. Cambie la contrasena temporal cuando el sistema se lo solicite.</li>

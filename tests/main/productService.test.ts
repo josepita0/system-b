@@ -96,7 +96,7 @@ describe('ProductService', () => {
         salePrice: 2,
         minStock: 2,
       }),
-    ).toThrowError(/SKU/)
+    ).toThrowError(/mismo nombre/)
   })
 
   it('rejects products without active category', () => {

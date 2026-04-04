@@ -1,5 +1,7 @@
 import type { Product } from '@shared/types/product'
 import { catalogMediaUrl } from '@shared/lib/catalogMediaUrl'
+import { tableTheadClass } from '@renderer/lib/tableStyles'
+import { Button } from '@renderer/components/ui/Button'
 
 interface ProductTableProps {
   products: Product[]
@@ -10,50 +12,57 @@ interface ProductTableProps {
 
 export function ProductTable({ products, onEdit, onDelete, selectedProductId }: ProductTableProps) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
-      <table className="min-w-full text-left text-sm text-slate-200">
-        <thead className="bg-slate-800/70 text-slate-300">
+    <div className="w-full min-w-0 overflow-x-auto bg-white">
+      <table className="min-w-full text-left text-sm text-slate-800">
+        <thead className={tableTheadClass}>
           <tr>
-            <th className="px-4 py-3">SKU</th>
-            <th className="px-4 py-3 w-16">Img</th>
+            <th className="w-16 px-4 py-3">Img</th>
             <th className="px-4 py-3">Nombre</th>
             <th className="px-4 py-3">Categoria</th>
-            <th className="px-4 py-3">Tipo</th>
             <th className="px-4 py-3">Precio</th>
             <th className="px-4 py-3">Minimo</th>
             <th className="px-4 py-3">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          {products.map((product) => (
-            <tr className={`border-t border-slate-800 ${selectedProductId === product.id ? 'bg-slate-800/40' : ''}`} key={product.id}>
-              <td className="px-4 py-3">{product.sku}</td>
+          {products.map((product, index) => (
+            <tr
+              className={`border-t border-slate-200 ${
+                selectedProductId === product.id
+                  ? 'bg-brand-muted/50 ring-1 ring-inset ring-brand/25'
+                  : index % 2 === 0
+                    ? 'bg-white hover:bg-slate-50'
+                    : 'bg-slate-50/70 hover:bg-slate-100/80'
+              }`}
+              key={product.id}
+            >
               <td className="px-4 py-3">
                 {catalogMediaUrl(product.imageRelPath) ? (
-                  <img alt="" className="h-10 w-10 rounded-md border border-slate-700 object-cover" src={catalogMediaUrl(product.imageRelPath)!} />
+                  <img alt="" className="h-10 w-10 rounded-md border border-border object-cover" src={catalogMediaUrl(product.imageRelPath)!} />
                 ) : (
-                  <span className="text-slate-600">—</span>
+                  <span className="text-slate-400">—</span>
                 )}
               </td>
-              <td className="px-4 py-3">{product.name}</td>
-              <td className="px-4 py-3">{product.categoryName}</td>
-              <td className="px-4 py-3 capitalize">{product.type}</td>
-              <td className="px-4 py-3">{product.salePrice.toFixed(2)}</td>
-              <td className="px-4 py-3">{product.minStock}</td>
-              <td className="flex gap-2 px-4 py-3">
-                <button className="rounded-md bg-slate-700 px-3 py-1" onClick={() => onEdit(product)} type="button">
-                  Editar
-                </button>
-                <button className="rounded-md bg-rose-700 px-3 py-1" onClick={() => onDelete(product.id)} type="button">
-                  Desactivar
-                </button>
+              <td className="px-4 py-3 font-medium text-slate-900">{product.name}</td>
+              <td className="px-4 py-3 text-slate-600">{product.categoryName}</td>
+              <td className="px-4 py-3 tabular-nums">{product.salePrice.toFixed(2)}</td>
+              <td className="px-4 py-3 tabular-nums">{product.minStock}</td>
+              <td className="px-4 py-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button className="px-3 py-1.5 text-xs" onClick={() => onEdit(product)} type="button" variant="secondary">
+                    Editar
+                  </Button>
+                  <Button className="px-3 py-1.5 text-xs" onClick={() => onDelete(product.id)} type="button" variant="danger">
+                    Desactivar
+                  </Button>
+                </div>
               </td>
             </tr>
           ))}
           {products.length === 0 ? (
             <tr>
-              <td className="px-4 py-6 text-slate-400" colSpan={8}>
-                No hay productos registrados.
+              <td className="px-4 py-8 text-center text-slate-500" colSpan={6}>
+                No hay productos en esta categoria.
               </td>
             </tr>
           ) : null}

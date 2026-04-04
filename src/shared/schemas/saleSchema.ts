@@ -6,6 +6,10 @@ export const createSaleLineSchema = z.object({
   discount: z.number().min(0).optional().default(0),
   saleFormatId: z.number().int().positive().optional().nullable(),
   complementProductId: z.number().int().positive().optional().nullable(),
+  /** Precio unitario efectivo (si difiere del catalogo, puede exigirse nota según reglas de negocio). */
+  chargedUnitPrice: z.number().min(0).optional(),
+  /** Motivo del cambio de precio respecto al catalogo (obligatorio para cliente no VIP si hay cambio). */
+  priceChangeNote: z.string().trim().max(500).optional().nullable(),
 })
 
 export const createSaleSchema = z.object({

@@ -50,7 +50,7 @@ export function registerShiftHandlers() {
   )
   ipcMain.handle(shiftChannels.close, (_event, payload) =>
     executeIpc(() => {
-      guards.requireRole('manager')
+      guards.requireRole('employee')
       return service.close(payload)
     }),
   )

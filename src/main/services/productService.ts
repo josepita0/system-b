@@ -44,7 +44,7 @@ export class ProductService {
     }
 
     if (this.repository.getBySku(parsed.data.sku)) {
-      throw new ConflictError('El SKU ya existe.')
+      throw new ConflictError('Ya existe otro producto con el mismo nombre.')
     }
 
     const created = this.repository.create(parsed.data)
@@ -65,7 +65,7 @@ export class ProductService {
 
     const skuOwner = this.repository.getBySku(parsed.data.sku)
     if (skuOwner && skuOwner.id !== parsed.data.id) {
-      throw new ConflictError('El SKU ya existe.')
+      throw new ConflictError('Ya existe otro producto con el mismo nombre.')
     }
 
     const category = this.categories.getById(parsed.data.categoryId)

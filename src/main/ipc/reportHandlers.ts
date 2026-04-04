@@ -31,7 +31,7 @@ export function registerReportHandlers() {
 
   ipcMain.handle(reportChannels.generateShiftClose, (_event, sessionId: number) =>
     executeIpc(() => {
-      const actor = guards.requireRole('manager')
+      const actor = guards.requireRole('employee')
       assertReportLicenseIfNotTesting(licenseService, 'reports.generate_pdf', actor.id)
       return reportService.generateShiftClose(sessionId)
     }),

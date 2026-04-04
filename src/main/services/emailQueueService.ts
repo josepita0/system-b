@@ -60,7 +60,7 @@ export class EmailQueueService {
     await transporter.sendMail({
       from: fromAddress,
       to: job.recipientEmail,
-      subject: `Cierre de turno ${job.sessionId}`,
+      subject: `Cierre de turno`,
       text: 'Adjunto reporte de cierre de turno.',
       attachments: [{ filename, content }],
     })

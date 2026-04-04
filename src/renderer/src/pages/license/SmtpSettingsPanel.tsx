@@ -59,7 +59,7 @@ export function SmtpSettingsPanel() {
 
   if (smtpQuery.isError) {
     return (
-      <Card className="border-rose-800 text-sm text-rose-300" padding="lg">
+      <Card className="border-rose-200 bg-rose-50 text-sm text-rose-800" padding="lg">
         {smtpQuery.error instanceof Error ? smtpQuery.error.message : 'No se pudo cargar la configuración SMTP. Debe iniciar sesión como administrador.'}
       </Card>
     )
@@ -67,18 +67,19 @@ export function SmtpSettingsPanel() {
 
   return (
     <Card padding="lg">
-      <h2 className="mb-2 text-lg font-semibold text-white">Correo y SMTP</h2>
+      <h2 className="mb-2 text-lg font-semibold text-slate-900">Correo y SMTP</h2>
       <p className="mb-4 text-sm text-slate-500">
         Servidor de salida para los PDFs de cierre de turno. Indique el correo al que deben enviarse los reportes.
       </p>
       <p className="mb-4 text-sm text-slate-500">
         La contraseña no se muestra. Deje el campo vacío para conservar la almacenada. Prioridad: variable de entorno{' '}
-        <code className="rounded bg-surface px-1 text-slate-300">SYSTEM_BARRA_SMTP_PASSWORD</code> si existe.
+        <code className="rounded border border-border bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800">SYSTEM_BARRA_SMTP_PASSWORD</code>{' '}
+        si existe.
       </p>
 
       {smtpQuery.data?.passwordFromEnv ? (
-        <p className="mb-4 rounded-lg border border-cyan-800 bg-cyan-950/30 px-3 py-2 text-sm text-cyan-200">
-          Activa <strong>SYSTEM_BARRA_SMTP_PASSWORD</strong>: el envío usará esa clave (no la de la base).
+        <p className="mb-4 rounded-lg border border-brand/25 bg-brand-muted px-3 py-2 text-sm text-slate-800">
+          Activa <strong className="font-semibold">SYSTEM_BARRA_SMTP_PASSWORD</strong>: el envío usará esa clave (no la de la base).
         </p>
       ) : null}
 
@@ -124,20 +125,25 @@ export function SmtpSettingsPanel() {
             value={smtpPassword}
           />
         </Field>
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300 sm:col-span-2">
-          <input checked={smtpSecure} className="rounded border-border" onChange={(e) => setSmtpSecure(e.target.checked)} type="checkbox" />
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700 sm:col-span-2">
+          <input
+            checked={smtpSecure}
+            className="size-4 rounded border-slate-300 accent-brand"
+            onChange={(e) => setSmtpSecure(e.target.checked)}
+            type="checkbox"
+          />
           Conexión segura (SSL/TLS directo, p. ej. puerto 465)
         </label>
       </div>
 
-      {smtpSaveError ? <p className="mt-3 text-sm text-rose-400">{smtpSaveError}</p> : null}
-      {saveSmtpMutation.isSuccess ? <p className="mt-3 text-sm text-emerald-400">Configuración guardada.</p> : null}
+      {smtpSaveError ? <p className="mt-3 text-sm text-rose-700">{smtpSaveError}</p> : null}
+      {saveSmtpMutation.isSuccess ? <p className="mt-3 text-sm font-medium text-emerald-800">Configuración guardada.</p> : null}
 
       {smtpTestResult ? (
-        <p className={`mt-3 text-sm ${smtpTestResult.ok ? 'text-emerald-400' : 'text-rose-400'}`}>{smtpTestResult.message}</p>
+        <p className={`mt-3 text-sm ${smtpTestResult.ok ? 'text-emerald-800' : 'text-rose-700'}`}>{smtpTestResult.message}</p>
       ) : null}
       {testSmtpMutation.isError ? (
-        <p className="mt-2 text-sm text-rose-400">
+        <p className="mt-2 text-sm text-rose-700">
           {(testSmtpMutation.error as Error)?.message ?? 'Error al probar SMTP.'}
         </p>
       ) : null}
