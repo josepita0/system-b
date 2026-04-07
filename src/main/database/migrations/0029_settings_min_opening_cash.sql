@@ -1,0 +1,3 @@
+ALTER TABLE settings
+ADD COLUMN min_opening_cash REAL NOT NULL DEFAULT 0;
+

@@ -49,6 +49,8 @@ export interface Product {
   categoryId: number
   categoryName: string
   categorySlug: string
+  /** Inventario: unitario o progresivo (ml / lotes). */
+  consumptionMode: 'unit' | 'progressive'
   salePrice: number
   minStock: number
   isActive: number

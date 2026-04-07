@@ -13,6 +13,7 @@ import { vipCustomerChannels } from '../shared/ipc/vipCustomers'
 import { inventoryChannels } from '../shared/ipc/inventory'
 import { consumptionChannels } from '../shared/ipc/consumptions'
 import { settingsChannels } from '../shared/ipc/settings'
+import { dashboardChannels } from '../shared/ipc/dashboard'
 
 async function invokeIpc<T>(channel: string, ...args: unknown[]) {
   const result = (await ipcRenderer.invoke(channel, ...args)) as IpcResult<T>
@@ -55,6 +56,7 @@ const api = {
   },
   users: {
     list: () => invokeIpc(userChannels.list),
+    listPaged: (params: unknown) => invokeIpc(userChannels.listPaged, params),
     getById: (id: number) => invokeIpc(userChannels.getById, id),
     create: (payload: unknown) => invokeIpc(userChannels.create, payload),
     update: (payload: unknown) => invokeIpc(userChannels.update, payload),
@@ -69,6 +71,8 @@ const api = {
   },
   products: {
     list: (categoryId?: number) => invokeIpc(productChannels.list, categoryId),
+    listPaged: (params: unknown) => invokeIpc(productChannels.listPaged, params),
+    listProgressivePaged: (params: unknown) => invokeIpc(productChannels.listProgressivePaged, params),
     getById: (id: number) => invokeIpc(productChannels.getById, id),
     create: (payload: unknown) => invokeIpc(productChannels.create, payload),
     update: (payload: unknown) => invokeIpc(productChannels.update, payload),
@@ -109,6 +113,7 @@ const api = {
     open: (payload: unknown) => invokeIpc(shiftChannels.open, payload),
     close: (payload: unknown) => invokeIpc(shiftChannels.close, payload),
     listHistory: () => invokeIpc(shiftChannels.listHistory),
+    listHistoryPaged: (params: unknown) => invokeIpc(shiftChannels.listHistoryPaged, params),
     getSessionDetail: (sessionId: number) => invokeIpc(shiftChannels.getSessionDetail, sessionId),
   },
   reports: {
@@ -122,6 +127,7 @@ const api = {
   },
   vipCustomers: {
     list: () => invokeIpc(vipCustomerChannels.list),
+    listPaged: (params: unknown) => invokeIpc(vipCustomerChannels.listPaged, params),
     listActive: () => invokeIpc(vipCustomerChannels.listActive),
     getById: (id: number) => invokeIpc(vipCustomerChannels.getById, id),
     create: (payload: unknown) => invokeIpc(vipCustomerChannels.create, payload),
@@ -130,6 +136,10 @@ const api = {
   },
   inventory: {
     listBalance: () => invokeIpc(inventoryChannels.listBalance),
+    balanceSummary: () => invokeIpc(inventoryChannels.balanceSummary),
+    listBalancePaged: (params: unknown) => invokeIpc(inventoryChannels.listBalancePaged, params),
+    listMovementHistory: (limit?: number) => invokeIpc(inventoryChannels.listMovementHistory, limit),
+    listMovementHistoryPaged: (params: unknown) => invokeIpc(inventoryChannels.listMovementHistoryPaged, params),
     postOpening: (payload: unknown) => invokeIpc(inventoryChannels.postOpening, payload),
     postEntry: (payload: unknown) => invokeIpc(inventoryChannels.postEntry, payload),
     postAdjustment: (payload: unknown) => invokeIpc(inventoryChannels.postAdjustment, payload),
@@ -143,11 +153,17 @@ const api = {
     create: (payload: unknown) => invokeIpc(consumptionChannels.create, payload),
     update: (payload: unknown) => invokeIpc(consumptionChannels.update, payload),
     remove: (id: number) => invokeIpc(consumptionChannels.remove, id),
+    syncProductRules: (payload: unknown) => invokeIpc(consumptionChannels.syncProductRules, payload),
   },
   settings: {
     getSmtpSettings: () => invokeIpc(settingsChannels.getSmtpSettings),
     updateSmtpSettings: (payload: unknown) => invokeIpc(settingsChannels.updateSmtpSettings, payload),
     testSmtp: () => invokeIpc(settingsChannels.testSmtp),
+    getCashSettings: () => invokeIpc(settingsChannels.getCashSettings),
+    updateCashSettings: (payload: unknown) => invokeIpc(settingsChannels.updateCashSettings, payload),
+  },
+  dashboard: {
+    getOverview: (params: unknown) => invokeIpc(dashboardChannels.getOverview, params),
   },
 }
 

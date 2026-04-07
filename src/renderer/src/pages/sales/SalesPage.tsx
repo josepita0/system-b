@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CategoryTreeNode, Product, SaleFormat } from '@shared/types/product'
+import type { SaleFormatConsumptionRule } from '@shared/types/consumptionRule'
 import { Button } from '@renderer/components/ui/Button'
 import { Card } from '@renderer/components/ui/Card'
 import { Input } from '@renderer/components/ui/Input'
@@ -15,6 +16,7 @@ import { cn } from '@renderer/lib/cn'
 import { findCategoryNode } from '@renderer/lib/posCategoryTree'
 import { requireSalesRemoveTabChargeLine, requireSalesTabChargeDetail } from '@renderer/lib/salesPreload'
 import { resolveShiftForDate } from '@renderer/utils/resolveShiftForDate'
+import { OpenShiftModal } from '@renderer/components/shifts/OpenShiftModal'
 
 type CartLine = {
   key: string
@@ -68,6 +70,9 @@ export function SalesPage() {
   const [priceEditNote, setPriceEditNote] = useState('')
   const [priceEditError, setPriceEditError] = useState<string | null>(null)
   const [cartPriceBlockError, setCartPriceBlockError] = useState<string | null>(null)
+  const [complementEditLineKey, setComplementEditLineKey] = useState<string | null>(null)
+  const [complementEditPickedId, setComplementEditPickedId] = useState<number | null>(null)
+  const [openShiftModalOpen, setOpenShiftModalOpen] = useState(false)
 
   const currentShiftQuery = useQuery({
     queryKey: ['shift', 'current'],
@@ -77,6 +82,12 @@ export function SalesPage() {
   const catalogQuery = useQuery({
     queryKey: ['sales', 'posCatalog'],
     queryFn: () => window.api.sales.posCatalog(),
+    enabled: Boolean(currentShiftQuery.data),
+  })
+
+  const consumptionRulesQuery = useQuery({
+    queryKey: ['consumptions', 'list'],
+    queryFn: () => window.api.consumptions.list(),
     enabled: Boolean(currentShiftQuery.data),
   })
 
@@ -128,17 +139,58 @@ export function SalesPage() {
       (formatById.get(pickedFormatId!)?.requiresComplement ?? 0) === 1,
   })
 
-  const openMutation = useMutation({
-    mutationFn: () =>
-      window.api.shifts.open({
-        shiftCode: resolveShiftForDate(new Date()),
-        businessDate: new Date().toISOString().slice(0, 10),
-        openingCash: 0,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
+  const complementEditLine = useMemo(
+    () => (complementEditLineKey != null ? cart.find((l) => l.key === complementEditLineKey) ?? null : null),
+    [cart, complementEditLineKey],
+  )
+
+  const complementEditQuery = useQuery({
+    queryKey: ['sales', 'complementProducts', 'edit', complementEditLine?.saleFormatId, complementEditLine?.key],
+    queryFn: async () => {
+      if (!complementEditLine?.saleFormatId) {
+        return []
+      }
+      const fmt = formatById.get(complementEditLine.saleFormatId)
+      const rootId = fmt?.complementCategoryRootId
+      if (rootId == null) {
+        return []
+      }
+      return window.api.sales.posComplementProducts(rootId)
     },
+    enabled: Boolean(complementEditLine?.saleFormatId),
   })
+
+  const basePriceByProductAndFormat = useMemo(() => {
+    const byProduct = new Map<number, Map<number | null, number>>()
+    const rules: SaleFormatConsumptionRule[] = consumptionRulesQuery.data ?? []
+    for (const r of rules) {
+      if (r.basePrice == null) {
+        continue
+      }
+      let byFormat = byProduct.get(r.productId)
+      if (!byFormat) {
+        byFormat = new Map<number | null, number>()
+        byProduct.set(r.productId, byFormat)
+      }
+      byFormat.set(r.saleFormatId ?? null, r.basePrice)
+    }
+    return byProduct
+  }, [consumptionRulesQuery.data])
+
+  const resolveDefaultUnitPrice = useCallback(
+    (product: Product, saleFormatId: number | null, complement: Product | null): number => {
+      if (saleFormatId == null) {
+        return product.salePrice + (complement?.salePrice ?? 0)
+      }
+      const byFormat = basePriceByProductAndFormat.get(product.id)
+      const priceFromRule = byFormat?.get(saleFormatId) ?? byFormat?.get(null) ?? null
+      const base = priceFromRule != null ? priceFromRule : product.salePrice
+      return base + (complement?.salePrice ?? 0)
+    },
+    [basePriceByProductAndFormat],
+  )
+
+  // Apertura de turno ahora se gestiona con modal (`OpenShiftModal`).
 
   const openTabMutation = useMutation({
     mutationFn: (customerName: string) => window.api.sales.openTab({ customerName }),
@@ -224,6 +276,7 @@ export function SalesPage() {
       }
       const effectiveIds = [...node.effectiveSaleFormatIds].sort((a, b) => a - b)
       if (effectiveIds.length === 0) {
+        const unitPrice = resolveDefaultUnitPrice(product, null, null)
         setCart((prev) => [
           ...prev,
           {
@@ -231,8 +284,8 @@ export function SalesPage() {
             productId: product.id,
             productName: product.name,
             categoryId: product.categoryId,
-            unitPrice: product.salePrice,
-            catalogUnitPrice: product.salePrice,
+            unitPrice,
+            catalogUnitPrice: unitPrice,
             quantity: 1,
             discount: 0,
             saleFormatId: null,
@@ -251,6 +304,7 @@ export function SalesPage() {
           setPickedComplementId(null)
           return
         }
+        const unitPrice = resolveDefaultUnitPrice(product, onlyId, null)
         setCart((prev) => [
           ...prev,
           {
@@ -258,8 +312,8 @@ export function SalesPage() {
             productId: product.id,
             productName: product.name,
             categoryId: product.categoryId,
-            unitPrice: product.salePrice,
-            catalogUnitPrice: product.salePrice,
+            unitPrice,
+            catalogUnitPrice: unitPrice,
             quantity: 1,
             discount: 0,
             saleFormatId: onlyId,
@@ -274,7 +328,7 @@ export function SalesPage() {
       setPickedFormatId(null)
       setPickedComplementId(null)
     },
-    [formatById, tree],
+    [formatById, resolveDefaultUnitPrice, tree],
   )
 
   const confirmConfiguredLine = useCallback(() => {
@@ -301,6 +355,11 @@ export function SalesPage() {
       fmt?.requiresComplement === 1 && pickedComplementId
         ? complementQuery.data?.find((p) => p.id === pickedComplementId)?.name
         : undefined
+    const pickedComplement =
+      fmt?.requiresComplement === 1 && pickedComplementId != null
+        ? complementQuery.data?.find((p) => p.id === pickedComplementId) ?? null
+        : null
+    const unitPrice = resolveDefaultUnitPrice(configProduct, saleFormatId, pickedComplement)
     setCart((prev) => [
       ...prev,
       {
@@ -308,8 +367,8 @@ export function SalesPage() {
         productId: configProduct.id,
         productName: configProduct.name,
         categoryId: configProduct.categoryId,
-        unitPrice: configProduct.salePrice,
-        catalogUnitPrice: configProduct.salePrice,
+        unitPrice,
+        catalogUnitPrice: unitPrice,
         quantity: 1,
         discount: 0,
         saleFormatId,
@@ -322,7 +381,15 @@ export function SalesPage() {
     setConfigProduct(null)
     setPickedFormatId(null)
     setPickedComplementId(null)
-  }, [complementQuery.data, configProduct, formatById, pickedComplementId, pickedFormatId, tree])
+  }, [
+    complementQuery.data,
+    configProduct,
+    formatById,
+    pickedComplementId,
+    pickedFormatId,
+    resolveDefaultUnitPrice,
+    tree,
+  ])
 
   const cartTotal = useMemo(
     () => cart.reduce((sum, line) => sum + (line.quantity * line.unitPrice - line.discount), 0),
@@ -449,6 +516,7 @@ export function SalesPage() {
         formatLabel: line.formatLabel,
         complementLabel: line.complementLabel,
         priceChangeNote: line.priceChangeNote,
+        canEditPrice: true,
       })),
     [cart],
   )
@@ -506,7 +574,7 @@ export function SalesPage() {
           </div>
           <Card padding="lg">
             <p className="mb-4 text-slate-600">No hay turno de caja abierto. Abra un turno para registrar ventas.</p>
-            <Button onClick={() => openMutation.mutate()} variant="primary">
+            <Button onClick={() => setOpenShiftModalOpen(true)} variant="primary">
               Abrir turno actual
             </Button>
           </Card>
@@ -553,18 +621,9 @@ export function SalesPage() {
               onSelectTab={(id) => {
                 setSelectedTabId(id)
               }}
-              onSelectVip={(id) => {
-                setSelectedVipCustomerId(id)
-                setVipChargedTotalInput('')
-              }}
               openTabs={openTabsQuery.data ?? []}
               saleMode={saleMode}
               selectedTabId={selectedTabId}
-              selectedVipCustomerId={selectedVipCustomerId}
-              tabsLoading={openTabsQuery.isLoading}
-              vipCustomers={vipCustomersQuery.data ?? []}
-              vipLoading={vipCustomersQuery.isLoading}
-              vipNote={vipNote}
             />
 
             <Card className="shrink-0" padding="md">
@@ -604,41 +663,7 @@ export function SalesPage() {
           </div>
 
           <div className="flex w-full min-h-0 shrink-0 flex-col gap-4 lg:w-[380px] lg:min-w-[380px] lg:self-stretch">
-            <div className="flex min-h-[260px] flex-1 flex-col lg:min-h-0">
-              <PosTicketPanel
-                cartTotal={cartTotal}
-                hasVipSelected={selectedVipCustomerId != null}
-                lines={ticketLines}
-                onConfirmClick={handleConfirmSale}
-                onDiscountChange={(key, discount) => {
-                  setCart((c) => c.map((l) => (l.key === key ? { ...l, discount } : l)))
-                }}
-                onEditPriceClick={(key) => {
-                  const line = cart.find((l) => l.key === key)
-                  if (!line) {
-                    return
-                  }
-                  setPriceEditLineKey(key)
-                  setPriceEditUnit(line.unitPrice.toFixed(2))
-                  setPriceEditNote(line.priceChangeNote ?? '')
-                  setPriceEditError(null)
-                }}
-                onQuantityChange={(key, quantity) => {
-                  setCart((c) => c.map((l) => (l.key === key ? { ...l, quantity } : l)))
-                }}
-                onRemoveLine={(key) => {
-                  setCart((c) => c.filter((l) => l.key !== key))
-                }}
-                saleError={
-                  cartPriceBlockError ??
-                  (saleMutation.isError ? ((saleMutation.error as Error)?.message ?? 'No se pudo registrar la venta.') : null)
-                }
-                saleMode={saleMode}
-                salePending={saleMutation.isPending}
-                selectedTabId={selectedTabId}
-              />
-            </div>
-
+            <div className="flex min-h-[260px] flex-1 flex-col lg:min-h-0 gap-2">
             <PosAccountsSection
               loading={openTabsQuery.isLoading}
               onSettleClick={(t) => {
@@ -659,9 +684,66 @@ export function SalesPage() {
               }
               settlePending={settleTabMutation.isPending}
             />
+              <PosTicketPanel
+                cartTotal={cartTotal}
+                hasVipSelected={selectedVipCustomerId != null}
+                lines={ticketLines}
+                onConfirmClick={handleConfirmSale}
+                onSelectVip={(id) => {
+                  setSelectedVipCustomerId(id)
+                  setVipChargedTotalInput('')
+                }}
+                selectedVipCustomerId={selectedVipCustomerId}
+                vipCustomers={vipCustomersQuery.data ?? []}
+                vipLoading={vipCustomersQuery.isLoading}
+                vipNote={vipNote}
+                onDiscountChange={(key, discount) => {
+                  setCart((c) => c.map((l) => (l.key === key ? { ...l, discount } : l)))
+                }}
+                onEditPriceClick={(key) => {
+                  const line = cart.find((l) => l.key === key)
+                  if (!line) {
+                    return
+                  }
+                  setPriceEditLineKey(key)
+                  setPriceEditUnit(line.unitPrice.toFixed(2))
+                  setPriceEditNote(line.priceChangeNote ?? '')
+                  setPriceEditError(null)
+                }}
+                onEditComplementClick={(key) => {
+                  const line = cart.find((l) => l.key === key)
+                  if (!line || line.saleFormatId == null) {
+                    return
+                  }
+                  const fmt = formatById.get(line.saleFormatId)
+                  if (fmt?.requiresComplement !== 1) {
+                    return
+                  }
+                  setComplementEditLineKey(key)
+                  setComplementEditPickedId(line.complementProductId ?? null)
+                }}
+                onQuantityChange={(key, quantity) => {
+                  setCart((c) => c.map((l) => (l.key === key ? { ...l, quantity } : l)))
+                }}
+                onRemoveLine={(key) => {
+                  setCart((c) => c.filter((l) => l.key !== key))
+                }}
+                saleError={
+                  cartPriceBlockError ??
+                  (saleMutation.isError ? ((saleMutation.error as Error)?.message ?? 'No se pudo registrar la venta.') : null)
+                }
+                saleMode={saleMode}
+                salePending={saleMutation.isPending}
+                selectedTabId={selectedTabId}
+              />
+            </div>
+
+           
           </div>
         </div>
       )}
+
+      <OpenShiftModal onClose={() => setOpenShiftModalOpen(false)} open={openShiftModalOpen} />
 
       <Modal
         footer={
@@ -973,6 +1055,107 @@ export function SalesPage() {
           ) : null}
         </Modal>
       ) : null}
+
+      <Modal
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setComplementEditLineKey(null)
+                setComplementEditPickedId(null)
+              }}
+              variant="secondary"
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={
+                complementEditLineKey == null ||
+                complementEditPickedId == null ||
+                complementEditQuery.isLoading ||
+                complementEditQuery.isError
+              }
+              onClick={() => {
+                if (!complementEditLine || complementEditPickedId == null) {
+                  return
+                }
+                const fmt = complementEditLine.saleFormatId != null ? formatById.get(complementEditLine.saleFormatId) : null
+                if (!fmt || fmt.requiresComplement !== 1) {
+                  return
+                }
+                const product = productsQuery.data?.find((p) => p.id === complementEditLine.productId) ?? null
+                const picked = complementEditQuery.data?.find((p) => p.id === complementEditPickedId) ?? null
+                if (!product || !picked) {
+                  return
+                }
+                const nextCatalog = resolveDefaultUnitPrice(product, complementEditLine.saleFormatId, picked)
+                setCart((c) =>
+                  c.map((l) => {
+                    if (l.key !== complementEditLine.key) {
+                      return l
+                    }
+                    const next: CartLine = {
+                      ...l,
+                      complementProductId: picked.id,
+                      complementLabel: picked.name,
+                      catalogUnitPrice: nextCatalog,
+                    }
+                    if (Math.abs(l.unitPrice - l.catalogUnitPrice) <= 0.001) {
+                      next.unitPrice = nextCatalog
+                      next.priceChangeNote = null
+                    }
+                    return next
+                  }),
+                )
+                setComplementEditLineKey(null)
+                setComplementEditPickedId(null)
+              }}
+              variant="primary"
+            >
+              Guardar
+            </Button>
+          </>
+        }
+        maxWidthClass="max-w-md"
+        onClose={() => {
+          setComplementEditLineKey(null)
+          setComplementEditPickedId(null)
+        }}
+        open={complementEditLineKey != null}
+        title="Cambiar complemento"
+      >
+        {complementEditLine ? (
+          <>
+            <p className="text-sm font-medium text-slate-900">{complementEditLine.productName}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Formato: {complementEditLine.formatLabel ?? '—'}
+            </p>
+
+            <label className="mt-4 block text-sm text-slate-700">
+              Complemento
+              <select
+                className={`${selectFieldClass} mt-1`}
+                disabled={complementEditQuery.isLoading}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  setComplementEditPickedId(Number.isFinite(v) ? v : null)
+                }}
+                value={complementEditPickedId ?? ''}
+              >
+                <option value="">{complementEditQuery.isLoading ? 'Cargando...' : 'Seleccione...'}</option>
+                {complementEditQuery.data?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {complementEditQuery.isError ? (
+              <p className="mt-2 text-sm text-rose-600">{(complementEditQuery.error as Error)?.message ?? 'No se pudo cargar.'}</p>
+            ) : null}
+          </>
+        ) : null}
+      </Modal>
 
       <Modal
         footer={

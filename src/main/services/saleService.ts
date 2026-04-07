@@ -221,6 +221,49 @@ export class SaleService {
     const inventoryAccum = new Map<number, number>()
     const progressiveToConsume = new Map<number, number>()
 
+    const resolveDefaultUnitPrice = (productId: number, saleFormatId: number | null): number | null => {
+      const specific = this.consumptions.listForProductAndFormat(productId, saleFormatId)
+      const fallback =
+        specific.length === 0 && saleFormatId != null ? this.consumptions.listForProductAndFormat(productId, null) : specific
+      const row = fallback.length ? fallback[0] : null
+      const basePrice = row?.basePrice ?? null
+      return basePrice != null ? Number(basePrice) : null
+    }
+
+    const accumulateInventory = (productId: number, saleFormatId: number | null, quantity: number) => {
+      const product = this.products.getById(productId)
+      if (!product || !product.isActive) {
+        throw new ValidationError('Producto no disponible.')
+      }
+      if (product.type !== 'simple') {
+        return
+      }
+
+      // Consumo unitario (default): descuenta unidades completas.
+      const prev = inventoryAccum.get(product.id) ?? 0
+      inventoryAccum.set(product.id, prev - quantity)
+
+      // Consumo progresivo: si hay regla por formato, consume ml del mismo producto.
+      if (!this.inventory.isProgressiveProduct(product.id)) {
+        return
+      }
+      const consumptionRows = this.consumptions.listForProductAndFormat(product.id, saleFormatId)
+      const fallbackRows =
+        consumptionRows.length === 0 && saleFormatId != null ? this.consumptions.listForProductAndFormat(product.id, null) : consumptionRows
+      if (fallbackRows.length) {
+        const c = fallbackRows[0]
+        if (c.unit !== 'ml') {
+          throw new ValidationError('Unidad de consumo no soportada (solo ml).')
+        }
+        const amount = quantity * c.consumeQuantity
+        if (!Number.isFinite(amount) || amount <= 0) {
+          throw new ValidationError('Cantidad de consumo inválida.')
+        }
+        const prevProg = progressiveToConsume.get(product.id) ?? 0
+        progressiveToConsume.set(product.id, prevProg + amount)
+      }
+    }
+
     for (const rawLine of parsed.data.items) {
       const product = this.products.getById(rawLine.productId)
       if (!product || !product.isActive) {
@@ -257,19 +300,20 @@ export class SaleService {
       }
 
       let complementProductId: number | null = rawLine.complementProductId ?? null
+      let complementProduct: ReturnType<ProductRepository['getById']> | null = null
       if (format?.requiresComplement === 1) {
         if (complementProductId == null) {
           throw new ValidationError('Este formato requiere un complemento.')
         }
-        const complement = this.products.getById(complementProductId)
-        if (!complement || !complement.isActive) {
+        complementProduct = this.products.getById(complementProductId)
+        if (!complementProduct || !complementProduct.isActive) {
           throw new ValidationError('Producto complemento no disponible.')
         }
         const rootId = format.complementCategoryRootId
         if (rootId == null) {
           throw new ValidationError('Formato sin categoria de complemento configurada.')
         }
-        if (!this.categories.isCategoryInSubtree(complement.categoryId, rootId)) {
+        if (!this.categories.isCategoryInSubtree(complementProduct.categoryId, rootId)) {
           throw new ValidationError('El complemento no pertenece a la categoria permitida.')
         }
       } else {
@@ -279,7 +323,9 @@ export class SaleService {
         }
       }
 
-      const catalogUnitPrice = product.salePrice
+      const defaultFromRule = resolveDefaultUnitPrice(product.id, saleFormatId)
+      const complementPrice = complementProduct ? complementProduct.salePrice : 0
+      const catalogUnitPrice = (defaultFromRule != null ? defaultFromRule : product.salePrice) + complementPrice
       const chargedUnitPrice =
         rawLine.chargedUnitPrice !== undefined && rawLine.chargedUnitPrice !== null
           ? rawLine.chargedUnitPrice
@@ -324,33 +370,12 @@ export class SaleService {
         priceChangeNote: priceDiffers ? (rawLine.priceChangeNote?.trim() || null) : null,
       })
 
-      if (product.type === 'simple') {
-        // Consumo unitario (default): descuenta unidades completas.
-        const prev = inventoryAccum.get(product.id) ?? 0
-        inventoryAccum.set(product.id, prev - rawLine.quantity)
+      accumulateInventory(product.id, saleFormatId, rawLine.quantity)
 
-        // Consumo progresivo: si hay regla por formato, consume ml del mismo producto.
-        const consumptionRows = this.consumptions.listForProductAndFormat(product.id, saleFormatId)
-        const fallbackRows =
-          consumptionRows.length === 0 && saleFormatId != null
-            ? this.consumptions.listForProductAndFormat(product.id, null)
-            : consumptionRows
-        if (fallbackRows.length) {
-          const c = fallbackRows[0]
-          if (c.unit !== 'ml') {
-            throw new ValidationError('Unidad de consumo no soportada (solo ml).')
-          }
-          const amount = rawLine.quantity * c.consumeQuantity
-          if (!Number.isFinite(amount) || amount <= 0) {
-            throw new ValidationError('Cantidad de consumo inválida.')
-          }
-          const prevProg = progressiveToConsume.get(product.id) ?? 0
-          progressiveToConsume.set(product.id, prevProg + amount)
-        }
-      }
-
-      if (product.type === 'compound') {
-        // Inventario por productos: los compuestos no descuentan stock aquí.
+      if (format?.requiresComplement === 1 && complementProductId != null && complementProduct) {
+        // El complemento no genera una línea aparte; solo descuenta inventario como producto unitario.
+        const prev = inventoryAccum.get(complementProduct.id) ?? 0
+        inventoryAccum.set(complementProduct.id, prev - rawLine.quantity)
       }
     }
 
@@ -382,6 +407,10 @@ export class SaleService {
     }))
 
     for (const exit of inventoryExits) {
+      // Consumo progresivo: la disponibilidad real la valida consumeProgressive (ml en lotes), no la suma de movimientos ni el conteo de lotes.
+      if (this.inventory.isProgressiveProduct(exit.productId)) {
+        continue
+      }
       const stock = this.inventory.getStockByProductId(exit.productId)
       if (stock + exit.quantity < -0.0001) {
         throw new StockError('Stock insuficiente de productos para completar la venta.')

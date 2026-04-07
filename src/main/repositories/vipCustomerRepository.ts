@@ -37,6 +37,18 @@ export class VipCustomerRepository {
     return rows.map(mapRow)
   }
 
+  countActive() {
+    const row = this.db.prepare('SELECT COUNT(*) AS c FROM vip_customers WHERE is_active = 1').get() as { c: number }
+    return row.c
+  }
+
+  listPaged(limit: number, offset: number) {
+    const rows = this.db
+      .prepare('SELECT * FROM vip_customers WHERE is_active = 1 ORDER BY name ASC LIMIT ? OFFSET ?')
+      .all(limit, offset) as VipCustomerRow[]
+    return rows.map(mapRow)
+  }
+
   getById(id: number) {
     const row = this.db.prepare('SELECT * FROM vip_customers WHERE id = ?').get(id) as VipCustomerRow | undefined
     return row ? mapRow(row) : null

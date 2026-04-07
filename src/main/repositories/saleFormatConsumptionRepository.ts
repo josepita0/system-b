@@ -4,6 +4,7 @@ export type SaleFormatConsumptionRow = {
   productId: number
   consumeQuantity: number
   unit: string
+  basePrice: number | null
 }
 
 export class SaleFormatConsumptionRepository {
@@ -13,7 +14,11 @@ export class SaleFormatConsumptionRepository {
     if (saleFormatId == null) {
       return this.db
         .prepare(
-          `SELECT product_id AS productId, consume_quantity AS consumeQuantity, unit
+          `SELECT
+             product_id AS productId,
+             consume_quantity AS consumeQuantity,
+             unit,
+             base_price AS basePrice
            FROM sale_format_product_consumptions
            WHERE product_id = ? AND sale_format_id IS NULL
            ORDER BY id ASC`,
@@ -23,7 +28,11 @@ export class SaleFormatConsumptionRepository {
 
     return this.db
       .prepare(
-        `SELECT product_id AS productId, consume_quantity AS consumeQuantity, unit
+        `SELECT
+           product_id AS productId,
+           consume_quantity AS consumeQuantity,
+           unit,
+           base_price AS basePrice
          FROM sale_format_product_consumptions
          WHERE product_id = ? AND sale_format_id = ?
          ORDER BY id ASC`,

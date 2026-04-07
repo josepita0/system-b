@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@renderer/components/ui/Button'
 
 type OpenTab = { id: number; customerName: string; balance: number }
@@ -23,17 +23,40 @@ export function PosAccountsSection({
   removeLineError,
 }: Props) {
   const [open, setOpen] = useState(false)
+  const hasPendingTabs = openTabs.length > 0
+  const [manualClosed, setManualClosed] = useState(false)
+
+  useEffect(() => {
+    if (!hasPendingTabs) {
+      setManualClosed(false)
+      return
+    }
+
+    if (!open && !manualClosed) setOpen(true)
+  }, [hasPendingTabs, manualClosed, open])
 
   return (
     <div className="rounded-2xl border border-border bg-surface-card shadow-sm">
       <button
         className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-medium text-slate-800"
         onClick={() => {
-          setOpen((v) => !v)
+          setOpen((v) => {
+            const next = !v
+            setManualClosed(!next)
+            return next
+          })
         }}
         type="button"
       >
-        <span>Liquidar cuenta (efectivo)</span>
+        <span className="inline-flex items-center gap-2">
+          <span>Liquidar cuenta</span>
+          {hasPendingTabs ? (
+            <span className="relative flex h-3 w-3" aria-label="Cuentas pendientes">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-orange-500" />
+            </span>
+          ) : null}
+        </span>
         <span className="text-slate-400">{open ? '▲' : '▼'}</span>
       </button>
       {open ? (

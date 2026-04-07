@@ -1,20 +1,39 @@
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { NavLink, matchPath, useLocation } from 'react-router-dom'
 import { UserRoleBadge } from '@renderer/components/users/UserRoleBadge'
 import { cn } from '@renderer/lib/cn'
 import type { UserRole } from '@shared/types/user'
 
 const SIDEBAR_EXPANDED_KEY = 'system-barra-sidebar-expanded'
-export type NavItem = {
+
+export type NavIconName = 'home' | 'grid' | 'clock' | 'chart' | 'box' | 'flask' | 'star' | 'users' | 'file' | 'cart' | 'cog'
+
+/** Ítem de navegación simple (un destino). */
+export type NavLinkItem = {
   to: string
   label: string
-  icon: 'home' | 'grid' | 'clock' | 'chart' | 'box' | 'flask' | 'star' | 'users' | 'file' | 'cart'
+  icon: NavIconName
   /** Evita que `/` active en rutas hijas. */
   end?: boolean
 }
 
-function Icon({ name }: { name: NavItem['icon'] }) {
+/** Grupo con submenú (p. ej. Ajustes). */
+export type NavGroupItem = {
+  type: 'group'
+  id: string
+  label: string
+  icon: NavIconName
+  children: NavLinkItem[]
+}
+
+export type NavEntry = NavLinkItem | NavGroupItem
+
+/** @deprecated Usar `NavLinkItem`; se mantiene por compatibilidad con tipos existentes. */
+export type NavItem = NavLinkItem
+
+function Icon({ name }: { name: NavIconName }) {
   const common = 'h-5 w-5 stroke-current'
   switch (name) {
     case 'cart':
@@ -103,6 +122,17 @@ function Icon({ name }: { name: NavItem['icon'] }) {
           />
         </svg>
       )
+    case 'cog':
+      return (
+        <svg className={common} fill="none" viewBox="0 0 24 24" strokeWidth={1.5}>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"
+          />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      )
     case 'home':
     default:
       return (
@@ -115,6 +145,167 @@ function Icon({ name }: { name: NavItem['icon'] }) {
         </svg>
       )
   }
+}
+
+function isNavGroup(entry: NavEntry): entry is NavGroupItem {
+  return 'type' in entry && entry.type === 'group'
+}
+
+function navSubLinkClass({ isActive, expanded }: { isActive: boolean; expanded: boolean }) {
+  return cn(
+    'flex shrink-0 items-center rounded-xl transition-colors',
+    expanded ? 'h-10 w-full min-w-0 gap-3 px-3 pl-4' : 'h-10 w-10 justify-center',
+    isActive ? 'bg-brand-muted text-brand' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800',
+  )
+}
+
+function NavGroup({ group, sidebarExpanded }: { group: NavGroupItem; sidebarExpanded: boolean }) {
+  const location = useLocation()
+  const isChildActive = group.children.some((c) =>
+    matchPath({ path: c.to, end: c.end ?? false }, location.pathname),
+  )
+  const [open, setOpen] = useState(isChildActive)
+  const [flyoutOpen, setFlyoutOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const flyoutRef = useRef<HTMLDivElement>(null)
+  const [flyoutPos, setFlyoutPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    if (isChildActive) setOpen(true)
+  }, [isChildActive])
+
+  useLayoutEffect(() => {
+    if (!flyoutOpen || !triggerRef.current) return
+    const update = () => {
+      const rect = triggerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      setFlyoutPos({ top: rect.top, left: rect.right + 8 })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [flyoutOpen])
+
+  useEffect(() => {
+    if (!flyoutOpen) return
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (!triggerRef.current?.contains(t) && !flyoutRef.current?.contains(t)) {
+        setFlyoutOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', onDoc)
+    return () => window.removeEventListener('mousedown', onDoc)
+  }, [flyoutOpen])
+
+  useEffect(() => {
+    if (sidebarExpanded) setFlyoutOpen(false)
+  }, [sidebarExpanded])
+
+  const parentActive = !sidebarExpanded && isChildActive
+
+  if (!sidebarExpanded) {
+    return (
+      <div className="relative flex w-full justify-center">
+        <button
+          aria-expanded={flyoutOpen}
+          aria-haspopup="menu"
+          className={cn(
+            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors',
+            parentActive ? 'bg-brand-muted text-brand' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800',
+          )}
+          onClick={() => setFlyoutOpen((v) => !v)}
+          ref={triggerRef}
+          title={group.label}
+          type="button"
+        >
+          <Icon name={group.icon} />
+        </button>
+        {flyoutOpen
+          ? createPortal(
+              <div
+                className="fixed z-[100] min-w-[12rem] rounded-xl border border-border bg-surface-card py-1 shadow-lg"
+                ref={flyoutRef}
+                role="menu"
+                style={{ left: flyoutPos.left, top: flyoutPos.top }}
+              >
+                <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {group.label}
+                </div>
+                {group.children.map((child) => (
+                  <NavLink
+                    className={({ isActive }) =>
+                      cn(
+                        'block px-3 py-2 text-sm',
+                        isActive ? 'bg-brand-muted font-medium text-brand' : 'text-slate-800 hover:bg-slate-50',
+                      )
+                    }
+                    end={child.end}
+                    key={child.to}
+                    onClick={() => setFlyoutOpen(false)}
+                    to={child.to}
+                  >
+                    {child.label}
+                  </NavLink>
+                ))}
+              </div>,
+              document.body,
+            )
+          : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-0.5">
+      <button
+        aria-expanded={open}
+        className={cn(
+          'flex h-11 w-full min-w-0 items-center gap-3 rounded-xl px-3 text-left transition-colors',
+          isChildActive ? 'bg-slate-100/90 text-slate-900' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800',
+        )}
+        onClick={() => setOpen((o) => !o)}
+        type="button"
+      >
+        <span className="flex shrink-0">
+          <Icon name={group.icon} />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{group.label}</span>
+        <svg
+          className={cn('h-4 w-4 shrink-0 text-slate-400 transition-transform', open && 'rotate-90')}
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2}
+          stroke="currentColor"
+          aria-hidden
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+      {open ? (
+        <div className="ml-2 flex flex-col gap-0.5 border-l border-slate-200 pl-2">
+          {group.children.map((child) => (
+            <NavLink
+              className={({ isActive }) => navSubLinkClass({ isActive, expanded: true })}
+              end={child.end}
+              key={child.to + child.label}
+              title={child.label}
+              to={child.to}
+            >
+              <span className="flex shrink-0">
+                <Icon name={child.icon} />
+              </span>
+              <span className="min-w-0 truncate text-sm font-medium">{child.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function navLinkClass({ isActive, expanded }: { isActive: boolean; expanded: boolean }) {
@@ -130,7 +321,7 @@ type AppShellProps = {
   /** Nombre para mostrar (sin rol en crudo). */
   userDisplayName: string
   userRole: UserRole
-  navItems: NavItem[]
+  navItems: NavEntry[]
   onLogout: () => void
 }
 
@@ -166,16 +357,15 @@ export function AppShell({ children, userDisplayName, userRole, navItems, onLogo
           )}
         >
           <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-muted text-brand"
+            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-muted"
             title="Sistema Barra"
           >
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 3v18M8 8h8M6 14h12M9 21h6"
-              />
-            </svg>
+            <img
+              alt=""
+              className="h-10 w-10 object-contain p-0.5"
+              decoding="async"
+              src={`${import.meta.env.BASE_URL}app-logo.svg`}
+            />
           </div>
           <button
             aria-expanded={sidebarExpanded}
@@ -203,20 +393,24 @@ export function AppShell({ children, userDisplayName, userRole, navItems, onLogo
             sidebarExpanded ? 'items-stretch px-2' : 'items-center px-1',
           )}
         >
-          {navItems.map((item) => (
-            <NavLink
-              className={({ isActive }) => navLinkClass({ isActive, expanded: sidebarExpanded })}
-              end={item.end}
-              key={item.to + item.label}
-              title={item.label}
-              to={item.to}
-            >
-              <span className="flex shrink-0">
-                <Icon name={item.icon} />
-              </span>
-              {sidebarExpanded ? <span className="min-w-0 truncate text-sm font-medium">{item.label}</span> : null}
-            </NavLink>
-          ))}
+          {navItems.map((item) =>
+            isNavGroup(item) ? (
+              <NavGroup group={item} key={item.id} sidebarExpanded={sidebarExpanded} />
+            ) : (
+              <NavLink
+                className={({ isActive }) => navLinkClass({ isActive, expanded: sidebarExpanded })}
+                end={item.end}
+                key={item.to + item.label}
+                title={item.label}
+                to={item.to}
+              >
+                <span className="flex shrink-0">
+                  <Icon name={item.icon} />
+                </span>
+                {sidebarExpanded ? <span className="min-w-0 truncate text-sm font-medium">{item.label}</span> : null}
+              </NavLink>
+            ),
+          )}
         </nav>
         <div className="shrink-0 border-t border-border px-1 pt-2">
           <button
@@ -247,7 +441,7 @@ export function AppShell({ children, userDisplayName, userRole, navItems, onLogo
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="sticky top-0 z-20 flex shrink-0 items-center justify-end gap-4 border-b border-border bg-surface-card px-4 py-3">
+        <header className="sticky top-0 z-20 flex shrink-0 items-center justify-end gap-4 border-b border-border bg-surface-card px-4 py-3 ">
           {/* <div className="min-w-0 flex-1">
             <div className="relative max-w-xl">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">

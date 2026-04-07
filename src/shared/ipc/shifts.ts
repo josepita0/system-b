@@ -1,3 +1,4 @@
+import type { PagedResult } from '../types/pagination'
 import type {
   CashSession,
   CashSessionHistoryEntry,
@@ -13,6 +14,7 @@ export const shiftChannels = {
   open: 'shifts:open',
   close: 'shifts:close',
   listHistory: 'shifts:listHistory',
+  listHistoryPaged: 'shifts:listHistoryPaged',
   getSessionDetail: 'shifts:getSessionDetail',
 } as const
 
@@ -22,5 +24,6 @@ export interface ShiftApi {
   open: (payload: OpenShiftInput) => Promise<CashSession>
   close: (payload: CloseShiftInput) => Promise<CashSession>
   listHistory: () => Promise<CashSessionHistoryEntry[]>
+  listHistoryPaged: (params: unknown) => Promise<PagedResult<CashSessionHistoryEntry>>
   getSessionDetail: (sessionId: number) => Promise<ShiftSessionDetail>
 }

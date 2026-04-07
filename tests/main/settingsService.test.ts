@@ -66,3 +66,31 @@ describe('SettingsService SMTP', () => {
     expect(row.smtp_password.startsWith('enc:')).toBe(true)
   })
 })
+
+describe('SettingsService Cash', () => {
+  it('reads cash settings with default value', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-settings-cash-'))
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+
+    const service = new SettingsService(db)
+    const pub = service.getCashSettingsPublic()
+    expect(pub.minOpeningCash).toBeGreaterThanOrEqual(0)
+  })
+
+  it('updates cash settings', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-settings-cash-upd-'))
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+
+    const service = new SettingsService(db)
+    service.updateCashSettings({ minOpeningCash: 25 })
+
+    const row = db.prepare('SELECT min_opening_cash FROM settings WHERE id = 1').get() as { min_opening_cash: number }
+    expect(row.min_opening_cash).toBe(25)
+  })
+})

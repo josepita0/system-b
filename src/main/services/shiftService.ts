@@ -1,5 +1,7 @@
 import { closeShiftSchema, openShiftSchema } from '../../shared/schemas/shiftSchema'
+import type { PagedResult } from '../../shared/types/pagination'
 import type { AuthenticatedUser } from '../../shared/types/user'
+import { offsetForPage } from '../../shared/schemas/paginationSchema'
 import type {
   CashSessionHistoryEntry,
   CloseShiftInput,
@@ -9,6 +11,7 @@ import type {
 import { AuthorizationError, NotFoundError, ShiftStateError, ValidationError } from '../errors'
 import { hasAtLeastRole } from './authorizationService'
 import { ShiftRepository } from '../repositories/shiftRepository'
+import { SettingsService } from './settingsService'
 
 export function resolveShiftForDate(date: Date) {
   const hours = date.getHours()
@@ -23,7 +26,10 @@ export function resolveShiftForDate(date: Date) {
 }
 
 export class ShiftService {
-  constructor(private readonly repository: ShiftRepository) {}
+  constructor(
+    private readonly repository: ShiftRepository,
+    private readonly settings: SettingsService | null = null,
+  ) {}
 
   definitions() {
     return this.repository.listDefinitions()
@@ -35,7 +41,7 @@ export class ShiftService {
       return s
     }
     const cashSales = this.repository.getSalesTotalForSession(s.id)
-    const pending = this.repository.getPendingReconcileForSession(s.id)
+    const pending = this.repository.getTotalPendingReconcileOpenTabs()
     return {
       ...s,
       liveExpectedCash: Math.round((s.openingCash + cashSales) * 100) / 100,
@@ -49,6 +55,16 @@ export class ShiftService {
       throw new ValidationError(parsed.error.issues.map((issue) => issue.message).join(', '))
     }
 
+    const minOpeningCash = this.settings?.getCashSettingsPublic().minOpeningCash ?? 0
+    const noteRaw =
+      parsed.data.openingCashNote !== undefined ? parsed.data.openingCashNote : null
+    const note = typeof noteRaw === 'string' ? noteRaw.trim() : null
+    if (parsed.data.openingCash < minOpeningCash) {
+      if (!note) {
+        throw new ValidationError('Indique el motivo: el monto de apertura es menor al mínimo configurado.')
+      }
+    }
+
     const current = this.repository.getCurrentSession()
     if (current) {
       throw new ShiftStateError('Ya existe un turno abierto.')
@@ -60,7 +76,13 @@ export class ShiftService {
       throw new ShiftStateError('Turno no configurado.')
     }
 
-    return this.repository.createSession(shift.id, parsed.data.businessDate, parsed.data.openingCash, openedByUserId)
+    return this.repository.createSession(
+      shift.id,
+      parsed.data.businessDate,
+      parsed.data.openingCash,
+      openedByUserId,
+      note,
+    )
   }
 
   listHistory(actor: AuthenticatedUser): CashSessionHistoryEntry[] {
@@ -84,6 +106,43 @@ export class ShiftService {
       return b.id - a.id
     })
     return this.prependCurrentOpenSession(entries)
+  }
+
+  listHistoryPaged(actor: AuthenticatedUser, page: number, pageSize: number): PagedResult<CashSessionHistoryEntry> {
+    if (hasAtLeastRole(actor.role, 'manager')) {
+      const closedCount = this.repository.countClosedSessions()
+      const cur = this.repository.getCurrentSession()
+      const openRow = cur && cur.status === 'open' ? this.repository.getHistoryEntryById(cur.id) : null
+      const hasOpen = Boolean(openRow)
+      const total = closedCount + (hasOpen ? 1 : 0)
+      const linearStart = (page - 1) * pageSize
+
+      if (total === 0 || linearStart >= total) {
+        return { items: [], total, page, pageSize }
+      }
+
+      let items: CashSessionHistoryEntry[]
+      if (hasOpen && openRow && linearStart === 0) {
+        const takeClosed = Math.max(pageSize - 1, 0)
+        const closedIds = this.repository.listClosedSessionsForManager(takeClosed, 0)
+        const closedEntries = this.repository.getHistoryEntriesByIds(closedIds)
+        items = [openRow, ...closedEntries]
+      } else if (hasOpen && openRow) {
+        const closedSkip = linearStart - 1
+        const closedIds = this.repository.listClosedSessionsForManager(pageSize, closedSkip)
+        items = this.repository.getHistoryEntriesByIds(closedIds)
+      } else {
+        const closedIds = this.repository.listClosedSessionsForManager(pageSize, linearStart)
+        items = this.repository.getHistoryEntriesByIds(closedIds)
+      }
+      return { items, total, page, pageSize }
+    }
+
+    const full = this.listHistory(actor)
+    const total = full.length
+    const offset = offsetForPage(page, pageSize)
+    const items = full.slice(offset, offset + pageSize)
+    return { items, total, page, pageSize }
   }
 
   /** Incluye el turno abierto al inicio para seguimiento en tiempo real del efectivo y pagarés. */
@@ -143,7 +202,7 @@ export class ShiftService {
     }
 
     const expectedCash = session.openingCash + this.repository.getSalesTotalForSession(session.id)
-    const pendingReconcileTotal = this.repository.getPendingReconcileForSession(session.id)
+    const pendingReconcileTotal = this.repository.getTotalPendingReconcileOpenTabs()
     return this.repository.closeSession(session.id, expectedCash, parsed.data.countedCash, pendingReconcileTotal)
   }
 }

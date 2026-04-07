@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
-import { AppShell, type NavItem } from './components/layout/AppShell'
+import { AppShell, type NavEntry } from './components/layout/AppShell'
 import { Button } from './components/ui/Button'
 import { getSetupStatusSafe } from './lib/setup'
 import { useAuthStore } from './store/authStore'
@@ -23,8 +23,14 @@ const UserDetailPage = lazy(() => import('./pages/users/UserDetailPage').then((m
 const UserDocumentsPage = lazy(() => import('./pages/users/UserDocumentsPage').then((module) => ({ default: module.UserDocumentsPage })))
 const UserListPage = lazy(() => import('./pages/users/UserListPage').then((module) => ({ default: module.UserListPage })))
 const VipCustomersPage = lazy(() => import('./pages/vipCustomers/VipCustomersPage').then((module) => ({ default: module.VipCustomersPage })))
-const InventoryPage = lazy(() => import('./pages/inventory/InventoryPage').then((module) => ({ default: module.InventoryPage })))
+const InventoryLayout = lazy(() => import('./pages/inventory/InventoryLayout').then((m) => ({ default: m.InventoryLayout })))
+const InventoryDashboardPage = lazy(() =>
+  import('./pages/inventory/InventoryDashboardPage').then((m) => ({ default: m.InventoryDashboardPage })),
+)
+const InventoryHistoryPage = lazy(() => import('./pages/inventory/InventoryHistoryPage').then((m) => ({ default: m.InventoryHistoryPage })))
 const ConsumptionRulesPage = lazy(() => import('./pages/consumptions/ConsumptionRulesPage').then((module) => ({ default: module.ConsumptionRulesPage })))
+const CashSettingsPage = lazy(() => import('./pages/settings/CashSettingsPage').then((m) => ({ default: m.CashSettingsPage })))
+const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })))
 
 /** Rutas antiguas /usuarios/:id/editar redirigen al listado abriendo el modal de edicion. */
 function UserEditRouteRedirect() {
@@ -34,20 +40,30 @@ function UserEditRouteRedirect() {
   return <Navigate replace state={idOk ? { editUserId: n } : {}} to="/usuarios" />
 }
 
-function buildAppNavItems(role: string): NavItem[] {
-  const items: NavItem[] = [{ to: '/ventas', label: 'Ventas', icon: 'cart' }]
+function buildAppNavItems(role: string): NavEntry[] {
+  const items: NavEntry[] = [{ to: '/ventas', label: 'Ventas', icon: 'cart' }]
   if (role === 'employee') {
     items.push({ to: '/turnos', label: 'Turnos', icon: 'clock' })
   }
   if (role !== 'employee') {
     items.push(
-      { to: '/', label: 'Productos', icon: 'grid', end: true },
+      { to: '/dashboard', label: 'Dashboard', icon: 'chart' },
+      { to: '/usuarios', label: 'Usuarios', icon: 'users' },
+      { to: '/inventario', label: 'Inventario', icon: 'box' },
       { to: '/turnos', label: 'Turnos', icon: 'clock' },
       { to: '/reportes', label: 'Reportes', icon: 'chart' },
-      { to: '/inventario', label: 'Inventario', icon: 'box' },
-      { to: '/consumos', label: 'Consumos', icon: 'flask' },
-      { to: '/clientes-vip', label: 'Clientes VIP', icon: 'star' },
-      { to: '/usuarios', label: 'Usuarios', icon: 'users' },
+      {
+        type: 'group',
+        id: 'ajustes',
+        label: 'Ajustes',
+        icon: 'cog',
+        children: [
+          { to: '/', label: 'Productos', icon: 'grid', end: true },
+          { to: '/consumos', label: 'Consumos', icon: 'flask' },
+          { to: '/clientes-vip', label: 'Clientes VIP', icon: 'star' },
+          { to: '/ajustes/caja', label: 'Caja', icon: 'clock' },
+        ],
+      },
     )
   }
   if (role === 'manager') {
@@ -230,7 +246,7 @@ export default function App() {
     >
       <Suspense fallback={<PageLoader />}>
         <Routes>
-              <Route element={<Navigate replace to={user.role === 'employee' ? '/ventas' : '/'} />} path="/login" />
+              <Route element={<Navigate replace to={user.role === 'employee' ? '/ventas' : '/dashboard'} />} path="/login" />
               <Route element={<SalesPage />} path="/ventas" />
               <Route
                 element={
@@ -239,6 +255,14 @@ export default function App() {
                   </ProtectedRoute>
                 }
                 path="/"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+                path="/dashboard"
               />
               <Route
                 element={
@@ -259,11 +283,14 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <InventoryPage />
+                    <InventoryLayout />
                   </ProtectedRoute>
                 }
                 path="/inventario"
-              />
+              >
+                <Route element={<InventoryDashboardPage />} index />
+                <Route element={<InventoryHistoryPage />} path="historial" />
+              </Route>
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
@@ -279,6 +306,14 @@ export default function App() {
                   </ProtectedRoute>
                 }
                 path="/clientes-vip"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <CashSettingsPage />
+                  </ProtectedRoute>
+                }
+                path="/ajustes/caja"
               />
               <Route
                 element={
@@ -332,7 +367,7 @@ export default function App() {
                 }
                 path="/mi-documentacion"
               />
-              <Route element={<Navigate replace to={user.role === 'employee' ? '/ventas' : '/'} />} path="*" />
+              <Route element={<Navigate replace to={user.role === 'employee' ? '/ventas' : '/dashboard'} />} path="*" />
         </Routes>
       </Suspense>
     </AppShell>

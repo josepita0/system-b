@@ -48,6 +48,30 @@ export class UserRepository {
     return (this.db.prepare('SELECT * FROM employees ORDER BY role DESC, first_name ASC, last_name ASC').all() as UserRow[]).map(mapUser)
   }
 
+  countForRoles(roles: User['role'][]) {
+    if (roles.length === 0) {
+      return 0
+    }
+    const placeholders = roles.map(() => '?').join(', ')
+    const row = this.db
+      .prepare(`SELECT COUNT(*) AS count FROM employees WHERE role IN (${placeholders})`)
+      .get(...roles) as { count: number }
+    return row.count
+  }
+
+  listForRolesPaged(roles: User['role'][], limit: number, offset: number) {
+    if (roles.length === 0) {
+      return []
+    }
+    const placeholders = roles.map(() => '?').join(', ')
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM employees WHERE role IN (${placeholders}) ORDER BY role DESC, first_name ASC, last_name ASC LIMIT ? OFFSET ?`,
+      )
+      .all(...roles, limit, offset) as UserRow[]
+    return rows.map(mapUser)
+  }
+
   getById(id: number) {
     const row = this.db.prepare('SELECT * FROM employees WHERE id = ?').get(id) as UserRow | undefined
     return row ? mapUser(row) : null

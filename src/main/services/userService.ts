@@ -1,5 +1,7 @@
 import type Database from 'better-sqlite3'
-import type { AuthenticatedUser, CreateUserInput, UpdateUserInput } from '../../shared/types/user'
+import type { AuthenticatedUser, CreateUserInput, UpdateUserInput, User, UserRole } from '../../shared/types/user'
+import type { PagedResult } from '../../shared/types/pagination'
+import { offsetForPage } from '../../shared/schemas/paginationSchema'
 import { createUserSchema, updateUserSchema } from '../../shared/schemas/userSchema'
 import { ConflictError, NotFoundError, ValidationError } from '../errors'
 import { AuditLogRepository } from '../repositories/auditLogRepository'
@@ -18,9 +20,23 @@ export class UserService {
     this.audit = new AuditLogRepository(db)
   }
 
+  private manageableRoles(actor: AuthenticatedUser): UserRole[] {
+    const roles: UserRole[] = ['employee', 'manager', 'admin']
+    return roles.filter((r) => actor.permissions.includes(`users.manage_roles.${r}`))
+  }
+
   list(actor: AuthenticatedUser) {
     this.authorization.requirePermission(actor.permissions, 'users.manage_profiles')
     return this.users.list().filter((user) => actor.permissions.includes(`users.manage_roles.${user.role}`))
+  }
+
+  listPaged(actor: AuthenticatedUser, page: number, pageSize: number): PagedResult<User> {
+    this.authorization.requirePermission(actor.permissions, 'users.manage_profiles')
+    const roles = this.manageableRoles(actor)
+    const total = this.users.countForRoles(roles)
+    const offset = offsetForPage(page, pageSize)
+    const items = this.users.listForRolesPaged(roles, pageSize, offset)
+    return { items, total, page, pageSize }
   }
 
   getById(actor: AuthenticatedUser, id: number) {

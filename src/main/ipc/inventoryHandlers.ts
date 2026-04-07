@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { parsePageParams } from '../../shared/schemas/paginationSchema'
 import { inventoryChannels } from '../../shared/ipc/inventory'
 import { getDb } from '../database/connection'
 import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
@@ -16,6 +17,71 @@ export function registerInventoryHandlers() {
   const auth = new AuthService(db)
   const guards = createIpcGuards(auth, new AuthorizationService())
 
+  ipcMain.handle(inventoryChannels.listMovementHistory, (_event, limit: unknown) =>
+    executeIpc(() => {
+      guards.requirePermission('inventory.view')
+      const n = typeof limit === 'number' && Number.isFinite(limit) ? limit : 500
+      const rows = service.listMovementHistory(n)
+      return rows.map((row) => ({
+        id: row.id,
+        productId: row.product_id,
+        sku: row.sku,
+        productName: row.product_name,
+        movementType: row.movement_type,
+        quantity: Number(row.quantity),
+        referenceType: row.reference_type,
+        referenceId: row.reference_id,
+        note: row.note,
+        createdAt: row.created_at,
+      }))
+    }),
+  )
+
+  ipcMain.handle(inventoryChannels.listMovementHistoryPaged, (_event, raw: unknown) =>
+    executeIpc(() => {
+      guards.requirePermission('inventory.view')
+      const p = parsePageParams(raw ?? {})
+      const result = service.listMovementHistoryPaged(p.page, p.pageSize)
+      return {
+        items: result.items.map((row) => ({
+          id: row.id,
+          productId: row.product_id,
+          sku: row.sku,
+          productName: row.product_name,
+          movementType: row.movement_type,
+          quantity: Number(row.quantity),
+          referenceType: row.reference_type,
+          referenceId: row.reference_id,
+          note: row.note,
+          createdAt: row.created_at,
+        })),
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+      }
+    }),
+  )
+
+  const mapBalanceRow = (row: {
+    product_id: number
+    sku: string
+    product_name: string
+    min_stock: number
+    stock: number
+    consumption_mode: 'unit' | 'progressive'
+    capacity_quantity: number | null
+    capacity_unit: string | null
+  }) => ({
+    productId: row.product_id,
+    sku: row.sku,
+    productName: row.product_name,
+    minStock: Number(row.min_stock),
+    stock: Number(row.stock),
+    consumptionMode: row.consumption_mode,
+    capacityQuantity: row.capacity_quantity != null ? Number(row.capacity_quantity) : null,
+    capacityUnit: row.capacity_unit,
+  })
+
   ipcMain.handle(inventoryChannels.listBalance, () =>
     executeIpc(() => {
       guards.requirePermission('inventory.view')
@@ -29,16 +95,38 @@ export function registerInventoryHandlers() {
         capacity_quantity: number | null
         capacity_unit: string | null
       }>
-      return rows.map((row) => ({
-        productId: row.product_id,
-        sku: row.sku,
-        productName: row.product_name,
-        minStock: Number(row.min_stock),
-        stock: Number(row.stock),
-        consumptionMode: row.consumption_mode,
-        capacityQuantity: row.capacity_quantity != null ? Number(row.capacity_quantity) : null,
-        capacityUnit: row.capacity_unit,
-      }))
+      return rows.map(mapBalanceRow)
+    }),
+  )
+
+  ipcMain.handle(inventoryChannels.balanceSummary, () =>
+    executeIpc(() => {
+      guards.requirePermission('inventory.view')
+      return service.balanceSummary()
+    }),
+  )
+
+  ipcMain.handle(inventoryChannels.listBalancePaged, (_event, raw: unknown) =>
+    executeIpc(() => {
+      guards.requirePermission('inventory.view')
+      const p = parsePageParams(raw ?? {})
+      const result = service.listBalancePaged(p.page, p.pageSize)
+      const rows = result.items as Array<{
+        product_id: number
+        sku: string
+        product_name: string
+        min_stock: number
+        stock: number
+        consumption_mode: 'unit' | 'progressive'
+        capacity_quantity: number | null
+        capacity_unit: string | null
+      }>
+      return {
+        items: rows.map(mapBalanceRow),
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+      }
     }),
   )
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { UserRole } from '@shared/types/user'
@@ -7,6 +7,8 @@ import { UserTable } from '@renderer/components/users/UserTable'
 import { Button } from '@renderer/components/ui/Button'
 import { Card } from '@renderer/components/ui/Card'
 import { Modal } from '@renderer/components/ui/Modal'
+import { TablePagination } from '@renderer/components/ui/TablePagination'
+import { DEFAULT_PAGE_SIZE } from '@shared/types/pagination'
 import { useAuthStore } from '@renderer/store/authStore'
 
 function toOptionalValue(value: string) {
@@ -22,6 +24,8 @@ export function UserListPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editUserId, setEditUserId] = useState<number | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   const availableRoles: UserRole[] = actor?.role === 'admin' ? ['employee', 'manager', 'admin'] : ['employee']
 
@@ -32,9 +36,24 @@ export function UserListPage() {
   const me = sessionQuery.data?.user
 
   const usersQuery = useQuery({
-    queryKey: ['users'],
-    queryFn: () => window.api.users.list(),
+    queryKey: ['users', 'paged', page, pageSize],
+    queryFn: () => window.api.users.listPaged({ page, pageSize }),
   })
+
+  const pagedUsers = usersQuery.data?.items ?? []
+  const totalUsers = usersQuery.data?.total ?? 0
+
+  const maxPage = useMemo(() => Math.max(1, Math.ceil(totalUsers / pageSize)), [totalUsers, pageSize])
+
+  useEffect(() => {
+    if (page > maxPage) {
+      setPage(maxPage)
+    }
+  }, [page, maxPage])
+
+  useEffect(() => {
+    setPage(1)
+  }, [pageSize])
 
   const editUserQuery = useQuery({
     queryKey: ['users', editUserId],
@@ -170,10 +189,19 @@ export function UserListPage() {
             <UserTable
               currentUserId={me?.id ?? null}
               currentUserRole={me?.role ?? null}
-              users={usersQuery.data ?? []}
+              users={pagedUsers}
               onEdit={openEditModal}
               onGenerateLicensePanelCode={(userId) => generatePanelCodeMutation.mutate(userId)}
               onView={(userId) => navigate(`/usuarios/${userId}`)}
+            />
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              total={totalUsers}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size)
+              }}
             />
           </div>
         </Card>

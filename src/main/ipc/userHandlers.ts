@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { parsePageParams } from '../../shared/schemas/paginationSchema'
 import { userChannels } from '../../shared/ipc/users'
 import { getDb } from '../database/connection'
 import { AuthService } from '../services/authService'
@@ -13,6 +14,13 @@ export function registerUserHandlers() {
   const service = new UserService(db)
 
   ipcMain.handle(userChannels.list, () => executeIpc(() => service.list(guards.requirePermission('users.manage_profiles'))))
+  ipcMain.handle(userChannels.listPaged, (_event, raw: unknown) =>
+    executeIpc(() => {
+      const actor = guards.requirePermission('users.manage_profiles')
+      const parsed = parsePageParams(raw ?? {})
+      return service.listPaged(actor, parsed.page, parsed.pageSize)
+    }),
+  )
   ipcMain.handle(userChannels.getById, (_event, userId: number) =>
     executeIpc(() => service.getById(guards.requirePermission('users.manage_profiles'), userId)),
   )

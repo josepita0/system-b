@@ -6,15 +6,23 @@ import { Field } from '@renderer/components/ui/Field'
 import { Input } from '@renderer/components/ui/Input'
 import { Modal } from '@renderer/components/ui/Modal'
 import { tableTheadClass } from '@renderer/lib/tableStyles'
-import { resolveShiftForDate } from '@renderer/utils/resolveShiftForDate'
+import { TablePagination } from '@renderer/components/ui/TablePagination'
+import { DEFAULT_PAGE_SIZE } from '@shared/types/pagination'
 import type { ShiftCloseReport } from '@shared/types/report'
 import type { ShiftSessionDetail } from '@shared/types/shift'
+import { OpenShiftModal } from '@renderer/components/shifts/OpenShiftModal'
 
-function displayExpected(row: { status: string; expectedCash: number | null; liveExpectedCash?: number | null }) {
+function displayExpected(row: {
+  status: string
+  openingCash: number
+  expectedCash: number | null
+  liveExpectedCash?: number | null
+}) {
+  // "Esperado" en UI = movimientos en efectivo del turno (sin contemplar la apertura).
   if (row.status === 'open' && row.liveExpectedCash != null) {
-    return row.liveExpectedCash.toFixed(2)
+    return (row.liveExpectedCash - row.openingCash).toFixed(2)
   }
-  return row.expectedCash != null ? row.expectedCash.toFixed(2) : '—'
+  return row.expectedCash != null ? (row.expectedCash - row.openingCash).toFixed(2) : '—'
 }
 
 function displayPendingReconcile(row: {
@@ -26,6 +34,20 @@ function displayPendingReconcile(row: {
     return row.livePendingReconcile.toFixed(2)
   }
   return row.pendingReconcileTotal != null ? row.pendingReconcileTotal.toFixed(2) : '—'
+}
+
+function displayCounted(row: {
+  status: string
+  openingCash: number
+  countedCash: number | null
+  liveExpectedCash?: number | null
+}) {
+  // "Contado" en UI = movimientos en efectivo según lo contado (sin contemplar la apertura).
+  // Para turno abierto, se muestra el esperado en vivo como proxy (apertura + ventas/cobros) sin apertura.
+  if (row.status === 'open' && row.liveExpectedCash != null) {
+    return (row.liveExpectedCash - row.openingCash).toFixed(2)
+  }
+  return row.countedCash != null ? (row.countedCash - row.openingCash).toFixed(2) : '—'
 }
 
 function saleTypeLabel(saleType: string) {
@@ -131,9 +153,14 @@ export function ShiftsPage() {
   const queryClient = useQueryClient()
   const [detailSessionId, setDetailSessionId] = useState<number | null>(null)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
+  const [openModalOpen, setOpenModalOpen] = useState(false)
   const [closePassword, setClosePassword] = useState('')
+  const [closeCountedCash, setCloseCountedCash] = useState<number | ''>('')
   const [closeFeedback, setCloseFeedback] = useState<{ ok: boolean; message: string } | null>(null)
+  const [resendFeedback, setResendFeedback] = useState<{ ok: boolean; message: string; sessionId: number } | null>(null)
   const [nowTick, setNowTick] = useState(() => Date.now())
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyPageSize, setHistoryPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 1000)
@@ -147,15 +174,29 @@ export function ShiftsPage() {
 
   /** Incluir id de sesión actual en la clave evita listas cacheadas sin el turno "En curso" tras abrir caja o al cargar la vista. */
   const historyQuery = useQuery({
-    queryKey: ['shift', 'history', currentQuery.data?.id ?? 'none'],
-    queryFn: () => window.api.shifts.listHistory(),
+    queryKey: ['shift', 'historyPaged', currentQuery.data?.id ?? 'none', historyPage, historyPageSize],
+    queryFn: () => window.api.shifts.listHistoryPaged({ page: historyPage, pageSize: historyPageSize }),
     enabled: !currentQuery.isLoading,
     refetchInterval: currentQuery.data?.status === 'open' ? 8000 : false,
   })
 
+  const totalHistory = historyQuery.data?.total ?? 0
+
+  const maxHistoryPage = useMemo(() => Math.max(1, Math.ceil(totalHistory / historyPageSize)), [totalHistory, historyPageSize])
+
+  useEffect(() => {
+    if (historyPage > maxHistoryPage) {
+      setHistoryPage(maxHistoryPage)
+    }
+  }, [historyPage, maxHistoryPage])
+
+  useEffect(() => {
+    setHistoryPage(1)
+  }, [historyPageSize])
+
   /** Si el listado aún no incluye la sesión abierta (caché / carrera), se antepone una fila desde `current()`. */
   const historyRows = useMemo(() => {
-    const rows = historyQuery.data ?? []
+    const rows = historyQuery.data?.items ?? []
     const cur = currentQuery.data
     if (!cur || cur.status !== 'open') {
       return rows
@@ -199,18 +240,7 @@ export function ShiftsPage() {
     enabled: closeModalOpen && typeof closeModalSessionId === 'number',
   })
 
-  const openMutation = useMutation({
-    mutationFn: () =>
-      window.api.shifts.open({
-        shiftCode: resolveShiftForDate(new Date()),
-        businessDate: new Date().toISOString().slice(0, 10),
-        openingCash: 0,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
-      await queryClient.invalidateQueries({ queryKey: ['shift', 'history'] })
-    },
-  })
+  // Apertura de turno ahora se gestiona con modal (`OpenShiftModal`).
 
   const confirmCloseMutation = useMutation({
     mutationFn: async (password: string) => {
@@ -218,8 +248,12 @@ export function ShiftsPage() {
       if (!session || session.status !== 'open') {
         throw new Error('No hay sesion abierta.')
       }
+      const countedCashRaw = closeCountedCash
+      if (countedCashRaw === '' || Number.isNaN(Number(countedCashRaw))) {
+        throw new Error('Indique el efectivo contado para cerrar el turno.')
+      }
       await window.api.auth.verifyPassword({ password })
-      await window.api.shifts.close({ sessionId: session.id, countedCash: session.openingCash })
+      await window.api.shifts.close({ sessionId: session.id, countedCash: Number(countedCashRaw) })
       try {
         const report = await window.api.reports.generateShiftClose(session.id)
         return { report: report as ShiftCloseReport, reportError: null as Error | null }
@@ -233,8 +267,7 @@ export function ShiftsPage() {
     onSuccess: async (data) => {
       setCloseModalOpen(false)
       setClosePassword('')
-      await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
-      await queryClient.invalidateQueries({ queryKey: ['shift', 'history'] })
+      await queryClient.invalidateQueries({ queryKey: ['shift'] })
       await queryClient.invalidateQueries({ queryKey: ['reports', 'pending-emails'] })
       if (data.reportError) {
         setCloseFeedback({
@@ -265,9 +298,42 @@ export function ShiftsPage() {
     setDetailSessionId(null)
   }, [])
 
+  const resendShiftClosePdfMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      const report = await window.api.reports.generateShiftClose(sessionId)
+      return report as ShiftCloseReport
+    },
+    onSuccess: async (r) => {
+      await queryClient.invalidateQueries({ queryKey: ['reports', 'pending-emails'] })
+      let msg = `PDF de cierre regenerado para sesión #${r.sessionId}.`
+      if (r.emailSentImmediately && r.reportRecipientEmail) {
+        msg += ` Correo enviado a ${r.reportRecipientEmail}.`
+      } else if (r.emailEnqueued && r.reportRecipientEmail) {
+        msg += ` No se pudo enviar ahora; correo en cola para ${r.reportRecipientEmail} (reintente desde Reportes).`
+      } else {
+        msg += ' No se configuró envío por correo (revise destinatario en el panel de licencia).'
+      }
+      setResendFeedback({ ok: true, message: msg, sessionId: r.sessionId })
+    },
+    onError: (e, sessionId) => {
+      setResendFeedback({
+        ok: false,
+        sessionId,
+        message: e instanceof Error ? e.message : 'No se pudo reenviar el PDF.',
+      })
+    },
+  })
+
   const openCloseModal = () => {
     setCloseFeedback(null)
     setClosePassword('')
+    const s = currentQuery.data
+    if (s?.status === 'open') {
+      const suggested = s.liveExpectedCash ?? s.openingCash
+      setCloseCountedCash(Number.isFinite(suggested) ? Math.round(suggested * 100) / 100 : '')
+    } else {
+      setCloseCountedCash('')
+    }
     setCloseModalOpen(true)
   }
 
@@ -296,18 +362,21 @@ export function ShiftsPage() {
         ) : (
           <div className="space-y-3 text-slate-700">
             <p>No hay turno activo.</p>
-            <Button onClick={() => openMutation.mutate()} variant="primary">
+            <Button onClick={() => setOpenModalOpen(true)} variant="primary">
               Abrir turno actual
             </Button>
           </div>
         )}
       </Card>
 
+      <OpenShiftModal onClose={() => setOpenModalOpen(false)} open={openModalOpen} />
+
       <Modal
         maxWidthClass="max-w-2xl"
         onClose={() => {
           setCloseModalOpen(false)
           setClosePassword('')
+          setCloseCountedCash('')
         }}
         open={closeShiftModalOpen}
         title="Confirmar cierre de turno"
@@ -337,6 +406,23 @@ export function ShiftsPage() {
                 confirmCloseMutation.mutate(closePassword)
               }}
             >
+              <Field hint="Monto total contado en caja (incluye la apertura)." label="Efectivo contado">
+                <Input
+                  inputMode="decimal"
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v.trim() === '') {
+                      setCloseCountedCash('')
+                      return
+                    }
+                    const n = Number(v)
+                    setCloseCountedCash(Number.isNaN(n) ? '' : n)
+                  }}
+                  placeholder="0.00"
+                  type="number"
+                  value={closeCountedCash === '' ? '' : String(closeCountedCash)}
+                />
+              </Field>
               <Field label="Contraseña">
                 <Input
                   autoComplete="current-password"
@@ -355,6 +441,7 @@ export function ShiftsPage() {
                   onClick={() => {
                     setCloseModalOpen(false)
                     setClosePassword('')
+                    setCloseCountedCash('')
                   }}
                   type="button"
                   variant="secondary"
@@ -375,11 +462,14 @@ export function ShiftsPage() {
         <p className="mt-1 text-sm text-slate-500">
           Incluye el turno en curso (si hay caja abierta) con totales en vivo para seguimiento del efectivo y pagarés.
         </p>
+        {resendFeedback ? (
+          <p className={`mt-3 text-sm ${resendFeedback.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{resendFeedback.message}</p>
+        ) : null}
         {currentQuery.isLoading || historyQuery.isLoading ? (
           <p className="mt-4 text-sm text-slate-500">Cargando...</p>
         ) : historyQuery.isError ? (
           <p className="mt-4 text-sm text-rose-600">No se pudo cargar el historico.</p>
-        ) : !historyRows.length ? (
+        ) : totalHistory === 0 ? (
           <p className="mt-4 text-sm text-slate-500">No hay datos de turnos para mostrar.</p>
         ) : (
           <div className="mt-4 w-full min-w-0 overflow-x-auto rounded-xl border-2 border-slate-200 bg-white shadow-inner">
@@ -424,18 +514,41 @@ export function ShiftsPage() {
                     <td className="px-3 py-3 text-slate-700">{row.openedByLabel ?? '—'}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-slate-900">{row.openingCash.toFixed(2)}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-slate-900">{displayExpected(row)}</td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-900">{row.countedCash != null ? row.countedCash.toFixed(2) : '—'}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-slate-900">{displayCounted(row)}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-slate-900">{row.differenceCash != null ? row.differenceCash.toFixed(2) : '—'}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-slate-900">{displayPendingReconcile(row)}</td>
                     <td className="px-3 py-3">
-                      <Button className="px-2 py-1.5 text-xs" onClick={() => setDetailSessionId(row.id)} type="button" variant="secondary">
-                        Detalle
-                      </Button>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Button className="px-2 py-1.5 text-xs" onClick={() => setDetailSessionId(row.id)} type="button" variant="secondary">
+                          Detalle
+                        </Button>
+                        {row.status === 'open' ? null : (
+                          <Button
+                            className="px-2 py-1.5 text-xs"
+                            disabled={resendShiftClosePdfMutation.isPending}
+                            onClick={() => {
+                              setResendFeedback(null)
+                              resendShiftClosePdfMutation.mutate(row.id)
+                            }}
+                            type="button"
+                            variant="primary"
+                          >
+                            Reenviar PDF
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              page={historyPage}
+              pageSize={historyPageSize}
+              total={totalHistory}
+              onPageChange={setHistoryPage}
+              onPageSizeChange={setHistoryPageSize}
+            />
           </div>
         )}
       </Card>

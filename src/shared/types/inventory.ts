@@ -15,3 +15,17 @@ export interface InventoryMovementInput {
   note?: string | null
 }
 
+/** Movimiento de inventario para auditoría (lista cronológica). */
+export interface InventoryMovementHistoryRow {
+  id: number
+  productId: number
+  productName: string
+  sku: string
+  movementType: 'entry' | 'exit' | 'adjustment' | 'sale'
+  quantity: number
+  referenceType: string
+  referenceId: number | null
+  note: string | null
+  createdAt: string
+}
+

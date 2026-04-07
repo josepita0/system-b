@@ -123,4 +123,39 @@ describe('ProductService', () => {
       }),
     ).toThrowError(/categoria activa/i)
   })
+
+  it('paginates list and reports total', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-products-paged-'))
+    process.env.SYSTEM_BARRA_DATA_DIR = directory
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
+
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+    const categoryRepository = new CategoryRepository(db)
+    const products = new ProductRepository(db)
+    const catalogMedia = new CatalogMediaService(categoryRepository, products)
+    const refrescos = categoryRepository.getBySlug('refrescos')
+    const service = new ProductService(products, categoryRepository, catalogMedia)
+
+    const base = service.list(refrescos!.id).length
+    for (let i = 0; i < 4; i++) {
+      service.create({
+        sku: `PAG-T-${i}`,
+        name: `Paginado ${i}`,
+        type: 'simple',
+        categoryId: refrescos!.id,
+        salePrice: 1,
+        minStock: 0,
+      })
+    }
+
+    const first = service.listPaged(refrescos!.id, undefined, 1, 2)
+    expect(first.total).toBe(base + 4)
+    expect(first.items).toHaveLength(2)
+    expect(first.page).toBe(1)
+
+    const searched = service.listPaged(refrescos!.id, 'Paginado 2', 1, 10)
+    expect(searched.items.some((p) => p.name.includes('Paginado 2'))).toBe(true)
+  })
 })

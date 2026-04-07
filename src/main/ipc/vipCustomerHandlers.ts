@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { parsePageParams } from '../../shared/schemas/paginationSchema'
 import { vipCustomerChannels } from '../../shared/ipc/vipCustomers'
 import { getDb } from '../database/connection'
 import { VipCustomerRepository } from '../repositories/vipCustomerRepository'
@@ -19,6 +20,14 @@ export function registerVipCustomerHandlers() {
     executeIpc(() => {
       guards.requirePermission('vip.manage')
       return service.list()
+    }),
+  )
+
+  ipcMain.handle(vipCustomerChannels.listPaged, (_event, raw: unknown) =>
+    executeIpc(() => {
+      guards.requirePermission('vip.manage')
+      const p = parsePageParams(raw ?? {})
+      return service.listPaged(p.page, p.pageSize)
     }),
   )
 

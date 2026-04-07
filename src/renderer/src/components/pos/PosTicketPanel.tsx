@@ -1,4 +1,5 @@
 import { Button } from '@renderer/components/ui/Button'
+import { selectFieldClass } from '@renderer/components/pos/posFieldClasses'
 
 export type TicketCartLine = {
   key: string
@@ -11,6 +12,7 @@ export type TicketCartLine = {
   formatLabel?: string | null
   complementLabel?: string | null
   priceChangeNote: string | null
+  canEditPrice?: boolean
 }
 
 type Props = {
@@ -21,11 +23,17 @@ type Props = {
   salePending: boolean
   saleError: string | null
   hasVipSelected: boolean
+  vipCustomers: { id: number; name: string; conditionType: string }[]
+  vipLoading: boolean
+  selectedVipCustomerId: number | null
+  onSelectVip: (id: number | null) => void
+  vipNote: string | null
   onQuantityChange: (key: string, quantity: number) => void
   onDiscountChange: (key: string, discount: number) => void
   onRemoveLine: (key: string) => void
   onConfirmClick: () => void
   onEditPriceClick: (key: string) => void
+  onEditComplementClick?: (key: string) => void
 }
 
 function LineMeta({ line }: { line: TicketCartLine }) {
@@ -58,11 +66,17 @@ export function PosTicketPanel({
   salePending,
   saleError,
   hasVipSelected,
+  vipCustomers,
+  vipLoading,
+  selectedVipCustomerId,
+  onSelectVip,
+  vipNote,
   onQuantityChange,
   onDiscountChange,
   onRemoveLine,
   onConfirmClick,
   onEditPriceClick,
+  onEditComplementClick,
 }: Props) {
   const confirmDisabled =
     lines.length === 0 || salePending || (saleMode === 'tab' && selectedTabId == null)
@@ -74,6 +88,32 @@ export function PosTicketPanel({
           <h2 className="text-lg font-semibold text-slate-900">Ticket</h2>
           <p className="text-xs text-slate-500">Orden actual</p>
         </div>
+      </div>
+
+      <div className="shrink-0 border-b border-slate-100 bg-slate-50/60 px-3 py-2">
+        <label className="flex items-center gap-2">
+          <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-slate-400" title="Opcional">
+            VIP
+          </span>
+          <select
+            aria-label="Cliente VIP (opcional)"
+            className={`${selectFieldClass} min-w-0 flex-1 py-1.5 text-sm`}
+            disabled={vipLoading}
+            onChange={(e) => {
+              const v = e.target.value
+              onSelectVip(v === '' ? null : Number(v))
+            }}
+            value={selectedVipCustomerId ?? ''}
+          >
+            <option value="">{vipLoading ? 'Cargando...' : 'Sin VIP'}</option>
+            {vipCustomers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} — {c.conditionType === 'exempt' ? 'Exonerado' : 'Manual'}
+              </option>
+            ))}
+          </select>
+        </label>
+        {vipNote ? <p className="mt-1.5 line-clamp-2 text-[11px] leading-snug text-slate-500">{vipNote}</p> : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3">
@@ -162,16 +202,30 @@ export function PosTicketPanel({
                       value={line.discount}
                     />
                   </label> */}
-                  <Button
-                    className="text-xs"
-                    onClick={() => {
-                      onEditPriceClick(line.key)
-                    }}
-                    type="button"
-                    variant="secondary"
-                  >
-                    Cambiar precio
-                  </Button>
+                  {line.canEditPrice === false ? null : (
+                    <Button
+                      className="text-xs"
+                      onClick={() => {
+                        onEditPriceClick(line.key)
+                      }}
+                      type="button"
+                      variant="secondary"
+                    >
+                      Cambiar precio
+                    </Button>
+                  )}
+                  {onEditComplementClick && line.complementLabel ? (
+                    <Button
+                      className="text-xs"
+                      onClick={() => {
+                        onEditComplementClick(line.key)
+                      }}
+                      type="button"
+                      variant="secondary"
+                    >
+                      Cambiar complemento
+                    </Button>
+                  ) : null}
                 </div>
               </li>
             ))}

@@ -6,6 +6,8 @@ import { createDatabase } from '../../src/main/database/connection'
 import { runMigrations } from '../../src/main/database/migrate'
 import { ShiftRepository } from '../../src/main/repositories/shiftRepository'
 import { resolveShiftForDate, ShiftService } from '../../src/main/services/shiftService'
+import { SettingsService } from '../../src/main/services/settingsService'
+import { ValidationError } from '../../src/main/errors'
 
 const cleanupQueue: Array<{ filePath: string; close?: () => void }> = []
 
@@ -36,7 +38,7 @@ describe('ShiftService', () => {
       db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('A','B','employee',1)`).run()
         .lastInsertRowid,
     )
-    const service = new ShiftService(new ShiftRepository(db))
+    const service = new ShiftService(new ShiftRepository(db), new SettingsService(db))
     const opened = service.open(
       {
         shiftCode: 'day',
@@ -55,5 +57,43 @@ describe('ShiftService', () => {
 
     expect(closed.status).toBe('closed')
     expect(closed.differenceCash).toBe(0)
+  })
+
+  it('requires a note when opening cash is below configured minimum', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-shifts-min-'))
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
+
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+    const openerId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('A','B','employee',1)`).run()
+        .lastInsertRowid,
+    )
+    db.prepare('UPDATE settings SET min_opening_cash = ? WHERE id = 1').run(50)
+
+    const service = new ShiftService(new ShiftRepository(db), new SettingsService(db))
+
+    expect(() =>
+      service.open(
+        {
+          shiftCode: 'day',
+          businessDate: '2026-03-18',
+          openingCash: 10,
+        },
+        openerId,
+      ),
+    ).toThrow(ValidationError)
+
+    const opened = service.open(
+      {
+        shiftCode: 'day',
+        businessDate: '2026-03-18',
+        openingCash: 10,
+        openingCashNote: 'Fondo temporalmente bajo',
+      },
+      openerId,
+    )
+    expect(opened.openingCash).toBe(10)
   })
 })

@@ -16,11 +16,13 @@ export interface CashSession {
   openedAt: string
   closedAt: string | null
   openingCash: number
+  /** Motivo si la apertura fue menor al mínimo configurado. */
+  openingCashNote?: string | null
   expectedCash: number | null
   countedCash: number | null
   differenceCash: number | null
   status: 'open' | 'closed'
-  /** Snapshot al cierre: cargos pagaré del turno aún no liquidados (cuentas abiertas). */
+  /** Snapshot al cierre: suma de saldos de todas las cuentas pagaré aún abiertas (cualquier turno). */
   pendingReconcileTotal: number | null
   /** Usuario que abrió el turno (employees.id); null en sesiones anteriores a la migración. */
   openedByUserId: number | null
@@ -33,6 +35,7 @@ export interface OpenShiftInput {
   shiftCode: ShiftCode
   businessDate: string
   openingCash: number
+  openingCashNote?: string | null
 }
 
 export interface CloseShiftInput {
@@ -51,6 +54,7 @@ export interface CashSessionHistoryEntry {
   openedByUserId: number | null
   openedByLabel: string | null
   openingCash: number
+  openingCashNote?: string | null
   expectedCash: number | null
   countedCash: number | null
   differenceCash: number | null

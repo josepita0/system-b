@@ -1,7 +1,14 @@
-import nodemailer from 'nodemailer'
 import type Database from 'better-sqlite3'
+import nodemailer from 'nodemailer'
+import { updateCashSettingsSchema } from '../../shared/schemas/cashSettingsSchema'
 import { updateSmtpSettingsSchema } from '../../shared/schemas/smtpSettingsSchema'
-import type { SmtpSettingsPublic, SmtpTestResult, UpdateSmtpSettingsInput } from '../../shared/types/settings'
+import type {
+  CashSettingsPublic,
+  SmtpSettingsPublic,
+  SmtpTestResult,
+  UpdateCashSettingsInput,
+  UpdateSmtpSettingsInput,
+} from '../../shared/types/settings'
 import { EmailDeliveryError, ValidationError } from '../errors'
 import { encryptString } from '../security/encryption'
 import { resolveSmtpPasswordFromStored } from './smtpConfig'
@@ -13,6 +20,7 @@ type SettingsRow = {
   smtp_password: string | null
   smtp_secure: number | null
   report_recipient_email: string | null
+  min_opening_cash?: number | null
 }
 
 export class SettingsService {
@@ -111,5 +119,27 @@ export class SettingsService {
       const msg = e instanceof Error ? e.message : 'Error desconocido al verificar SMTP.'
       return { ok: false, message: msg }
     }
+  }
+
+  getCashSettingsPublic(): CashSettingsPublic {
+    const row = this.db.prepare('SELECT min_opening_cash FROM settings WHERE id = 1').get() as SettingsRow | undefined
+    const v = row?.min_opening_cash
+    return { minOpeningCash: typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0 }
+  }
+
+  updateCashSettings(input: UpdateCashSettingsInput) {
+    const parsed = updateCashSettingsSchema.safeParse(input)
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '))
+    }
+
+    this.db
+      .prepare(
+        `UPDATE settings
+         SET min_opening_cash = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = 1`,
+      )
+      .run(parsed.data.minOpeningCash)
   }
 }

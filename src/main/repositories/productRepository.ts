@@ -9,6 +9,7 @@ type ProductRow = {
   category_id: number
   category_name: string
   category_slug: string
+  consumption_mode: string
   sale_price: number
   min_stock: number
   is_active: number
@@ -30,6 +31,7 @@ function mapRow(row: ProductRow): Product {
     categoryId: row.category_id,
     categoryName: row.category_name,
     categorySlug: row.category_slug,
+    consumptionMode: row.consumption_mode === 'progressive' ? 'progressive' : 'unit',
     salePrice: row.sale_price,
     minStock: row.min_stock,
     isActive: row.is_active,
@@ -72,6 +74,66 @@ export class ProductRepository {
     const rows = this.db
       .prepare(`${this.baseSelect} WHERE p.is_active = 1 AND p.category_id IN (${placeholders}) ORDER BY p.name ASC`)
       .all(...categoryIds) as ProductRow[]
+
+    return rows.map(mapRow)
+  }
+
+  private buildListActiveWhere(categoryId?: number, search?: string) {
+    const parts = ['p.is_active = 1']
+    const params: unknown[] = []
+    if (typeof categoryId === 'number') {
+      parts.push('p.category_id = ?')
+      params.push(categoryId)
+    }
+    const raw = search?.trim()
+    if (raw) {
+      parts.push('(INSTR(LOWER(p.name), LOWER(?)) > 0 OR INSTR(LOWER(p.sku), LOWER(?)) > 0)')
+      params.push(raw, raw)
+    }
+    return { where: `WHERE ${parts.join(' AND ')}`, params }
+  }
+
+  countListPaged(categoryId: number | undefined, search: string | undefined) {
+    const { where, params } = this.buildListActiveWhere(categoryId, search)
+    const row = this.db
+      .prepare(`SELECT COUNT(*) AS c FROM products p INNER JOIN categories c ON c.id = p.category_id ${where}`)
+      .get(...params) as { c: number }
+    return row.c
+  }
+
+  listPaged(categoryId: number | undefined, search: string | undefined, limit: number, offset: number) {
+    const { where, params } = this.buildListActiveWhere(categoryId, search)
+    const rows = this.db
+      .prepare(`${this.baseSelect} ${where} ORDER BY p.name ASC LIMIT ? OFFSET ?`)
+      .all(...params, limit, offset) as ProductRow[]
+
+    return rows.map(mapRow)
+  }
+
+  private buildProgressiveWhere(search?: string) {
+    const parts = ["p.is_active = 1", "p.consumption_mode = 'progressive'"]
+    const params: unknown[] = []
+    const raw = search?.trim()
+    if (raw) {
+      parts.push('(INSTR(LOWER(p.name), LOWER(?)) > 0 OR INSTR(LOWER(p.sku), LOWER(?)) > 0)')
+      params.push(raw, raw)
+    }
+    return { where: `WHERE ${parts.join(' AND ')}`, params }
+  }
+
+  countProgressivePaged(search: string | undefined) {
+    const { where, params } = this.buildProgressiveWhere(search)
+    const row = this.db
+      .prepare(`SELECT COUNT(*) AS c FROM products p INNER JOIN categories c ON c.id = p.category_id ${where}`)
+      .get(...params) as { c: number }
+    return row.c
+  }
+
+  listProgressivePaged(search: string | undefined, limit: number, offset: number) {
+    const { where, params } = this.buildProgressiveWhere(search)
+    const rows = this.db
+      .prepare(`${this.baseSelect} ${where} ORDER BY p.name ASC LIMIT ? OFFSET ?`)
+      .all(...params, limit, offset) as ProductRow[]
 
     return rows.map(mapRow)
   }

@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@renderer/components/ui/Button'
 import { Card } from '@renderer/components/ui/Card'
+import { TablePagination } from '@renderer/components/ui/TablePagination'
 import { cn } from '@renderer/lib/cn'
 import { tableTheadClass } from '@renderer/lib/tableStyles'
 import type { VipCustomer, VipCustomerConditionType, VipCustomerInput } from '@shared/types/vipCustomer'
-
-const vipCustomersKey = ['vipCustomers', 'list'] as const
+import { DEFAULT_PAGE_SIZE } from '@shared/types/pagination'
 
 const conditionLabel: Record<VipCustomerConditionType, string> = {
   discount_manual: 'Precio diferenciado (manual)',
@@ -22,19 +22,34 @@ export function VipCustomersPage() {
   const [selected, setSelected] = useState<VipCustomer | null>(null)
   const [form, setForm] = useState<VipCustomerInput>(emptyForm())
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   const listQuery = useQuery({
-    queryKey: vipCustomersKey,
-    queryFn: () => window.api.vipCustomers.list(),
+    queryKey: ['vipCustomers', 'paged', page, pageSize],
+    queryFn: () => window.api.vipCustomers.listPaged({ page, pageSize }),
   })
 
   const selectedId = selected?.id ?? null
   const isEditing = selectedId != null
 
-  const sorted = useMemo(() => (listQuery.data ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)), [listQuery.data])
+  const rows = listQuery.data?.items ?? []
+  const totalVip = listQuery.data?.total ?? 0
+
+  const maxPage = useMemo(() => Math.max(1, Math.ceil(totalVip / pageSize)), [totalVip, pageSize])
+
+  useEffect(() => {
+    if (page > maxPage) {
+      setPage(maxPage)
+    }
+  }, [page, maxPage])
+
+  useEffect(() => {
+    setPage(1)
+  }, [pageSize])
 
   const refresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: vipCustomersKey })
+    await queryClient.invalidateQueries({ queryKey: ['vipCustomers'] })
   }
 
   const createMutation = useMutation({
@@ -140,7 +155,7 @@ export function VipCustomersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((row, index) => {
+                  {rows.map((row, index) => {
                     const isSelected = selectedId === row.id
                     return (
                       <tr
@@ -175,7 +190,7 @@ export function VipCustomersPage() {
                       </tr>
                     )
                   })}
-                  {!sorted.length ? (
+                  {!rows.length ? (
                     <tr>
                       <td className="px-4 py-10 text-center text-slate-500" colSpan={3}>
                         Sin clientes VIP.
@@ -184,6 +199,13 @@ export function VipCustomersPage() {
                   ) : null}
                 </tbody>
               </table>
+              <TablePagination
+                page={page}
+                pageSize={pageSize}
+                total={totalVip}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+              />
             </div>
           ) : null}
         </Card>

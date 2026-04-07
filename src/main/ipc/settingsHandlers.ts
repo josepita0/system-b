@@ -4,7 +4,7 @@ import { getDb } from '../database/connection'
 import { appendAppLogError } from '../logging/appLog'
 import { AuthService } from '../services/authService'
 import { AuthorizationService } from '../services/authorizationService'
-import type { UpdateSmtpSettingsInput } from '../../shared/types/settings'
+import type { UpdateCashSettingsInput, UpdateSmtpSettingsInput } from '../../shared/types/settings'
 import { SettingsService } from '../services/settingsService'
 import { createIpcGuards } from './guards'
 import { executeIpc } from './response'
@@ -37,6 +37,20 @@ export function registerSettingsHandlers() {
         appendAppLogError('settings:testSmtp', new Error(result.message))
       }
       return result
+    }),
+  )
+
+  ipcMain.handle(settingsChannels.getCashSettings, () =>
+    executeIpc(() => {
+      guards.requireUser()
+      return settingsService.getCashSettingsPublic()
+    }),
+  )
+
+  ipcMain.handle(settingsChannels.updateCashSettings, (_event, payload: unknown) =>
+    executeIpc(() => {
+      guards.requireRole('manager')
+      settingsService.updateCashSettings(payload as UpdateCashSettingsInput)
     }),
   )
 }

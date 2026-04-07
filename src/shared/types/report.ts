@@ -53,13 +53,13 @@ export interface ShiftCloseReport {
   closedByLabel: string
   /** Código ISO de moneda para formateo (p. ej. EUR, VES, USD). */
   currencyCode: string
-  /** Cargos a cuenta registrados en este turno aún no cobrados al momento del cierre. */
+  /** Suma de saldos pendientes de cuentas pagaré abiertas (mismo criterio que «Por conciliar» al cerrar). */
   shiftPendingReconcile: number
   /** Fecha y hora del cierre de sesión (solo si el PDF se genera con la caja ya cerrada). */
   closureAtLabel?: string | null
   productsSold: ProductSalesTotal[]
-  /** Cuentas de cliente abiertas en este turno (nueva tabla en el PDF). */
-  accountsOpenedInShift: AccountOpenedInShift[]
+  /** Cuentas pagaré abiertas con saldo pendiente (cualquier turno de apertura). */
+  accountsPendingLiquidation: AccountOpenedInShift[]
   pdfPath: string
   /** Si el correo con PDF se envió en el acto por SMTP (sin depender de la cola). */
   emailSentImmediately?: boolean

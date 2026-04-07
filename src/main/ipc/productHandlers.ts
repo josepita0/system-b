@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { productListPagedInputSchema, progressiveProductsPagedInputSchema } from '../../shared/schemas/paginationSchema'
 import { productChannels } from '../../shared/ipc/products'
 import { getDb } from '../database/connection'
 import { CategoryRepository } from '../repositories/categoryRepository'
@@ -29,6 +30,20 @@ export function registerProductHandlers() {
     executeIpc(() => {
       guards.requirePermission('products.manage')
       return productService.list(categoryId)
+    }),
+  )
+  ipcMain.handle(productChannels.listPaged, (_event, raw: unknown) =>
+    executeIpc(() => {
+      guards.requirePermission('products.manage')
+      const p = productListPagedInputSchema.parse(raw ?? {})
+      return productService.listPaged(p.categoryId, p.search, p.page, p.pageSize)
+    }),
+  )
+  ipcMain.handle(productChannels.listProgressivePaged, (_event, raw: unknown) =>
+    executeIpc(() => {
+      guards.requirePermission('products.manage')
+      const p = progressiveProductsPagedInputSchema.parse(raw ?? {})
+      return productService.listProgressivePaged(p.search, p.page, p.pageSize)
     }),
   )
   ipcMain.handle(productChannels.getById, (_event, id: number) =>

@@ -1,9 +1,11 @@
 import { ipcMain } from 'electron'
+import { parsePageParams } from '../../shared/schemas/paginationSchema'
 import { shiftChannels } from '../../shared/ipc/shifts'
 import { getDb } from '../database/connection'
 import { ShiftRepository } from '../repositories/shiftRepository'
 import { AuthService } from '../services/authService'
 import { AuthorizationService } from '../services/authorizationService'
+import { SettingsService } from '../services/settingsService'
 import { ShiftService } from '../services/shiftService'
 import { ValidationError } from '../errors'
 import { createIpcGuards } from './guards'
@@ -11,7 +13,7 @@ import { executeIpc } from './response'
 
 export function registerShiftHandlers() {
   const db = getDb()
-  const service = new ShiftService(new ShiftRepository(db))
+  const service = new ShiftService(new ShiftRepository(db), new SettingsService(db))
   const auth = new AuthService(db)
   const guards = createIpcGuards(auth, new AuthorizationService())
 
@@ -37,6 +39,13 @@ export function registerShiftHandlers() {
     executeIpc(() => {
       const actor = guards.requireUser()
       return service.listHistory(actor)
+    }),
+  )
+  ipcMain.handle(shiftChannels.listHistoryPaged, (_event, raw: unknown) =>
+    executeIpc(() => {
+      const actor = guards.requireUser()
+      const p = parsePageParams(raw ?? {})
+      return service.listHistoryPaged(actor, p.page, p.pageSize)
     }),
   )
   ipcMain.handle(shiftChannels.getSessionDetail, (_event, sessionId: unknown) =>

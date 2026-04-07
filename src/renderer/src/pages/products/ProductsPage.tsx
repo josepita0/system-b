@@ -17,10 +17,11 @@ import { ProductTable } from '@renderer/components/products/ProductTable'
 import { Button } from '@renderer/components/ui/Button'
 import { Card } from '@renderer/components/ui/Card'
 import { Modal } from '@renderer/components/ui/Modal'
+import { TablePagination } from '@renderer/components/ui/TablePagination'
 import { cn } from '@renderer/lib/cn'
+import { DEFAULT_PAGE_SIZE } from '@shared/types/pagination'
 import { selectFieldClass } from '@renderer/components/pos/posFieldClasses'
 
-const productListKey = (categoryId: number | null) => ['products', 'list', { categoryId }] as const
 const categoriesKey = ['products', 'categories'] as const
 const saleFormatsKey = ['products', 'sale-formats'] as const
 
@@ -42,6 +43,8 @@ export function ProductsPage() {
   const [categoryModalDefaultParentId, setCategoryModalDefaultParentId] = useState<number | null>(null)
   const [productDrawerOpen, setProductDrawerOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   const categoriesQuery = useQuery({
     queryKey: categoriesKey,
@@ -136,17 +139,34 @@ export function ProductsPage() {
   }, [selectedRootId, categoryEntities])
 
   const productsQuery = useQuery({
-    queryKey: productListKey(selectedCategoryId),
-    queryFn: () => window.api.products.list(selectedCategoryId ?? undefined),
+    queryKey: ['products', 'list', 'paged', selectedCategoryId, page, pageSize, search],
+    queryFn: () =>
+      window.api.products.listPaged({
+        page,
+        pageSize,
+        categoryId: selectedCategoryId ?? undefined,
+        search: search.trim() || undefined,
+      }),
     enabled: selectedCategoryId !== null,
   })
 
-  const refreshProducts = async () => {
-    if (selectedCategoryId === null) {
-      return
-    }
+  const pagedProducts = productsQuery.data?.items ?? []
+  const totalProductsList = productsQuery.data?.total ?? 0
 
-    await queryClient.invalidateQueries({ queryKey: productListKey(selectedCategoryId) })
+  const maxProductPage = useMemo(() => Math.max(1, Math.ceil(totalProductsList / pageSize)), [totalProductsList, pageSize])
+
+  useEffect(() => {
+    if (page > maxProductPage) {
+      setPage(maxProductPage)
+    }
+  }, [page, maxProductPage])
+
+  useEffect(() => {
+    setPage(1)
+  }, [selectedCategoryId, search, pageSize])
+
+  const refreshProducts = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['products'] })
   }
 
   const refreshCategories = async () => {
@@ -302,15 +322,6 @@ export function ProductsPage() {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible guardar los formatos de la categoria.')
     },
   })
-
-  const filteredProducts = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    if (!term) {
-      return productsQuery.data ?? []
-    }
-
-    return (productsQuery.data ?? []).filter((product) => product.name.toLowerCase().includes(term))
-  }, [productsQuery.data, search])
 
   const categoryModalTitle = editingCategory
     ? 'Editar categoria'
@@ -533,8 +544,15 @@ export function ProductsPage() {
             <ProductTable
               onDelete={(id) => deleteMutation.mutate(id)}
               onEdit={openEditProduct}
-              products={filteredProducts}
+              products={pagedProducts}
               selectedProductId={selected?.id ?? null}
+            />
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              total={totalProductsList}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
             />
           </div>
         </Card>

@@ -27,6 +27,7 @@ function mapSession(row: any): CashSession {
     openedAt: row.opened_at,
     closedAt: row.closed_at,
     openingCash: row.opening_cash,
+    openingCashNote: row.opening_cash_note ?? null,
     expectedCash: row.expected_cash,
     countedCash: row.counted_cash,
     differenceCash: row.difference_cash,
@@ -56,13 +57,19 @@ export class ShiftRepository {
     return row ? mapSession(row) : null
   }
 
-  createSession(shiftId: number, businessDate: string, openingCash: number, openedByUserId: number) {
+  createSession(
+    shiftId: number,
+    businessDate: string,
+    openingCash: number,
+    openedByUserId: number,
+    openingCashNote: string | null,
+  ) {
     const result = this.db
       .prepare(
-        `INSERT INTO cash_sessions (shift_id, business_date, opening_cash, opened_by_user_id)
-         VALUES (?, ?, ?, ?)`,
+        `INSERT INTO cash_sessions (shift_id, business_date, opening_cash, opening_cash_note, opened_by_user_id)
+         VALUES (?, ?, ?, ?, ?)`,
       )
-      .run(shiftId, businessDate, openingCash, openedByUserId)
+      .run(shiftId, businessDate, openingCash, openingCashNote, openedByUserId)
 
     return this.getSessionById(Number(result.lastInsertRowid))!
   }
@@ -98,20 +105,22 @@ export class ShiftRepository {
   }
 
   /**
-   * Cargos a cuenta registrados en este turno cuya cuenta sigue abierta (por conciliar al cierre).
+   * Suma de saldos pendientes de todas las cuentas pagaré abiertas (cargos tab_charge),
+   * sin importar en qué turno se abrió la cuenta ni en cuál se registró el cargo.
+   * Alineado con el total de la tabla «Cuentas pendientes por liquidar» y con el snapshot al cerrar.
    */
-  getPendingReconcileForSession(sessionId: number) {
+  getTotalPendingReconcileOpenTabs() {
     const row = this.db
       .prepare(
-        `SELECT COALESCE(SUM(s.total), 0) AS total
-         FROM sales s
+        `SELECT COALESCE(SUM(si.subtotal), 0) AS total
+         FROM sale_items si
+         INNER JOIN sales s ON s.id = si.sale_id
          INNER JOIN customer_tabs t ON t.id = s.tab_id
-         WHERE s.cash_session_id = ?
-           AND s.sale_type = 'tab_charge'
+         WHERE s.sale_type = 'tab_charge'
            AND t.status = 'open'`,
       )
-      .get(sessionId) as { total: number }
-    return row.total
+      .get() as { total: number }
+    return Number(row.total)
   }
 
   getLatestClosedSessionId() {
@@ -170,6 +179,11 @@ export class ShiftRepository {
     return Boolean(row)
   }
 
+  countClosedSessions() {
+    const row = this.db.prepare("SELECT COUNT(*) AS c FROM cash_sessions WHERE status = 'closed'").get() as { c: number }
+    return row.c
+  }
+
   listClosedSessionsForManager(limit: number, offset: number) {
     const rows = this.db
       .prepare(
@@ -212,6 +226,7 @@ export class ShiftRepository {
       openedByUserId: row.opened_by_user_id != null ? Number(row.opened_by_user_id) : null,
       openedByLabel: label,
       openingCash: Number(row.opening_cash),
+      openingCashNote: row.opening_cash_note ?? null,
       expectedCash: row.expected_cash != null ? Number(row.expected_cash) : null,
       countedCash: row.counted_cash != null ? Number(row.counted_cash) : null,
       differenceCash: row.difference_cash != null ? Number(row.difference_cash) : null,
@@ -225,7 +240,7 @@ export class ShiftRepository {
     if (row.status === 'open') {
       const sid = Number(row.id)
       const cashSales = this.getSalesTotalForSession(sid)
-      const pending = this.getPendingReconcileForSession(sid)
+      const pending = this.getTotalPendingReconcileOpenTabs()
       return {
         ...base,
         liveExpectedCash: Math.round((Number(row.opening_cash) + cashSales) * 100) / 100,
@@ -244,7 +259,7 @@ export class ShiftRepository {
     const rows = this.db
       .prepare(
         `SELECT cs.id, cs.shift_id, cs.business_date, cs.opened_at, cs.closed_at,
-                cs.opening_cash, cs.expected_cash, cs.counted_cash, cs.difference_cash,
+               cs.opening_cash, cs.opening_cash_note, cs.expected_cash, cs.counted_cash, cs.difference_cash,
                 cs.status, cs.pending_reconcile_total, cs.opened_by_user_id,
                 COALESCE(s.name, 'Turno') AS shift_name,
                 e.first_name AS opened_by_first_name,
@@ -271,6 +286,7 @@ export class ShiftRepository {
         openedByUserId: row.opened_by_user_id != null ? Number(row.opened_by_user_id) : null,
         openedByLabel: label,
         openingCash: Number(row.opening_cash),
+        openingCashNote: row.opening_cash_note ?? null,
         expectedCash: row.expected_cash != null ? Number(row.expected_cash) : null,
         countedCash: row.counted_cash != null ? Number(row.counted_cash) : null,
         differenceCash: row.difference_cash != null ? Number(row.difference_cash) : null,
@@ -341,6 +357,33 @@ export class ShiftRepository {
       opened_at: string
     }>
 
+    return this.mapTabRowsToAccountsOpened(tabs)
+  }
+
+  /**
+   * Cuentas pagaré aún abiertas con saldo pendiente, sin filtrar por turno de apertura
+   * (para el PDF de cierre y la misma visión que «Liquidar cuenta» en el POS).
+   */
+  getOpenPendingAccountsToLiquidate(): AccountOpenedInShift[] {
+    const tabs = this.db
+      .prepare(
+        `SELECT id, customer_name, opened_at
+         FROM customer_tabs
+         WHERE status = 'open'
+         ORDER BY opened_at ASC`,
+      )
+      .all() as Array<{
+      id: number
+      customer_name: string
+      opened_at: string
+    }>
+
+    return this.mapTabRowsToAccountsOpened(tabs).filter((a) => a.balanceTotal > 0.00001)
+  }
+
+  private mapTabRowsToAccountsOpened(
+    tabs: Array<{ id: number; customer_name: string; opened_at: string }>,
+  ): AccountOpenedInShift[] {
     const linesStmt = this.db.prepare(
       `SELECT si.product_name AS product_name, si.quantity AS quantity, si.subtotal AS subtotal
        FROM sale_items si

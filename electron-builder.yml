@@ -1,5 +1,9 @@
 appId: com.systembarra.desktop
 productName: Sistema Barra
+# Icono del .exe y barra de tareas (Windows): build/icon.png (PNG ≥256×256).
+directories:
+  buildResources: build
+icon: icon.png
 # better-sqlite3 (.node) debe ir fuera del asar; electron-builder suele desempaquetarlo solo.
 asarUnpack:
   - node_modules/better-sqlite3/**
@@ -10,6 +14,7 @@ files:
 extraMetadata:
   main: dist-electron/src/main/index.js
 win:
+  icon: icon.png
   signAndEditExecutable: false
   # `store` reduce trabajo de compresion y el tamano del paquete intermedio (menos superficie para fallos al empaquetar).
   compression: store

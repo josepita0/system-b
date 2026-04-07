@@ -25,3 +25,12 @@ export interface SmtpTestResult {
   ok: boolean
   message: string
 }
+
+export interface CashSettingsPublic {
+  /** Monto mínimo recomendado/permitido para apertura de caja. */
+  minOpeningCash: number
+}
+
+export interface UpdateCashSettingsInput {
+  minOpeningCash: number
+}

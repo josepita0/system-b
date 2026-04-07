@@ -84,14 +84,14 @@ export function UserActionsMenu({ onEdit, onView, onGenerateLicensePanelCode }: 
               style={{ left: position.left, top: position.top }}
             >
               <button
-                className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
+                className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50 cursor-pointer"
                 onClick={() => handleAction(onView)}
                 type="button"
               >
                 Ver
               </button>
               <button
-                className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50"
+                className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50 cursor-pointer"
                 onClick={() => handleAction(onEdit)}
                 type="button"
               >
@@ -99,7 +99,7 @@ export function UserActionsMenu({ onEdit, onView, onGenerateLicensePanelCode }: 
               </button>
               {onGenerateLicensePanelCode ? (
                 <button
-                  className="block w-full px-3 py-2 text-left text-sm text-amber-800 hover:bg-amber-50"
+                  className="block w-full px-3 py-2 text-left text-sm text-amber-800 hover:bg-amber-50 cursor-pointer"
                   onClick={() => handleAction(onGenerateLicensePanelCode)}
                   type="button"
                 >

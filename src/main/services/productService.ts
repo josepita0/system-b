@@ -1,5 +1,8 @@
 import { ZodError } from 'zod'
+import type { Product } from '../../shared/types/product'
+import type { PagedResult } from '../../shared/types/pagination'
 import type { ProductInput, ProductUpdateInput } from '../../shared/types/product'
+import { offsetForPage } from '../../shared/schemas/paginationSchema'
 import { productSchema, productUpdateSchema } from '../../shared/schemas/productSchema'
 import { ConflictError, NotFoundError, ValidationError } from '../errors'
 import { CategoryRepository } from '../repositories/categoryRepository'
@@ -26,6 +29,27 @@ export class ProductService {
     }
 
     return this.repository.list(categoryId)
+  }
+
+  listPaged(categoryId: number | undefined, search: string | undefined, page: number, pageSize: number): PagedResult<Product> {
+    if (typeof categoryId === 'number') {
+      const category = this.categories.getById(categoryId)
+      if (!category || !category.isActive) {
+        throw new NotFoundError('Categoria no encontrada.')
+      }
+    }
+
+    const total = this.repository.countListPaged(categoryId, search)
+    const offset = offsetForPage(page, pageSize)
+    const items = this.repository.listPaged(categoryId, search, pageSize, offset)
+    return { items, total, page, pageSize }
+  }
+
+  listProgressivePaged(search: string | undefined, page: number, pageSize: number): PagedResult<Product> {
+    const total = this.repository.countProgressivePaged(search)
+    const offset = offsetForPage(page, pageSize)
+    const items = this.repository.listProgressivePaged(search, pageSize, offset)
+    return { items, total, page, pageSize }
   }
 
   getById(id: number) {

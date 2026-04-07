@@ -1,3 +1,4 @@
+import { offsetForPage } from '../../shared/schemas/paginationSchema'
 import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
 import { ProductLotRepository } from '../repositories/productLotRepository'
 import { ValidationError } from '../errors'
@@ -21,6 +22,28 @@ export class InventoryService {
 
   listBalance() {
     return this.repository.listBalance()
+  }
+
+  listMovementHistory(limit?: number) {
+    return this.repository.listMovementHistory(limit)
+  }
+
+  balanceSummary() {
+    return this.repository.balanceSummary()
+  }
+
+  listBalancePaged(page: number, pageSize: number) {
+    const total = this.repository.countBalanceRows()
+    const offset = offsetForPage(page, pageSize)
+    const rows = this.repository.listBalancePaged(pageSize, offset)
+    return { items: rows, total, page, pageSize }
+  }
+
+  listMovementHistoryPaged(page: number, pageSize: number) {
+    const total = this.repository.countMovements()
+    const offset = offsetForPage(page, pageSize)
+    const rows = this.repository.listMovementHistoryPaged(pageSize, offset)
+    return { items: rows, total, page, pageSize }
   }
 
   postOpening(payload: InventoryMovementInput) {

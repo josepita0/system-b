@@ -1,3 +1,4 @@
+import type { PagedResult } from '../types/pagination'
 import type {
   Category,
   CategoryInput,
@@ -14,6 +15,8 @@ import type {
 
 export const productChannels = {
   list: 'products:list',
+  listPaged: 'products:listPaged',
+  listProgressivePaged: 'products:listProgressivePaged',
   getById: 'products:getById',
   create: 'products:create',
   update: 'products:update',
@@ -40,6 +43,8 @@ export const productChannels = {
 
 export interface ProductApi {
   list: (categoryId?: number) => Promise<Product[]>
+  listPaged: (params: unknown) => Promise<PagedResult<Product>>
+  listProgressivePaged: (params: unknown) => Promise<PagedResult<Product>>
   getById: (id: number) => Promise<Product | null>
   create: (payload: ProductInput) => Promise<Product>
   update: (payload: ProductUpdateInput) => Promise<Product>
