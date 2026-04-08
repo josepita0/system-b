@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import type { RowInput } from 'jspdf-autotable'
 import type Database from 'better-sqlite3'
 import type { AccountOpenedInShift, ReplenishmentItem, ShiftCloseReport } from '../../shared/types/report'
 import { ReportGenerationError } from '../errors'
@@ -583,7 +584,7 @@ function createPdf(report: ShiftCloseReport): string {
           ]
         })
 
-  const restockFoot =
+  const restockFoot: RowInput[] | undefined =
     report.replenishment.length === 0
       ? undefined
       : [
@@ -594,8 +595,8 @@ function createPdf(report: ShiftCloseReport): string {
               styles: {
                 fillColor: C.barGreen,
                 textColor: 255,
-                fontStyle: 'bold',
-                halign: 'left',
+                fontStyle: 'bold' as const,
+                halign: 'left' as const,
                 cellPadding: { top: 10, right: 8, bottom: 10, left: 10 },
               },
             },
@@ -604,8 +605,8 @@ function createPdf(report: ShiftCloseReport): string {
               styles: {
                 fillColor: C.barGreen,
                 textColor: 255,
-                fontStyle: 'bold',
-                halign: 'right',
+                fontStyle: 'bold' as const,
+                halign: 'right' as const,
                 cellPadding: { top: 10, right: 10, bottom: 10, left: 8 },
               },
             },

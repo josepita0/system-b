@@ -281,9 +281,9 @@ export function DashboardPage() {
             <Button onClick={handleRefresh} variant="secondary">
               Actualizar
             </Button>
-            <Button onClick={handleExport} variant="primary">
+            {/* <Button onClick={handleExport} variant="primary">
               Exportar
-            </Button>
+            </Button> */}
           </div>
         </div>
       </div>
