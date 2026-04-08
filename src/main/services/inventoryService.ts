@@ -32,10 +32,10 @@ export class InventoryService {
     return this.repository.balanceSummary()
   }
 
-  listBalancePaged(page: number, pageSize: number) {
-    const total = this.repository.countBalanceRows()
+  listBalancePaged(page: number, pageSize: number, search?: string, categoryId?: number) {
+    const total = this.repository.countBalanceRowsFiltered(search, categoryId)
     const offset = offsetForPage(page, pageSize)
-    const rows = this.repository.listBalancePaged(pageSize, offset)
+    const rows = this.repository.listBalancePaged(pageSize, offset, search, categoryId)
     return { items: rows, total, page, pageSize }
   }
 

@@ -24,10 +24,11 @@ export function VipCustomersPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [search, setSearch] = useState('')
 
   const listQuery = useQuery({
-    queryKey: ['vipCustomers', 'paged', page, pageSize],
-    queryFn: () => window.api.vipCustomers.listPaged({ page, pageSize }),
+    queryKey: ['vipCustomers', 'paged', page, pageSize, search],
+    queryFn: () => window.api.vipCustomers.listPaged({ page, pageSize, search: search.trim() || undefined }),
   })
 
   const selectedId = selected?.id ?? null
@@ -46,7 +47,7 @@ export function VipCustomersPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [pageSize])
+  }, [pageSize, search])
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['vipCustomers'] })
@@ -136,6 +137,17 @@ export function VipCustomersPage() {
             </Button>
           </div>
           <p className="mt-1 text-xs text-slate-500">Seleccione una fila para cargarla en el formulario.</p>
+
+          <label className="mt-4 block text-sm text-slate-700">
+            Buscar
+            <input
+              className={inputClass}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Nombre, documento o teléfono"
+              type="search"
+              value={search}
+            />
+          </label>
 
           {listQuery.isLoading ? <div className="mt-4 text-sm text-slate-500">Cargando...</div> : null}
           {listQuery.error ? (

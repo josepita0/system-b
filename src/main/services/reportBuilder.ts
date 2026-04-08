@@ -4,7 +4,12 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { RowInput } from 'jspdf-autotable'
 import type Database from 'better-sqlite3'
-import type { AccountOpenedInShift, ReplenishmentItem, ShiftCloseReport } from '../../shared/types/report'
+import type {
+  AccountOpenedInShift,
+  CancelledEmptyAccountInShift,
+  ReplenishmentItem,
+  ShiftCloseReport,
+} from '../../shared/types/report'
 import { ReportGenerationError } from '../errors'
 import { getDatabasePath } from '../database/connection'
 import { InventoryRepository } from '../repositories/inventoryRepository'
@@ -33,6 +38,7 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
   const daySalesTotal = shiftRepository.getSalesTotalForSession(sessionId)
   const productsSold = getProductsSoldForSession(db, sessionId)
   const accountsPendingLiquidation = shiftRepository.getOpenPendingAccountsToLiquidate()
+  const cancelledEmptyAccounts = shiftRepository.getCancelledEmptyAccountsInSession(sessionId)
   /** Misma base que el cierre de turno y la suma de «Total cuenta» (todas las cuentas abiertas). */
   const shiftPendingReconcile = Math.round(shiftRepository.getTotalPendingReconcileOpenTabs() * 100) / 100
   const closedByLabel = getClosedByLabel(db, session.openedByUserId)
@@ -44,6 +50,7 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
     sessionId,
     businessDate: session.businessDate,
     shiftName: shift.name,
+    closingNote: session.closingNote ?? null,
     inventory: inventory.map((item: any) => ({
       ingredientId: item.ingredient_id,
       ingredientName: item.ingredient_name,
@@ -66,6 +73,7 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
     closureAtLabel,
     productsSold,
     accountsPendingLiquidation,
+    cancelledEmptyAccounts,
     pdfPath: '',
   })
 
@@ -73,6 +81,7 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
     sessionId,
     businessDate: session.businessDate,
     shiftName: shift.name,
+    closingNote: session.closingNote ?? null,
     inventory: inventory.map((item: any) => ({
       ingredientId: item.ingredient_id,
       ingredientName: item.ingredient_name,
@@ -95,6 +104,7 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
     closureAtLabel,
     productsSold,
     accountsPendingLiquidation,
+    cancelledEmptyAccounts,
     pdfPath,
   } satisfies ShiftCloseReport
 }
@@ -330,6 +340,23 @@ function createPdf(report: ShiftCloseReport): string {
 
   let startY = margin + headerH + 16
 
+  const closingNote = report.closingNote?.trim() ? report.closingNote.trim() : null
+  if (closingNote) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(30, 32, 38)
+    doc.text('Nota de cierre', margin, startY)
+    startY += 12
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(60, 64, 72)
+    const maxW = innerW
+    const lines = doc.splitTextToSize(closingNote, maxW)
+    doc.text(lines, margin, startY)
+    startY += Math.min(60, lines.length * 11 + 8)
+  }
+
   const fmt = formatEuro
   const cardFills = [C.cardBlue, C.cardGreen, C.cardGrey]
 
@@ -382,6 +409,55 @@ function createPdf(report: ShiftCloseReport): string {
 
   const afterCards = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY
   startY = afterCards + 22
+
+  const cancelled = (report.cancelledEmptyAccounts ?? []).filter((a) => a.reason.trim().length > 0)
+  if (cancelled.length > 0) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(30, 32, 38)
+    doc.text('Cuentas canceladas (vacías)', margin, startY)
+    startY += 14
+
+    autoTable(doc, {
+      startY,
+      head: [['Cliente', 'Cancelada', 'Usuario', 'Motivo']],
+      body: cancelled.map((a) => [
+        a.customerName,
+        formatOpenedAtLabel(a.cancelledAt),
+        a.cancelledByLabel,
+        a.reason.length > 160 ? `${a.reason.slice(0, 157)}...` : a.reason,
+      ]),
+      theme: 'grid',
+      tableWidth: innerW,
+      margin: { left: margin, right: margin },
+      styles: {
+        fontSize: 9,
+        cellPadding: { top: 7, right: 8, bottom: 7, left: 8 },
+        lineColor: C.border,
+        lineWidth: 0.35,
+        valign: 'top',
+        overflow: 'linebreak',
+      },
+      headStyles: {
+        fillColor: C.tableHead,
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 8,
+      },
+      alternateRowStyles: {
+        fillColor: C.zebra,
+      },
+      columnStyles: {
+        0: { cellWidth: innerW * 0.2, halign: 'left' },
+        1: { cellWidth: innerW * 0.22, halign: 'left' },
+        2: { cellWidth: innerW * 0.18, halign: 'left' },
+        3: { cellWidth: innerW * 0.4, halign: 'left' },
+      },
+    })
+
+    const afterCancelled = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY
+    startY = afterCancelled + 22
+  }
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)

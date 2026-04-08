@@ -28,7 +28,9 @@ export class TabRepository {
       .prepare(
         `SELECT id, customer_name AS customerName, status, opened_at AS openedAt,
                 opened_cash_session_id AS openedCashSessionId,
-                settled_at AS settledAt, settled_cash_session_id AS settledCashSessionId
+                settled_at AS settledAt, settled_cash_session_id AS settledCashSessionId,
+                cancelled_at AS cancelledAt, cancelled_cash_session_id AS cancelledCashSessionId,
+                cancelled_by_employee_id AS cancelledByEmployeeId, cancel_reason AS cancelReason
          FROM customer_tabs WHERE id = ?`,
       )
       .get(id) as
@@ -40,6 +42,10 @@ export class TabRepository {
           openedCashSessionId: number
           settledAt: string | null
           settledCashSessionId: number | null
+          cancelledAt: string | null
+          cancelledCashSessionId: number | null
+          cancelledByEmployeeId: number | null
+          cancelReason: string | null
         }
       | undefined
     return row
@@ -136,6 +142,38 @@ export class TabRepository {
       }
       const row = this.db.prepare('SELECT CURRENT_TIMESTAMP AS created_at').get() as { created_at: string }
       return { createdAt: row.created_at }
+    })()
+  }
+
+  cancelEmptyTab(tabId: number, cashSessionId: number, employeeId: number, reason: string) {
+    const note = reason.trim()
+    if (!note) {
+      throw new ConflictError('Indique el motivo de la cancelación.')
+    }
+    return this.db.transaction(() => {
+      const total = this.getTabChargeTotal(tabId)
+      if (Math.abs(total) > 0.00001) {
+        throw new ConflictError('No se puede cancelar: la cuenta tiene artículos.')
+      }
+      const upd = this.db
+        .prepare(
+          `UPDATE customer_tabs
+           SET status = 'cancelled',
+               cancelled_at = CURRENT_TIMESTAMP,
+               cancelled_cash_session_id = ?,
+               cancelled_by_employee_id = ?,
+               cancel_reason = ?
+           WHERE id = ? AND status = 'open'`,
+        )
+        .run(cashSessionId, employeeId, note, tabId)
+      if (upd.changes === 0) {
+        throw new ConflictError('La cuenta no pudo cancelarse (estado inesperado).')
+      }
+      const row = this.getById(tabId)
+      if (!row) {
+        throw new ConflictError('No se pudo cargar la cuenta cancelada.')
+      }
+      return row
     })()
   }
 }

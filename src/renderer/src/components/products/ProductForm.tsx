@@ -30,6 +30,7 @@ function createInitialState(categoryId?: number | null): ProductInput {
     categoryId: categoryId ?? 0,
     salePrice: 0,
     minStock: 0,
+    showInSales: 1,
   }
 }
 
@@ -52,12 +53,13 @@ export function ProductForm({
     }
 
     setForm({
-      sku: product.name.trim(),
+      sku: product.sku,
       name: product.name,
-      type: 'simple',
+      type: product.type,
       categoryId: product.categoryId,
       salePrice: product.salePrice,
       minStock: product.minStock,
+      showInSales: product.showInSales ?? 1,
     })
   }, [categories, defaultCategoryId, product])
 
@@ -71,7 +73,6 @@ export function ProductForm({
           ...form,
           name: nameTrimmed,
           sku: nameTrimmed,
-          type: 'simple',
         }
         await onSubmit(payload)
         if (!product) {
@@ -98,6 +99,17 @@ export function ProductForm({
               {category.label}
             </option>
           ))}
+        </select>
+      </label>
+      <label className="grid gap-1 text-sm text-slate-700">
+        <span>Tipo</span>
+        <select
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+          value={form.type}
+          onChange={(event) => setForm((state) => ({ ...state, type: event.target.value as ProductInput['type'] }))}
+        >
+          <option value="simple">Simple</option>
+          <option value="compound">Compuesto</option>
         </select>
       </label>
       <label className="grid gap-1 text-sm text-slate-700">
@@ -130,6 +142,19 @@ export function ProductForm({
           placeholder="Stock minimo"
           value={form.minStock}
           onChange={(event) => setForm((state) => ({ ...state, minStock: Number(event.target.value) }))}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+        <span className="min-w-0">
+          <span className="block font-medium text-slate-900">Mostrar en ventas</span>
+          <span className="block text-xs text-slate-500">Si se desactiva, este producto no aparecerá en la pantalla de ventas.</span>
+        </span>
+        <input
+          aria-label="Mostrar en ventas"
+          checked={form.showInSales === 1}
+          className="h-5 w-5 shrink-0 accent-brand"
+          onChange={(event) => setForm((state) => ({ ...state, showInSales: event.target.checked ? 1 : 0 }))}
+          type="checkbox"
         />
       </label>
       <Button className="w-full py-2.5 sm:w-auto" disabled={!categories.length} type="submit" variant="primary">

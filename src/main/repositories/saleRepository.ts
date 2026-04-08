@@ -25,6 +25,7 @@ export type SaleLineInsert = {
 export type InventoryExitInsert = {
   productId: number
   quantity: number
+  referenceType?: string
 }
 
 export class SaleRepository {
@@ -83,11 +84,11 @@ export class SaleRepository {
 
       const insertMovement = this.db.prepare(
         `INSERT INTO product_inventory_movements (product_id, movement_type, quantity, reference_type, reference_id)
-         VALUES (?, 'sale', ?, 'sale', ?)`,
+         VALUES (?, 'sale', ?, ?, ?)`,
       )
 
       for (const exit of inventoryExits) {
-        insertMovement.run(exit.productId, exit.quantity, saleId)
+        insertMovement.run(exit.productId, exit.quantity, exit.referenceType ?? 'sale', saleId)
       }
 
       if (progressiveConsumptions.length) {

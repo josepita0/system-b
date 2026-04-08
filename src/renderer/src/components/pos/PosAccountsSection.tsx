@@ -78,13 +78,13 @@ export function PosAccountsSection({
                   </div>
                   <Button
                     className="shrink-0"
-                    disabled={t.balance <= 0 || settlePending || removeLinePending}
+                    disabled={settlePending || removeLinePending}
                     onClick={() => {
                       onSettleClick(t)
                     }}
                     variant="secondary"
                   >
-                    Cobrar y cerrar
+                    {t.balance <= 0 ? 'Gestionar' : 'Cobrar y cerrar'}
                   </Button>
                 </li>
               ))}

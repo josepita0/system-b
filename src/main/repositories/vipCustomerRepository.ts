@@ -37,15 +37,29 @@ export class VipCustomerRepository {
     return rows.map(mapRow)
   }
 
-  countActive() {
-    const row = this.db.prepare('SELECT COUNT(*) AS c FROM vip_customers WHERE is_active = 1').get() as { c: number }
+  private buildWhere(search?: string) {
+    const raw = search?.trim()
+    if (!raw) {
+      return { where: 'WHERE is_active = 1', params: [] as unknown[] }
+    }
+    return {
+      where:
+        "WHERE is_active = 1 AND (INSTR(LOWER(name), LOWER(?)) > 0 OR INSTR(LOWER(COALESCE(document_id,'')), LOWER(?)) > 0 OR INSTR(LOWER(COALESCE(phone,'')), LOWER(?)) > 0)",
+      params: [raw, raw, raw] as unknown[],
+    }
+  }
+
+  countActive(search?: string) {
+    const { where, params } = this.buildWhere(search)
+    const row = this.db.prepare(`SELECT COUNT(*) AS c FROM vip_customers ${where}`).get(...params) as { c: number }
     return row.c
   }
 
-  listPaged(limit: number, offset: number) {
+  listPaged(limit: number, offset: number, search?: string) {
+    const { where, params } = this.buildWhere(search)
     const rows = this.db
-      .prepare('SELECT * FROM vip_customers WHERE is_active = 1 ORDER BY name ASC LIMIT ? OFFSET ?')
-      .all(limit, offset) as VipCustomerRow[]
+      .prepare(`SELECT * FROM vip_customers ${where} ORDER BY name ASC LIMIT ? OFFSET ?`)
+      .all(...params, limit, offset) as VipCustomerRow[]
     return rows.map(mapRow)
   }
 

@@ -30,12 +30,12 @@ export class UserService {
     return this.users.list().filter((user) => actor.permissions.includes(`users.manage_roles.${user.role}`))
   }
 
-  listPaged(actor: AuthenticatedUser, page: number, pageSize: number): PagedResult<User> {
+  listPaged(actor: AuthenticatedUser, page: number, pageSize: number, search?: string): PagedResult<User> {
     this.authorization.requirePermission(actor.permissions, 'users.manage_profiles')
     const roles = this.manageableRoles(actor)
-    const total = this.users.countForRoles(roles)
+    const total = this.users.countForRoles(roles, search)
     const offset = offsetForPage(page, pageSize)
-    const items = this.users.listForRolesPaged(roles, pageSize, offset)
+    const items = this.users.listForRolesPaged(roles, pageSize, offset, search)
     return { items, total, page, pageSize }
   }
 

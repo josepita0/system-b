@@ -18,6 +18,8 @@ export interface CashSession {
   openingCash: number
   /** Motivo si la apertura fue menor al mínimo configurado. */
   openingCashNote?: string | null
+  /** Nota obligatoria al cerrar turno. */
+  closingNote?: string | null
   expectedCash: number | null
   countedCash: number | null
   differenceCash: number | null
@@ -41,6 +43,7 @@ export interface OpenShiftInput {
 export interface CloseShiftInput {
   sessionId: number
   countedCash: number
+  closingNote: string
 }
 
 /** Fila para listado de histórico de turnos. */
@@ -55,6 +58,7 @@ export interface CashSessionHistoryEntry {
   openedByLabel: string | null
   openingCash: number
   openingCashNote?: string | null
+  closingNote?: string | null
   expectedCash: number | null
   countedCash: number | null
   differenceCash: number | null
@@ -89,12 +93,18 @@ export interface ShiftSessionTabDetail {
   status: string
   openedAt: string
   settledAt: string | null
+  cancelledAt?: string | null
+  cancelReason?: string | null
+  cancelledByEmployeeId?: number | null
   openedCashSessionId: number
   settledCashSessionId: number | null
+  cancelledCashSessionId?: number | null
   /** Si la cuenta se abrió en esta sesión. */
   openedHere: boolean
   /** Si la cuenta se liquidó en esta sesión. */
   settledHere: boolean
+  /** Si la cuenta se canceló en esta sesión. */
+  cancelledHere?: boolean
 }
 
 export interface ShiftSessionDetail {

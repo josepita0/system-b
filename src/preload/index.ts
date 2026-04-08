@@ -14,6 +14,8 @@ import { inventoryChannels } from '../shared/ipc/inventory'
 import { consumptionChannels } from '../shared/ipc/consumptions'
 import { settingsChannels } from '../shared/ipc/settings'
 import { dashboardChannels } from '../shared/ipc/dashboard'
+import { internalConsumptionChannels } from '../shared/ipc/internalConsumptions'
+import { bomChannels } from '../shared/ipc/bom'
 
 async function invokeIpc<T>(channel: string, ...args: unknown[]) {
   const result = (await ipcRenderer.invoke(channel, ...args)) as IpcResult<T>
@@ -98,7 +100,8 @@ const api = {
   },
   sales: {
     posCatalog: () => invokeIpc(salesChannels.posCatalog),
-    posProducts: (categoryId: number) => invokeIpc(salesChannels.posProducts, categoryId),
+    posProducts: (payload: unknown) => invokeIpc(salesChannels.posProducts, payload),
+    posInternalConsumptionProducts: (payload: unknown) => invokeIpc(salesChannels.posInternalConsumptionProducts, payload),
     posComplementProducts: (rootCategoryId: number) => invokeIpc(salesChannels.posComplementProducts, rootCategoryId),
     create: (payload: unknown) => invokeIpc(salesChannels.create, payload),
     openTab: (payload: unknown) => invokeIpc(salesChannels.openTab, payload),
@@ -106,6 +109,7 @@ const api = {
     settleTab: (payload: unknown) => invokeIpc(salesChannels.settleTab, payload),
     tabChargeDetail: (tabId: number) => invokeIpc(salesChannels.tabChargeDetail, tabId),
     removeTabChargeLine: (payload: unknown) => invokeIpc(salesChannels.removeTabChargeLine, payload),
+    cancelEmptyTab: (payload: unknown) => invokeIpc(salesChannels.cancelEmptyTab, payload),
   },
   shifts: {
     definitions: () => invokeIpc(shiftChannels.definitions),
@@ -154,6 +158,7 @@ const api = {
     update: (payload: unknown) => invokeIpc(consumptionChannels.update, payload),
     remove: (id: number) => invokeIpc(consumptionChannels.remove, id),
     syncProductRules: (payload: unknown) => invokeIpc(consumptionChannels.syncProductRules, payload),
+    applyTemplate3060All: () => invokeIpc(consumptionChannels.applyTemplate3060All),
   },
   settings: {
     getSmtpSettings: () => invokeIpc(settingsChannels.getSmtpSettings),
@@ -164,6 +169,18 @@ const api = {
   },
   dashboard: {
     getOverview: (params: unknown) => invokeIpc(dashboardChannels.getOverview, params),
+  },
+  internalConsumptions: {
+    create: (payload: unknown) => invokeIpc(internalConsumptionChannels.create, payload),
+    getById: (id: number) => invokeIpc(internalConsumptionChannels.getById, id),
+    listPaged: (params: unknown) => invokeIpc(internalConsumptionChannels.listPaged, params),
+    cancel: (payload: unknown) => invokeIpc(internalConsumptionChannels.cancel, payload),
+  },
+  bom: {
+    getItems: (parentProductId: number) => invokeIpc(bomChannels.getItems, parentProductId),
+    upsert: (payload: unknown) => invokeIpc(bomChannels.upsert, payload),
+    removeAll: (parentProductId: number) => invokeIpc(bomChannels.removeAll, parentProductId),
+    getVirtualStock: (parentProductId: number) => invokeIpc(bomChannels.getVirtualStock, parentProductId),
   },
 }
 

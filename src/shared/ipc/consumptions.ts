@@ -10,6 +10,7 @@ export const consumptionChannels = {
   update: 'consumptions:update',
   remove: 'consumptions:remove',
   syncProductRules: 'consumptions:syncProductRules',
+  applyTemplate3060All: 'consumptions:applyTemplate3060All',
 } as const
 
 export interface ConsumptionsApi {
@@ -18,5 +19,6 @@ export interface ConsumptionsApi {
   update: (payload: SaleFormatConsumptionRuleInput & { id: number }) => Promise<SaleFormatConsumptionRule>
   remove: (id: number) => Promise<void>
   syncProductRules: (payload: SyncProductConsumptionRulesInput) => Promise<{ success: true }>
+  applyTemplate3060All: () => Promise<{ success: true; updatedProducts: number }>
 }
 

@@ -2,6 +2,8 @@ export interface InventoryBalanceRow {
   productId: number
   sku: string
   productName: string
+  categoryId?: number | null
+  categoryName?: string | null
   minStock: number
   stock: number
   consumptionMode: 'unit' | 'progressive'

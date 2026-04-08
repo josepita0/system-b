@@ -33,10 +33,19 @@ export interface AccountOpenedInShift {
   balanceTotal: number
 }
 
+export interface CancelledEmptyAccountInShift {
+  tabId: number
+  customerName: string
+  cancelledAt: string
+  cancelledByLabel: string
+  reason: string
+}
+
 export interface ShiftCloseReport {
   sessionId: number
   businessDate: string
   shiftName: string
+  closingNote?: string | null
   inventory: Array<{
     ingredientId: number
     ingredientName: string
@@ -60,6 +69,8 @@ export interface ShiftCloseReport {
   productsSold: ProductSalesTotal[]
   /** Cuentas pagaré abiertas con saldo pendiente (cualquier turno de apertura). */
   accountsPendingLiquidation: AccountOpenedInShift[]
+  /** Cuentas canceladas (vacías) durante este turno, con motivo. */
+  cancelledEmptyAccounts?: CancelledEmptyAccountInShift[]
   pdfPath: string
   /** Si el correo con PDF se envió en el acto por SMTP (sin depender de la cola). */
   emailSentImmediately?: boolean

@@ -21,6 +21,7 @@ export const productSchema = z.object({
   categoryId: z.number().int().positive(),
   salePrice: z.number().nonnegative(),
   minStock: z.number().int().nonnegative(),
+  showInSales: z.number().int().min(0).max(1).optional().default(1),
 })
 
 export const productUpdateSchema = productSchema.extend({

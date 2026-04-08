@@ -11,18 +11,50 @@ import type { InventoryBalanceRow } from '@shared/types/inventory'
 import { DEFAULT_PAGE_SIZE } from '@shared/types/pagination'
 import { formatInventoryStockDisplay, stockDeductionUnitLabel } from './inventoryLabels'
 
+type CategoryNode = { id: number; name: string; children?: CategoryNode[] }
+
+function flattenCategories(nodes: CategoryNode[]): Array<{ id: number; name: string }> {
+  const out: Array<{ id: number; name: string }> = []
+  const walk = (list: CategoryNode[], prefix: string) => {
+    for (const n of list) {
+      const label = prefix ? `${prefix} / ${n.name}` : n.name
+      out.push({ id: n.id, name: label })
+      if (n.children?.length) {
+        walk(n.children, label)
+      }
+    }
+  }
+  walk(nodes, '')
+  return out
+}
+
 export function InventoryDashboardPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [search, setSearch] = useState('')
+  const [categoryId, setCategoryId] = useState<number | null>(null)
 
   const summaryQuery = useQuery({
     queryKey: ['inventory', 'balanceSummary'],
     queryFn: () => window.api.inventory.balanceSummary(),
   })
 
+  const categoriesQuery = useQuery({
+    queryKey: ['products', 'categoriesTree'],
+    queryFn: () => window.api.products.listCategories(),
+  })
+
+  const flatCategories = useMemo(() => flattenCategories((categoriesQuery.data ?? []) as CategoryNode[]), [categoriesQuery.data])
+
   const balancePagedQuery = useQuery({
-    queryKey: ['inventory', 'balancePaged', page, pageSize],
-    queryFn: () => window.api.inventory.listBalancePaged({ page, pageSize }),
+    queryKey: ['inventory', 'balancePaged', page, pageSize, search, categoryId],
+    queryFn: () =>
+      window.api.inventory.listBalancePaged({
+        page,
+        pageSize,
+        search: search.trim() || undefined,
+        categoryId: categoryId ?? undefined,
+      }),
   })
 
   const rows = balancePagedQuery.data?.items ?? []
@@ -38,7 +70,7 @@ export function InventoryDashboardPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [pageSize])
+  }, [pageSize, search, categoryId])
 
   const totalProducts = summaryQuery.data?.totalProducts ?? 0
   const lowStockCount = summaryQuery.data?.lowStockCount ?? 0
@@ -84,6 +116,37 @@ export function InventoryDashboardPage() {
         <p className="mt-1 text-xs text-slate-500">
           Use <span className="font-medium">Acciones</span> por fila para registrar movimientos o configurar consumo progresivo.
         </p>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="block w-full text-sm text-slate-700 sm:flex-1">
+            Buscar producto
+            <input
+              className="mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/30"
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Nombre o SKU"
+              type="search"
+              value={search}
+            />
+          </label>
+          <label className="block w-full text-sm text-slate-700 sm:w-[320px]">
+            Categoría
+            <select
+              className="mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+              onChange={(e) => {
+                const v = e.target.value
+                setCategoryId(v === '' ? null : Number(v))
+              }}
+              value={categoryId ?? ''}
+            >
+              <option value="">Todas</option>
+              {flatCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         {balancePagedQuery.isLoading ? <div className="mt-4 text-sm text-slate-500">Cargando...</div> : null}
         {balancePagedQuery.error ? (

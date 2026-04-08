@@ -35,8 +35,7 @@ export function InventoryHistoryPage() {
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Historial de movimientos</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Entradas, ajustes, ventas y movimientos asociados a lotes. Orden cronológico descendente (más reciente
-          primero).
+          Entradas, ajustes, ventas (incluye BOM) y consumos internos. Orden cronológico descendente (más reciente primero).
         </p>
       </div>
 

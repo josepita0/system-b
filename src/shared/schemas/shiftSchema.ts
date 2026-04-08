@@ -10,4 +10,5 @@ export const openShiftSchema = z.object({
 export const closeShiftSchema = z.object({
   sessionId: z.number().int().positive(),
   countedCash: z.number().nonnegative(),
+  closingNote: z.string().trim().min(1, 'Indique una nota de cierre.').max(2000),
 })

@@ -12,6 +12,7 @@ type ProductRow = {
   consumption_mode: string
   sale_price: number
   min_stock: number
+  show_in_sales: number
   is_active: number
   image_relpath: string | null
   image_mime: string | null
@@ -34,6 +35,7 @@ function mapRow(row: ProductRow): Product {
     consumptionMode: row.consumption_mode === 'progressive' ? 'progressive' : 'unit',
     salePrice: row.sale_price,
     minStock: row.min_stock,
+    showInSales: row.show_in_sales ?? 1,
     isActive: row.is_active,
     imageRelPath: row.image_relpath ?? null,
     imageMime: row.image_mime ?? null,
@@ -66,13 +68,35 @@ export class ProductRepository {
     return rows.map(mapRow)
   }
 
+  /** Listado para POS: limitado y con búsqueda opcional (evita cargar catálogos enormes en memoria). */
+  listPos(categoryId: number, search?: string, limit = 500) {
+    const { where, params } = this.buildListPosWhere(categoryId, search)
+    const safeLimit = Math.max(1, Math.min(2000, Math.floor(limit)))
+    const rows = this.db
+      .prepare(`${this.baseSelect} ${where} ORDER BY p.name ASC LIMIT ?`)
+      .all(...params, safeLimit) as ProductRow[]
+    return rows.map(mapRow)
+  }
+
+  /** Listado para POS (uso interno): no filtra por show_in_sales. */
+  listPosAll(categoryId: number, search?: string, limit = 500) {
+    const { where, params } = this.buildListActiveWhere(categoryId, search)
+    const safeLimit = Math.max(1, Math.min(2000, Math.floor(limit)))
+    const rows = this.db
+      .prepare(`${this.baseSelect} ${where} ORDER BY p.name ASC LIMIT ?`)
+      .all(...params, safeLimit) as ProductRow[]
+    return rows.map(mapRow)
+  }
+
   listInCategories(categoryIds: number[]) {
     if (categoryIds.length === 0) {
       return []
     }
     const placeholders = categoryIds.map(() => '?').join(', ')
     const rows = this.db
-      .prepare(`${this.baseSelect} WHERE p.is_active = 1 AND p.category_id IN (${placeholders}) ORDER BY p.name ASC`)
+      .prepare(
+        `${this.baseSelect} WHERE p.is_active = 1 AND p.show_in_sales = 1 AND p.category_id IN (${placeholders}) ORDER BY p.name ASC`,
+      )
       .all(...categoryIds) as ProductRow[]
 
     return rows.map(mapRow)
@@ -91,6 +115,11 @@ export class ProductRepository {
       params.push(raw, raw)
     }
     return { where: `WHERE ${parts.join(' AND ')}`, params }
+  }
+
+  private buildListPosWhere(categoryId?: number, search?: string) {
+    const { where, params } = this.buildListActiveWhere(categoryId, search)
+    return { where: `${where} AND p.show_in_sales = 1`, params }
   }
 
   countListPaged(categoryId: number | undefined, search: string | undefined) {
@@ -151,8 +180,8 @@ export class ProductRepository {
   create(input: ProductInput) {
     const result = this.db
       .prepare(
-        `INSERT INTO products (sku, name, type, category_id, sale_price, min_stock)
-         VALUES (@sku, @name, @type, @categoryId, @salePrice, @minStock)`,
+        `INSERT INTO products (sku, name, type, category_id, sale_price, min_stock, show_in_sales)
+         VALUES (@sku, @name, @type, @categoryId, @salePrice, @minStock, @showInSales)`,
       )
       .run(input)
 
@@ -169,6 +198,7 @@ export class ProductRepository {
              category_id = @categoryId,
              sale_price = @salePrice,
              min_stock = @minStock,
+             show_in_sales = @showInSales,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = @id`,
       )

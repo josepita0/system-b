@@ -66,6 +66,17 @@ export interface TabChargeDetail {
 
 export interface RemoveTabChargeLineInput {
   saleItemId: number
+  reason?: string
+}
+
+export interface CancelEmptyTabInput {
+  tabId: number
+  reason: string
+}
+
+export interface CancelEmptyTabResult {
+  tabId: number
+  cancelledAt: string
 }
 
 export interface SaleCreated {

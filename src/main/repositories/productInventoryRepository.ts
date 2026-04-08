@@ -54,6 +54,21 @@ export class ProductInventoryRepository {
     return row.c
   }
 
+  private buildBalanceWhere(search?: string, categoryId?: number) {
+    const parts = ["product_type = 'simple'"]
+    const params: unknown[] = []
+    if (typeof categoryId === 'number' && Number.isFinite(categoryId) && categoryId > 0) {
+      parts.push('category_id = ?')
+      params.push(categoryId)
+    }
+    const raw = search?.trim()
+    if (raw) {
+      parts.push('(INSTR(LOWER(product_name), LOWER(?)) > 0 OR INSTR(LOWER(sku), LOWER(?)) > 0)')
+      params.push(raw, raw)
+    }
+    return { where: `WHERE ${parts.join(' AND ')}`, params }
+  }
+
   /** Totales para KPIs sin cargar todas las filas. */
   balanceSummary() {
     const row = this.db
@@ -70,12 +85,19 @@ export class ProductInventoryRepository {
     }
   }
 
-  listBalancePaged(limit: number, offset: number) {
+  listBalancePaged(limit: number, offset: number, search?: string, categoryId?: number) {
+    const { where, params } = this.buildBalanceWhere(search, categoryId)
     return this.db
       .prepare(
-        'SELECT * FROM product_inventory_balance_view WHERE product_type = ? ORDER BY product_name ASC LIMIT ? OFFSET ?',
+        `SELECT * FROM product_inventory_balance_view ${where} ORDER BY product_name ASC LIMIT ? OFFSET ?`,
       )
-      .all('simple', limit, offset)
+      .all(...params, limit, offset)
+  }
+
+  countBalanceRowsFiltered(search?: string, categoryId?: number) {
+    const { where, params } = this.buildBalanceWhere(search, categoryId)
+    const row = this.db.prepare(`SELECT COUNT(*) AS c FROM product_inventory_balance_view ${where}`).get(...params) as { c: number }
+    return row.c
   }
 
   countMovements() {

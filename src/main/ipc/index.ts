@@ -12,6 +12,8 @@ import { registerInventoryHandlers } from './inventoryHandlers'
 import { registerConsumptionHandlers } from './consumptionHandlers'
 import { registerSettingsHandlers } from './settingsHandlers'
 import { registerDashboardHandlers } from './dashboardHandlers'
+import { registerInternalConsumptionHandlers } from './internalConsumptionHandlers'
+import { registerBomHandlers } from './bomHandlers'
 
 export function registerIpcHandlers() {
   registerAuthHandlers()
@@ -28,4 +30,6 @@ export function registerIpcHandlers() {
   registerVipCustomerHandlers()
   registerInventoryHandlers()
   registerConsumptionHandlers()
+  registerInternalConsumptionHandlers()
+  registerBomHandlers()
 }

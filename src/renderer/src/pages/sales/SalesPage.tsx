@@ -17,6 +17,7 @@ import { findCategoryNode } from '@renderer/lib/posCategoryTree'
 import { requireSalesRemoveTabChargeLine, requireSalesTabChargeDetail } from '@renderer/lib/salesPreload'
 import { resolveShiftForDate } from '@renderer/utils/resolveShiftForDate'
 import { OpenShiftModal } from '@renderer/components/shifts/OpenShiftModal'
+import { useUiPrefsStore } from '@renderer/store/uiPrefsStore'
 
 type CartLine = {
   key: string
@@ -50,7 +51,12 @@ function moneyToCents(n: number): number {
 
 export function SalesPage() {
   const queryClient = useQueryClient()
+  const posLargeText = useUiPrefsStore((s) => s.posLargeText)
+  const highContrast = useUiPrefsStore((s) => s.highContrast)
+  const togglePosLargeText = useUiPrefsStore((s) => s.togglePosLargeText)
+  const toggleHighContrast = useUiPrefsStore((s) => s.toggleHighContrast)
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
+  const [productSearch, setProductSearch] = useState('')
   const [cart, setCart] = useState<CartLine[]>([])
   const [configProduct, setConfigProduct] = useState<Product | null>(null)
   const [pickedFormatId, setPickedFormatId] = useState<number | null>(null)
@@ -65,14 +71,23 @@ export function SalesPage() {
   const [vipChargedTotalInput, setVipChargedTotalInput] = useState('')
   const [settleModalTabId, setSettleModalTabId] = useState<number | null>(null)
   const [settleCashReceived, setSettleCashReceived] = useState('')
+  const [cancelEmptyTabModalOpen, setCancelEmptyTabModalOpen] = useState(false)
+  const [cancelEmptyTabReason, setCancelEmptyTabReason] = useState('')
   const [priceEditLineKey, setPriceEditLineKey] = useState<string | null>(null)
   const [priceEditUnit, setPriceEditUnit] = useState('')
   const [priceEditNote, setPriceEditNote] = useState('')
   const [priceEditError, setPriceEditError] = useState<string | null>(null)
   const [cartPriceBlockError, setCartPriceBlockError] = useState<string | null>(null)
+  const [internalConsumptionModalOpen, setInternalConsumptionModalOpen] = useState(false)
+  const [internalConsumptionReason, setInternalConsumptionReason] = useState('')
+  const [internalConsumptionProductId, setInternalConsumptionProductId] = useState<number | null>(null)
+  const [internalConsumptionQty, setInternalConsumptionQty] = useState('1')
   const [complementEditLineKey, setComplementEditLineKey] = useState<string | null>(null)
   const [complementEditPickedId, setComplementEditPickedId] = useState<number | null>(null)
   const [openShiftModalOpen, setOpenShiftModalOpen] = useState(false)
+  const [removeLineModalOpen, setRemoveLineModalOpen] = useState(false)
+  const [removeLineSaleItemId, setRemoveLineSaleItemId] = useState<number | null>(null)
+  const [removeLineReason, setRemoveLineReason] = useState('')
 
   const currentShiftQuery = useQuery({
     queryKey: ['shift', 'current'],
@@ -110,8 +125,22 @@ export function SalesPage() {
   })
 
   const productsQuery = useQuery({
-    queryKey: ['sales', 'posProducts', selectedCategoryId],
-    queryFn: () => window.api.sales.posProducts(selectedCategoryId!),
+    queryKey: ['sales', 'posProducts', selectedCategoryId, productSearch],
+    queryFn: () =>
+      window.api.sales.posProducts({
+        categoryId: selectedCategoryId!,
+        search: productSearch.trim() || undefined,
+      }),
+    enabled: typeof selectedCategoryId === 'number',
+  })
+
+  const internalConsumptionProductsQuery = useQuery({
+    queryKey: ['sales', 'posInternalConsumptionProducts', selectedCategoryId, productSearch],
+    queryFn: () =>
+      window.api.sales.posInternalConsumptionProducts({
+        categoryId: selectedCategoryId!,
+        search: productSearch.trim() || undefined,
+      }),
     enabled: typeof selectedCategoryId === 'number',
   })
 
@@ -203,8 +232,11 @@ export function SalesPage() {
   })
 
   const removeTabChargeLineMutation = useMutation({
-    mutationFn: (saleItemId: number) => requireSalesRemoveTabChargeLine()({ saleItemId }),
+    mutationFn: (payload: { saleItemId: number; reason: string }) => requireSalesRemoveTabChargeLine()(payload),
     onSuccess: async () => {
+      setRemoveLineModalOpen(false)
+      setRemoveLineSaleItemId(null)
+      setRemoveLineReason('')
       await queryClient.invalidateQueries({ queryKey: ['sales', 'tabChargeDetail'] })
       await queryClient.invalidateQueries({ queryKey: ['sales', 'openTabs'] })
       await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
@@ -221,6 +253,17 @@ export function SalesPage() {
       }
       await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
       await queryClient.invalidateQueries({ queryKey: ['sales'] })
+    },
+  })
+
+  const cancelEmptyTabMutation = useMutation({
+    mutationFn: (payload: { tabId: number; reason: string }) => window.api.sales.cancelEmptyTab(payload),
+    onSuccess: async () => {
+      setCancelEmptyTabModalOpen(false)
+      setCancelEmptyTabReason('')
+      setSettleModalTabId(null)
+      await queryClient.invalidateQueries({ queryKey: ['sales'] })
+      await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
     },
   })
 
@@ -275,6 +318,12 @@ export function SalesPage() {
         return
       }
       const effectiveIds = [...node.effectiveSaleFormatIds].sort((a, b) => a - b)
+      if (product.type === 'compound') {
+        setConfigProduct(product)
+        setPickedFormatId(effectiveIds.length === 1 ? effectiveIds[0] : null)
+        setPickedComplementId(null)
+        return
+      }
       if (effectiveIds.length === 0) {
         const unitPrice = resolveDefaultUnitPrice(product, null, null)
         setCart((prev) => [
@@ -497,6 +546,13 @@ export function SalesPage() {
     setPickedComplementId(null)
   }, [])
 
+  const closeInternalConsumptionModal = useCallback(() => {
+    setInternalConsumptionModalOpen(false)
+    setInternalConsumptionReason('')
+    setInternalConsumptionProductId(null)
+    setInternalConsumptionQty('1')
+  }, [])
+
   const vipNote =
     selectedVip != null
       ? `Condición: ${
@@ -520,6 +576,32 @@ export function SalesPage() {
       })),
     [cart],
   )
+
+  const internalConsumptionMutation = useMutation({
+    mutationFn: async () => {
+      const reason = internalConsumptionReason.trim()
+      const productId = internalConsumptionProductId
+      const qty = Number(internalConsumptionQty.replace(',', '.'))
+      if (!reason) {
+        throw new Error('Indique un motivo.')
+      }
+      if (productId == null) {
+        throw new Error('Seleccione un producto.')
+      }
+      if (!Number.isFinite(qty) || qty <= 0) {
+        throw new Error('Indique una cantidad válida.')
+      }
+      return window.api.internalConsumptions.create({
+        reason,
+        attachToCurrentCashSession: true,
+        items: [{ productId, quantity: qty }],
+      })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries()
+      closeInternalConsumptionModal()
+    },
+  })
 
   const cartPriceNotesValid = useMemo(() => {
     if (selectedVipCustomerId != null) {
@@ -596,6 +678,31 @@ export function SalesPage() {
               <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
                 <Button
                   onClick={() => {
+                    const first = internalConsumptionProductsQuery.data?.[0]?.id ?? null
+                    setInternalConsumptionProductId(first)
+                    setInternalConsumptionModalOpen(true)
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  Consumo interno
+                </Button>
+                <Button
+                  onClick={togglePosLargeText}
+                  type="button"
+                  variant={posLargeText ? 'primary' : 'secondary'}
+                >
+                  Texto grande
+                </Button>
+                {/* <Button
+                  onClick={toggleHighContrast}
+                  type="button"
+                  variant={highContrast ? 'warning' : 'secondary'}
+                >
+                  Alto contraste
+                </Button> */}
+                <Button
+                  onClick={() => {
                     setSaleMode('cash')
                     setSelectedTabId(null)
                   }}
@@ -643,9 +750,18 @@ export function SalesPage() {
                 saleMode === 'cash' && 'min-h-0 flex-1 overflow-hidden',
               )}
             >
-              <h2 className="shrink-0 border-b border-slate-100 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Productos
-              </h2>
+              <div className="shrink-0 border-b border-slate-100 px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Productos</h2>
+                  <Input
+                    className="h-9 w-full sm:w-[280px]"
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    placeholder="Buscar producto..."
+                    type="search"
+                    value={productSearch}
+                  />
+                </div>
+              </div>
               <div
                 className={cn(
                   'overflow-x-hidden px-4 pb-4 pt-3',
@@ -828,7 +944,20 @@ export function SalesPage() {
             <div className="mt-4 space-y-2">
               <h4 className="text-xs font-medium uppercase tracking-wide text-slate-500">Cargos pendientes</h4>
               {settleDetail.lines.length === 0 ? (
-                <p className="text-sm text-slate-500">Sin lineas en esta cuenta.</p>
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-500">Sin lineas en esta cuenta.</p>
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={() => {
+                        setCancelEmptyTabReason('')
+                        setCancelEmptyTabModalOpen(true)
+                      }}
+                      variant="danger"
+                    >
+                      Cancelar cuenta (vacía)
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <ul className="max-h-52 space-y-2 overflow-y-auto pr-1">
                   {settleDetail.lines.map((line) => (
@@ -847,7 +976,11 @@ export function SalesPage() {
                         <button
                           className="text-xs text-rose-600 hover:underline disabled:opacity-40"
                           disabled={removeTabChargeLineMutation.isPending}
-                          onClick={() => removeTabChargeLineMutation.mutate(line.saleItemId)}
+                          onClick={() => {
+                            setRemoveLineSaleItemId(line.saleItemId)
+                            setRemoveLineReason('')
+                            setRemoveLineModalOpen(true)
+                          }}
                           type="button"
                         >
                           Quitar
@@ -861,7 +994,9 @@ export function SalesPage() {
 
             <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-slate-50 px-3 py-2 text-slate-800">
               <span>Total a cobrar</span>
-              <span className="text-lg font-semibold text-brand">{settleDetail.balance.toFixed(2)}</span>
+              <span className={cn(posLargeText ? 'text-3xl' : 'text-2xl', 'font-semibold tabular-nums text-brand')}>
+                {settleDetail.balance.toFixed(2)}
+              </span>
             </div>
 
             {settleBalanceCents > 0 ? (
@@ -884,7 +1019,9 @@ export function SalesPage() {
             {settleChangeAmount != null ? (
               <div className="mt-4 flex items-center justify-between text-slate-800">
                 <span>Cambio</span>
-                <span className="text-lg font-semibold text-brand">{settleChangeAmount.toFixed(2)}</span>
+                <span className={cn(posLargeText ? 'text-3xl' : 'text-2xl', 'font-semibold tabular-nums text-brand')}>
+                  {settleChangeAmount.toFixed(2)}
+                </span>
               </div>
             ) : null}
             {settleShortfall != null ? (
@@ -904,6 +1041,119 @@ export function SalesPage() {
         {removeTabChargeLineMutation.isError ? (
           <p className="mt-2 text-sm text-rose-600">
             {(removeTabChargeLineMutation.error as Error)?.message ?? 'No se pudo quitar la linea.'}
+          </p>
+        ) : null}
+      </Modal>
+
+      <Modal
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setCancelEmptyTabModalOpen(false)
+                setCancelEmptyTabReason('')
+              }}
+              variant="secondary"
+            >
+              Volver
+            </Button>
+            <Button
+              disabled={
+                cancelEmptyTabMutation.isPending ||
+                settleModalTabId == null ||
+                cancelEmptyTabReason.trim().length === 0 ||
+                tabChargeDetailQuery.isLoading
+              }
+              onClick={() => {
+                if (settleModalTabId == null) return
+                cancelEmptyTabMutation.mutate({ tabId: settleModalTabId, reason: cancelEmptyTabReason.trim() })
+              }}
+              variant="danger"
+            >
+              {cancelEmptyTabMutation.isPending ? 'Cancelando...' : 'Confirmar cancelación'}
+            </Button>
+          </>
+        }
+        maxWidthClass="max-w-md"
+        onClose={() => {
+          setCancelEmptyTabModalOpen(false)
+          setCancelEmptyTabReason('')
+        }}
+        open={cancelEmptyTabModalOpen}
+        title="Confirmar cancelación de cuenta"
+      >
+        <p className="text-sm text-slate-600">
+          Solo se permite cancelar una cuenta si no tiene artículos. Esta acción quedará registrada y aparecerá en el cierre de turno.
+        </p>
+        <label className="mt-4 block text-sm text-slate-700">
+          Motivo (obligatorio)
+          <textarea
+            className="mt-1 min-h-[96px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+            onChange={(e) => setCancelEmptyTabReason(e.target.value)}
+            placeholder="Ej. cuenta abierta por error, cliente se fue sin consumir..."
+            value={cancelEmptyTabReason}
+          />
+        </label>
+        {cancelEmptyTabMutation.isError ? (
+          <p className="mt-2 text-sm text-rose-600">
+            {(cancelEmptyTabMutation.error as Error)?.message ?? 'No se pudo cancelar la cuenta.'}
+          </p>
+        ) : null}
+      </Modal>
+
+      <Modal
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setRemoveLineModalOpen(false)
+                setRemoveLineSaleItemId(null)
+                setRemoveLineReason('')
+              }}
+              variant="secondary"
+            >
+              Volver
+            </Button>
+            <Button
+              disabled={
+                removeTabChargeLineMutation.isPending ||
+                removeLineSaleItemId == null ||
+                removeLineReason.trim().length === 0
+              }
+              onClick={() => {
+                if (removeLineSaleItemId == null) return
+                removeTabChargeLineMutation.mutate({ saleItemId: removeLineSaleItemId, reason: removeLineReason.trim() })
+              }}
+              variant="danger"
+            >
+              {removeTabChargeLineMutation.isPending ? 'Quitando...' : 'Confirmar quitar línea'}
+            </Button>
+          </>
+        }
+        maxWidthClass="max-w-md"
+        onClose={() => {
+          setRemoveLineModalOpen(false)
+          setRemoveLineSaleItemId(null)
+          setRemoveLineReason('')
+        }}
+        open={removeLineModalOpen}
+        title="Confirmar quitar línea"
+      >
+        <p className="text-sm text-slate-600">
+          Esta acción revierte inventario/consumo progresivo y queda registrada. Indique el motivo antes de continuar.
+        </p>
+        <label className="mt-4 block text-sm text-slate-700">
+          Motivo (obligatorio)
+          <textarea
+            className="mt-1 min-h-[96px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+            onChange={(e) => setRemoveLineReason(e.target.value)}
+            placeholder="Ej. producto mal cargado, cambio de pedido..."
+            value={removeLineReason}
+          />
+        </label>
+        {removeTabChargeLineMutation.isError ? (
+          <p className="mt-2 text-sm text-rose-600">
+            {(removeTabChargeLineMutation.error as Error)?.message ?? 'No se pudo quitar la línea.'}
           </p>
         ) : null}
       </Modal>
@@ -935,7 +1185,9 @@ export function SalesPage() {
         <p className="text-sm text-slate-600">Confirme el monto recibido y el cambio antes de registrar la venta.</p>
         <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-slate-50 px-3 py-2 text-slate-800">
           <span>Total a cobrar</span>
-          <span className="text-lg font-semibold text-brand">{amountToCharge.toFixed(2)}</span>
+          <span className={cn(posLargeText ? 'text-4xl' : 'text-3xl', 'font-semibold tabular-nums text-brand')}>
+            {amountToCharge.toFixed(2)}
+          </span>
         </div>
 
         {selectedVip?.conditionType === 'discount_manual' ? (
@@ -972,7 +1224,9 @@ export function SalesPage() {
         {cashPaymentSufficient && changeAmount != null ? (
           <div className="mt-4 flex items-center justify-between text-slate-800">
             <span>Cambio</span>
-            <span className="text-lg font-semibold text-brand">{changeAmount.toFixed(2)}</span>
+            <span className={cn(posLargeText ? 'text-4xl' : 'text-3xl', 'font-semibold tabular-nums text-brand')}>
+              {changeAmount.toFixed(2)}
+            </span>
           </div>
         ) : null}
         {shortfall != null ? (
@@ -1055,6 +1309,79 @@ export function SalesPage() {
           ) : null}
         </Modal>
       ) : null}
+
+      <Modal
+        footer={
+          <>
+            <Button onClick={closeInternalConsumptionModal} variant="secondary">
+              Cancelar
+            </Button>
+            <Button
+              disabled={internalConsumptionMutation.isPending}
+              onClick={() => internalConsumptionMutation.mutate()}
+              variant="primary"
+            >
+              {internalConsumptionMutation.isPending ? 'Registrando...' : 'Registrar consumo'}
+            </Button>
+          </>
+        }
+        onClose={closeInternalConsumptionModal}
+        open={internalConsumptionModalOpen}
+        title="Registrar consumo interno"
+      >
+        <p className="text-sm text-slate-600">
+          Registra un descuento manual de stock (no afecta caja) y queda visible en historial de inventario.
+        </p>
+
+        <label className="mt-4 block text-sm text-slate-700">
+          Motivo (obligatorio)
+          <textarea
+            className="mt-1 min-h-[96px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+            onChange={(e) => setInternalConsumptionReason(e.target.value)}
+            placeholder="Ej. apertura de paquete, merma, consumo personal..."
+            value={internalConsumptionReason}
+          />
+        </label>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="block text-sm text-slate-700">
+            Producto
+            <select
+              className={`${selectFieldClass} mt-1`}
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                setInternalConsumptionProductId(Number.isFinite(v) ? v : null)
+              }}
+              value={internalConsumptionProductId ?? ''}
+            >
+              <option value="">Seleccione...</option>
+              {(internalConsumptionProductsQuery.data ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm text-slate-700">
+            Cantidad
+            <Input
+              className="mt-1"
+              min={0}
+              onChange={(e) => setInternalConsumptionQty(e.target.value)}
+              step={0.001}
+              type="number"
+              value={internalConsumptionQty}
+            />
+          </label>
+        </div>
+
+        {internalConsumptionMutation.isError ? (
+          <p className="mt-2 text-sm text-rose-600">
+            {(internalConsumptionMutation.error as Error)?.message ?? 'No se pudo registrar el consumo interno.'}
+          </p>
+        ) : null}
+      </Modal>
 
       <Modal
         footer={

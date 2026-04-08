@@ -29,6 +29,12 @@ export const progressiveProductsPagedInputSchema = pageParamsSchema.extend({
 
 export type ProductListPagedInput = z.infer<typeof productListPagedInputSchema>
 
+export const searchPagedInputSchema = pageParamsSchema.extend({
+  search: optionalTrimmedSearch,
+})
+
+export type SearchPagedInput = z.infer<typeof searchPagedInputSchema>
+
 export function parsePageParams(raw: unknown): PageParamsParsed {
   return pageParamsSchema.parse(raw ?? {})
 }

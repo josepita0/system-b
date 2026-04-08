@@ -2,6 +2,7 @@ import { ZodError } from 'zod'
 import type { CategoryTreeNode } from '../../shared/types/product'
 import type {
   CreateSaleInput,
+  CancelEmptyTabInput,
   CustomerTabSummary,
   OpenTabInput,
   OpenTabResult,
@@ -14,6 +15,7 @@ import type {
 } from '../../shared/types/sale'
 import {
   createSaleSchema,
+  cancelEmptyTabSchema,
   openTabSchema,
   removeTabChargeLineSchema,
   settleTabSchema,
@@ -31,6 +33,7 @@ import { ShiftRepository } from '../repositories/shiftRepository'
 import { CategoryService } from './categoryService'
 import { VipCustomerRepository } from '../repositories/vipCustomerRepository'
 import { SaleFormatConsumptionRepository } from '../repositories/saleFormatConsumptionRepository'
+import { BomService } from './bomService'
 
 function normalizeZodError(error: ZodError) {
   return error.issues.map((issue) => issue.message).join(', ')
@@ -66,6 +69,7 @@ export class SaleService {
     private readonly tabs: TabRepository,
     private readonly vipCustomers: VipCustomerRepository,
     private readonly consumptions: SaleFormatConsumptionRepository,
+    private readonly bom: BomService,
   ) {}
 
   getPosCatalog(): PosCatalogResponse {
@@ -89,8 +93,13 @@ export class SaleService {
     return { categoryTree, saleFormats }
   }
 
-  listPosProducts(categoryId: number) {
-    return this.products.list(categoryId)
+  listPosProducts(categoryId: number, search?: string) {
+    return this.products.listPos(categoryId, search, 600)
+  }
+
+  /** POS: listado para consumo interno (no filtra por visibilidad en ventas). */
+  listPosInternalConsumptionProducts(categoryId: number, search?: string) {
+    return this.products.listPosAll(categoryId, search, 600)
   }
 
   /** Productos activos en una categoria raiz y sus descendientes (p. ej. complementos de un combinado). */
@@ -179,6 +188,23 @@ export class SaleService {
     return this.sales.removeTabChargeSaleItem(parsed.data.saleItemId, this.consumptions)
   }
 
+  cancelEmptyTab(input: CancelEmptyTabInput, employeeId: number) {
+    const parsed = cancelEmptyTabSchema.safeParse(input)
+    if (!parsed.success) {
+      throw new ValidationError(normalizeZodError(parsed.error))
+    }
+    const session = this.shifts.getCurrentSession()
+    if (!session) {
+      throw new ShiftStateError('No hay turno de caja abierto.')
+    }
+    const tab = this.tabs.getById(parsed.data.tabId)
+    if (!tab || tab.status !== 'open') {
+      throw new ValidationError('La cuenta no existe o no está abierta.')
+    }
+    const updated = this.tabs.cancelEmptyTab(parsed.data.tabId, session.id, employeeId, parsed.data.reason)
+    return { tabId: updated.id, cancelledAt: updated.cancelledAt ?? updated.openedAt }
+  }
+
   listPosComplementProducts(rootCategoryId: number) {
     const root = this.categories.getById(rootCategoryId)
     if (!root || !root.isActive) {
@@ -219,6 +245,7 @@ export class SaleService {
     const tree = this.categoryService.listTree()
     const lines: SaleLineInsert[] = []
     const inventoryAccum = new Map<number, number>()
+    const inventoryBomAccum = new Map<number, number>()
     const progressiveToConsume = new Map<number, number>()
 
     const resolveDefaultUnitPrice = (productId: number, saleFormatId: number | null): number | null => {
@@ -236,6 +263,12 @@ export class SaleService {
         throw new ValidationError('Producto no disponible.')
       }
       if (product.type !== 'simple') {
+        // Producto derivado: descuenta componentes según BOM.
+        const exits = this.bom.expandToComponents(product.id, quantity)
+        for (const ex of exits) {
+          const prev = inventoryBomAccum.get(ex.componentProductId) ?? 0
+          inventoryBomAccum.set(ex.componentProductId, prev - ex.quantityToExit)
+        }
         return
       }
 
@@ -405,8 +438,13 @@ export class SaleService {
       productId,
       quantity,
     }))
+    const inventoryBomExits = [...inventoryBomAccum.entries()].map(([productId, quantity]) => ({
+      productId,
+      quantity,
+      referenceType: 'sale_bom',
+    }))
 
-    for (const exit of inventoryExits) {
+    for (const exit of [...inventoryExits, ...inventoryBomExits]) {
       // Consumo progresivo: la disponibilidad real la valida consumeProgressive (ml en lotes), no la suma de movimientos ni el conteo de lotes.
       if (this.inventory.isProgressiveProduct(exit.productId)) {
         continue
@@ -426,7 +464,7 @@ export class SaleService {
       chargedTotal,
       realTotal,
       lines,
-      inventoryExits,
+      [...inventoryExits, ...inventoryBomExits],
       saleType,
       tabId,
       vipCustomerId,

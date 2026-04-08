@@ -53,6 +53,8 @@ export interface Product {
   consumptionMode: 'unit' | 'progressive'
   salePrice: number
   minStock: number
+  /** POS: controla si el producto aparece en la pantalla de ventas. */
+  showInSales: number
   isActive: number
   imageRelPath: string | null
   imageMime: string | null
@@ -70,6 +72,8 @@ export interface ProductInput {
   categoryId: number
   salePrice: number
   minStock: number
+  /** POS: controla si el producto aparece en la pantalla de ventas. */
+  showInSales?: number
 }
 
 export interface ProductUpdateInput extends ProductInput {

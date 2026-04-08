@@ -29,4 +29,10 @@ export const settleTabSchema = z.object({
 
 export const removeTabChargeLineSchema = z.object({
   saleItemId: z.number().int().positive(),
+  reason: z.string().trim().max(2000).optional(),
+})
+
+export const cancelEmptyTabSchema = z.object({
+  tabId: z.number().int().positive(),
+  reason: z.string().trim().min(1, 'Indique el motivo de la cancelación.').max(2000),
 })

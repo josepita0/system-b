@@ -48,27 +48,52 @@ export class UserRepository {
     return (this.db.prepare('SELECT * FROM employees ORDER BY role DESC, first_name ASC, last_name ASC').all() as UserRow[]).map(mapUser)
   }
 
-  countForRoles(roles: User['role'][]) {
+  private buildSearchWhere(roles: User['role'][], search?: string) {
+    const params: unknown[] = []
+    const parts: string[] = []
+    if (roles.length === 0) {
+      return { where: 'WHERE 1 = 0', params }
+    }
+    const rolePlaceholders = roles.map(() => '?').join(', ')
+    parts.push(`role IN (${rolePlaceholders})`)
+    params.push(...roles)
+    const raw = search?.trim()
+    if (raw) {
+      parts.push(
+        `(
+          INSTR(LOWER(first_name), LOWER(?)) > 0 OR
+          INSTR(LOWER(last_name), LOWER(?)) > 0 OR
+          INSTR(LOWER(COALESCE(username, '')), LOWER(?)) > 0 OR
+          INSTR(LOWER(COALESCE(email, '')), LOWER(?)) > 0 OR
+          INSTR(LOWER(COALESCE(document_id, '')), LOWER(?)) > 0
+        )`,
+      )
+      params.push(raw, raw, raw, raw, raw)
+    }
+    return { where: `WHERE ${parts.join(' AND ')}`, params }
+  }
+
+  countForRoles(roles: User['role'][], search?: string) {
     if (roles.length === 0) {
       return 0
     }
-    const placeholders = roles.map(() => '?').join(', ')
+    const { where, params } = this.buildSearchWhere(roles, search)
     const row = this.db
-      .prepare(`SELECT COUNT(*) AS count FROM employees WHERE role IN (${placeholders})`)
-      .get(...roles) as { count: number }
+      .prepare(`SELECT COUNT(*) AS count FROM employees ${where}`)
+      .get(...params) as { count: number }
     return row.count
   }
 
-  listForRolesPaged(roles: User['role'][], limit: number, offset: number) {
+  listForRolesPaged(roles: User['role'][], limit: number, offset: number, search?: string) {
     if (roles.length === 0) {
       return []
     }
-    const placeholders = roles.map(() => '?').join(', ')
+    const { where, params } = this.buildSearchWhere(roles, search)
     const rows = this.db
       .prepare(
-        `SELECT * FROM employees WHERE role IN (${placeholders}) ORDER BY role DESC, first_name ASC, last_name ASC LIMIT ? OFFSET ?`,
+        `SELECT * FROM employees ${where} ORDER BY role DESC, first_name ASC, last_name ASC LIMIT ? OFFSET ?`,
       )
-      .all(...roles, limit, offset) as UserRow[]
+      .all(...params, limit, offset) as UserRow[]
     return rows.map(mapUser)
   }
 

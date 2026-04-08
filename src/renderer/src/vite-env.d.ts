@@ -14,6 +14,8 @@ import type { InventoryApi } from '@shared/ipc/inventory'
 import type { ConsumptionsApi } from '@shared/ipc/consumptions'
 import type { SettingsApi } from '@shared/ipc/settings'
 import type { DashboardApi } from '@shared/ipc/dashboard'
+import type { InternalConsumptionsApi } from '@shared/ipc/internalConsumptions'
+import type { BomApi } from '@shared/ipc/bom'
 
 declare global {
   interface Window {
@@ -32,6 +34,8 @@ declare global {
       consumptions: ConsumptionsApi
       settings: SettingsApi
       dashboard: DashboardApi
+      internalConsumptions: InternalConsumptionsApi
+      bom: BomApi
     }
   }
 }

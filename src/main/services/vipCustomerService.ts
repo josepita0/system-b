@@ -17,10 +17,10 @@ export class VipCustomerService {
     return this.repository.list()
   }
 
-  listPaged(page: number, pageSize: number): PagedResult<VipCustomer> {
-    const total = this.repository.countActive()
+  listPaged(page: number, pageSize: number, search?: string): PagedResult<VipCustomer> {
+    const total = this.repository.countActive(search)
     const offset = offsetForPage(page, pageSize)
-    const items = this.repository.listPaged(pageSize, offset)
+    const items = this.repository.listPaged(pageSize, offset, search)
     return { items, total, page, pageSize }
   }
 

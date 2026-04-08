@@ -62,5 +62,12 @@ export function registerConsumptionHandlers() {
       return service.syncProductRules(payload)
     }),
   )
+
+  ipcMain.handle(consumptionChannels.applyTemplate3060All, () =>
+    executeIpc(() => {
+      guards.requirePermission('products.manage')
+      return service.applyTemplate3060AllProgressiveProducts()
+    }),
+  )
 }
 

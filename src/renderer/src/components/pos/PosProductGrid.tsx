@@ -1,6 +1,7 @@
 import type { Product } from '@shared/types/product'
 import { catalogMediaUrl } from '@shared/lib/catalogMediaUrl'
 import { cn } from '@renderer/lib/cn'
+import { useUiPrefsStore } from '@renderer/store/uiPrefsStore'
 
 type Props = {
   products: Product[] | undefined
@@ -10,6 +11,8 @@ type Props = {
 }
 
 export function PosProductGrid({ products, loading, selectedCategoryId, onAddProduct }: Props) {
+  const posLargeText = useUiPrefsStore((s) => s.posLargeText)
+  const highContrast = useUiPrefsStore((s) => s.highContrast)
   if (!selectedCategoryId) {
     return <p className="text-sm text-slate-500">Seleccione una categoria.</p>
   }
@@ -29,6 +32,7 @@ export function PosProductGrid({ products, loading, selectedCategoryId, onAddPro
             className={cn(
               'flex h-full min-h-0 w-full max-w-[220px] flex-col overflow-hidden rounded-2xl border border-border bg-white text-left shadow-sm transition-shadow',
               'justify-self-center hover:border-brand/40 hover:shadow-md focus-visible:outline focus-visible:ring-2 focus-visible:ring-brand/30',
+              highContrast && 'border-white/20 bg-slate-950 text-white hover:border-white/40',
             )}
             key={product.id}
             onClick={() => {
@@ -36,16 +40,31 @@ export function PosProductGrid({ products, loading, selectedCategoryId, onAddPro
             }}
             type="button"
           >
-            <div className="flex aspect-[4/3] w-full shrink-0 items-center justify-center bg-slate-100">
+            <div
+              className={cn(
+                'flex aspect-[4/3] w-full shrink-0 items-center justify-center',
+                highContrast ? 'bg-white/5' : 'bg-slate-100',
+              )}
+            >
               {img ? (
                 <img alt="" className="h-full w-full object-cover" src={img} />
               ) : (
-                <span className="text-3xl text-slate-300">◇</span>
+                <span className={cn('text-3xl', highContrast ? 'text-white/30' : 'text-slate-300')}>◇</span>
               )}
             </div>
             <div className="flex flex-1 flex-col gap-1 p-3">
-              <p className="line-clamp-2 text-sm font-semibold leading-tight text-slate-900">{product.name}</p>
-              <p className="mt-auto text-base font-semibold tabular-nums text-brand">{product.salePrice.toFixed(2)}</p>
+              <p
+                className={cn(
+                  'line-clamp-2 font-semibold leading-tight',
+                  posLargeText ? 'text-base' : 'text-sm',
+                  highContrast ? 'text-white' : 'text-slate-900',
+                )}
+              >
+                {product.name}
+              </p>
+              <p className={cn('mt-auto font-semibold tabular-nums text-brand', posLargeText ? 'text-lg' : 'text-base')}>
+                {product.salePrice.toFixed(2)}
+              </p>
             </div>
           </button>
         )

@@ -273,6 +273,7 @@ describe('SaleService', () => {
     const closed = shiftService.close({
       sessionId: session.id,
       countedCash: 50,
+      closingNote: 'Cierre de prueba',
     })
 
     expect(closed.status).toBe('closed')

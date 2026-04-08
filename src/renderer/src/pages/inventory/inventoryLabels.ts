@@ -38,7 +38,10 @@ export function referenceLabel(referenceType: string) {
     inventory_adjustment: 'Ajuste manual',
     product_lots_entry: 'Unidades selladas (lotes)',
     sale: 'Venta',
+    sale_bom: 'Venta (BOM)',
     tab_charge_line_removal: 'Anulación línea cuenta',
+    internal_consumption: 'Consumo interno',
+    internal_consumption_cancel: 'Cancelación consumo interno',
   }
   return map[referenceType] ?? referenceType
 }

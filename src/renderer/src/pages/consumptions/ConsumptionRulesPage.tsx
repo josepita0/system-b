@@ -375,6 +375,37 @@ export function ConsumptionRulesPage() {
     syncMutation.mutate({ productId: selectedProductId, rows })
   }
 
+  const apply3060Template = () => {
+    if (selectedProductId == null || legacyRuleId != null) {
+      return
+    }
+    const byCode: Record<string, number> = { chupito: 30, combinado: 60, piedra: 60 }
+    setDraftByFormatId((prev) => {
+      const next: Record<number, DraftCell> = { ...prev }
+      for (const f of effectiveFormats) {
+        const ml = byCode[f.code.toLowerCase()]
+        if (ml == null) {
+          continue
+        }
+        const cur = next[f.id] ?? { consume: '', price: '' }
+        next[f.id] = { ...cur, consume: String(ml), price: cur.price.trim() === '' ? '2' : cur.price }
+      }
+      return next
+    })
+    setErrorMessage(null)
+  }
+
+  const apply3060AllMutation = useMutation({
+    mutationFn: () => window.api.consumptions.applyTemplate3060All(),
+    onSuccess: async () => {
+      setErrorMessage(null)
+      await refresh()
+    },
+    onError: (error) => {
+      setErrorMessage(error instanceof Error ? error.message : 'No fue posible aplicar la plantilla.')
+    },
+  })
+
   const inputClass =
     'w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm tabular-nums text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20'
 
@@ -676,6 +707,22 @@ export function ConsumptionRulesPage() {
                     variant="primary"
                   >
                     {syncMutation.isPending ? 'Guardando...' : 'Guardar'}
+                  </Button>
+                  <Button
+                    disabled={syncMutation.isPending || deleteMutation.isPending}
+                    onClick={apply3060Template}
+                    type="button"
+                    variant="secondary"
+                  >
+                    Aplicar plantilla 30/60ml
+                  </Button>
+                  <Button
+                    disabled={apply3060AllMutation.isPending || syncMutation.isPending || deleteMutation.isPending}
+                    onClick={() => apply3060AllMutation.mutate()}
+                    type="button"
+                    variant="secondary"
+                  >
+                    {apply3060AllMutation.isPending ? 'Aplicando...' : 'Aplicar a todos'}
                   </Button>
                   <span className="text-xs text-slate-500">
                     Se guardan todas las filas: vacías eliminan la regla de ese formato; las filas con consumo válido crean o

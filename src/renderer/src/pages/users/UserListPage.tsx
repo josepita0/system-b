@@ -26,6 +26,7 @@ export function UserListPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [search, setSearch] = useState('')
 
   const availableRoles: UserRole[] = actor?.role === 'admin' ? ['employee', 'manager', 'admin'] : ['employee']
 
@@ -36,8 +37,8 @@ export function UserListPage() {
   const me = sessionQuery.data?.user
 
   const usersQuery = useQuery({
-    queryKey: ['users', 'paged', page, pageSize],
-    queryFn: () => window.api.users.listPaged({ page, pageSize }),
+    queryKey: ['users', 'paged', page, pageSize, search],
+    queryFn: () => window.api.users.listPaged({ page, pageSize, search: search.trim() || undefined }),
   })
 
   const pagedUsers = usersQuery.data?.items ?? []
@@ -53,7 +54,7 @@ export function UserListPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [pageSize])
+  }, [pageSize, search])
 
   const editUserQuery = useQuery({
     queryKey: ['users', editUserId],
@@ -154,6 +155,19 @@ export function UserListPage() {
           Crear usuario
         </Button>
       </div>
+
+      <Card className="shadow-sm" padding="md">
+        <label className="block text-sm text-slate-700">
+          Buscar
+          <input
+            className="mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/30"
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Nombre, usuario, email o documento"
+            type="search"
+            value={search}
+          />
+        </label>
+      </Card>
 
       {usersQuery.isLoading ? (
         <div className="rounded-2xl border border-border bg-surface-card p-5 text-sm text-slate-600 shadow-sm">Cargando usuarios...</div>

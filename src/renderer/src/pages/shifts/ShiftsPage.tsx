@@ -139,7 +139,11 @@ function ShiftSessionMovementsLists(props: {
                   Estado: {tab.status}
                   {tab.openedHere ? ' · Apertura en este turno' : ''}
                   {tab.settledHere ? ' · Liquidacion en este turno' : ''}
+                  {tab.cancelledHere ? ' · Cancelada en este turno' : ''}
                 </p>
+                {tab.status === 'cancelled' && tab.cancelReason ? (
+                  <p className="mt-1 text-xs text-rose-700">Motivo: {tab.cancelReason}</p>
+                ) : null}
               </li>
             ))
           )}
@@ -156,6 +160,7 @@ export function ShiftsPage() {
   const [openModalOpen, setOpenModalOpen] = useState(false)
   const [closePassword, setClosePassword] = useState('')
   const [closeCountedCash, setCloseCountedCash] = useState<number | ''>('')
+  const [closeNote, setCloseNote] = useState('')
   const [closeFeedback, setCloseFeedback] = useState<{ ok: boolean; message: string } | null>(null)
   const [resendFeedback, setResendFeedback] = useState<{ ok: boolean; message: string; sessionId: number } | null>(null)
   const [nowTick, setNowTick] = useState(() => Date.now())
@@ -253,7 +258,11 @@ export function ShiftsPage() {
         throw new Error('Indique el efectivo contado para cerrar el turno.')
       }
       await window.api.auth.verifyPassword({ password })
-      await window.api.shifts.close({ sessionId: session.id, countedCash: Number(countedCashRaw) })
+      const note = closeNote.trim()
+      if (!note) {
+        throw new Error('Indique una nota de cierre para cerrar el turno.')
+      }
+      await window.api.shifts.close({ sessionId: session.id, countedCash: Number(countedCashRaw), closingNote: note })
       try {
         const report = await window.api.reports.generateShiftClose(session.id)
         return { report: report as ShiftCloseReport, reportError: null as Error | null }
@@ -267,6 +276,7 @@ export function ShiftsPage() {
     onSuccess: async (data) => {
       setCloseModalOpen(false)
       setClosePassword('')
+      setCloseNote('')
       await queryClient.invalidateQueries({ queryKey: ['shift'] })
       await queryClient.invalidateQueries({ queryKey: ['reports', 'pending-emails'] })
       if (data.reportError) {
@@ -327,6 +337,7 @@ export function ShiftsPage() {
   const openCloseModal = () => {
     setCloseFeedback(null)
     setClosePassword('')
+    setCloseNote('')
     const s = currentQuery.data
     if (s?.status === 'open') {
       const suggested = s.liveExpectedCash ?? s.openingCash
@@ -377,6 +388,7 @@ export function ShiftsPage() {
           setCloseModalOpen(false)
           setClosePassword('')
           setCloseCountedCash('')
+          setCloseNote('')
         }}
         open={closeShiftModalOpen}
         title="Confirmar cierre de turno"
@@ -406,7 +418,7 @@ export function ShiftsPage() {
                 confirmCloseMutation.mutate(closePassword)
               }}
             >
-              <Field hint="Monto total contado en caja (incluye la apertura)." label="Efectivo contado">
+              {/* <Field hint="Monto total contado en caja (incluye la apertura)." label="Efectivo contado">
                 <Input
                   inputMode="decimal"
                   onChange={(e) => {
@@ -422,7 +434,7 @@ export function ShiftsPage() {
                   type="number"
                   value={closeCountedCash === '' ? '' : String(closeCountedCash)}
                 />
-              </Field>
+              </Field> */}
               <Field label="Contraseña">
                 <Input
                   autoComplete="current-password"
@@ -430,6 +442,14 @@ export function ShiftsPage() {
                   placeholder="••••••••"
                   type="password"
                   value={closePassword}
+                />
+              </Field>
+              <Field hint="Obligatoria. Se incluirá en el detalle del turno." label="Nota de cierre">
+                <textarea
+                  className="min-h-[96px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                  onChange={(e) => setCloseNote(e.target.value)}
+                  placeholder="Ej. incidencia caja, observaciones, ajustes..."
+                  value={closeNote}
                 />
               </Field>
               {confirmCloseMutation.isError ? (
@@ -448,7 +468,11 @@ export function ShiftsPage() {
                 >
                   Cancelar
                 </Button>
-                <Button disabled={confirmCloseMutation.isPending || closePassword.length < 8} type="submit" variant="warning">
+                <Button
+                  disabled={confirmCloseMutation.isPending || closePassword.length < 8 || closeNote.trim().length === 0}
+                  type="submit"
+                  variant="warning"
+                >
                   {confirmCloseMutation.isPending ? 'Cerrando...' : 'Confirmar cierre'}
                 </Button>
               </div>

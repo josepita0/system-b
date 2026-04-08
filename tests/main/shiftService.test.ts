@@ -53,6 +53,7 @@ describe('ShiftService', () => {
     const closed = service.close({
       sessionId: opened.id,
       countedCash: 100,
+      closingNote: 'Cierre de prueba',
     })
 
     expect(closed.status).toBe('closed')

@@ -16,11 +16,13 @@ import { SaleFormatManager } from '@renderer/components/products/SaleFormatManag
 import { ProductTable } from '@renderer/components/products/ProductTable'
 import { Button } from '@renderer/components/ui/Button'
 import { Card } from '@renderer/components/ui/Card'
+import { Input } from '@renderer/components/ui/Input'
 import { Modal } from '@renderer/components/ui/Modal'
 import { TablePagination } from '@renderer/components/ui/TablePagination'
 import { cn } from '@renderer/lib/cn'
 import { DEFAULT_PAGE_SIZE } from '@shared/types/pagination'
 import { selectFieldClass } from '@renderer/components/pos/posFieldClasses'
+import type { BomItemInput } from '@shared/types/bom'
 
 const categoriesKey = ['products', 'categories'] as const
 const saleFormatsKey = ['products', 'sale-formats'] as const
@@ -45,6 +47,10 @@ export function ProductsPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [bomModalOpen, setBomModalOpen] = useState(false)
+  const [bomSearch, setBomSearch] = useState('')
+  const [bomDraftItems, setBomDraftItems] = useState<BomItemInput[]>([])
+  const [bomSaveError, setBomSaveError] = useState<string | null>(null)
 
   const categoriesQuery = useQuery({
     queryKey: categoriesKey,
@@ -173,14 +179,65 @@ export function ProductsPage() {
     await queryClient.invalidateQueries({ queryKey: categoriesKey })
   }
 
+  const refreshPosCatalog = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['sales'] })
+  }
+
   const refreshSaleFormats = async () => {
     await queryClient.invalidateQueries({ queryKey: saleFormatsKey })
   }
+
+  const bomItemsQuery = useQuery({
+    queryKey: ['bom', 'items', selected?.id],
+    queryFn: () => (selected ? window.api.bom.getItems(selected.id) : Promise.resolve([])),
+    enabled: Boolean(selected && selected.type === 'compound'),
+  })
+
+  const bomSearchQuery = useQuery({
+    queryKey: ['products', 'list', 'paged', 'bom-search', bomSearch],
+    queryFn: () =>
+      window.api.products.listPaged({
+        page: 1,
+        pageSize: 20,
+        search: bomSearch.trim() || undefined,
+      }),
+    enabled: bomModalOpen && bomSearch.trim().length > 0,
+  })
+
+  const bomUpsertMutation = useMutation({
+    mutationFn: async () => {
+      if (!selected) {
+        return
+      }
+      await window.api.bom.upsert({
+        parentProductId: selected.id,
+        items: bomDraftItems.map((i) => ({ componentProductId: i.componentProductId, quantityPerUnit: 1 })),
+      })
+    },
+    onSuccess: async () => {
+      setBomSaveError(null)
+      await queryClient.invalidateQueries({ queryKey: ['bom'] })
+      setBomModalOpen(false)
+    },
+    onError: (e) => {
+      setBomSaveError(e instanceof Error ? e.message : 'No fue posible guardar el BOM.')
+    },
+  })
 
   const closeProductDrawer = useCallback(() => {
     setProductDrawerOpen(false)
     setSelected(null)
   }, [])
+
+  const openBomModal = useCallback(() => {
+    if (!selected || selected.type !== 'compound') {
+      return
+    }
+    setBomSaveError(null)
+    setBomSearch('')
+    setBomDraftItems((bomItemsQuery.data ?? []).map((i) => ({ componentProductId: i.componentProductId, quantityPerUnit: 1 })))
+    setBomModalOpen(true)
+  }, [bomItemsQuery.data, selected])
 
   const closeCategoryModal = useCallback(() => {
     setCategoryModalOpen(false)
@@ -192,7 +249,7 @@ export function ProductsPage() {
     mutationFn: (payload: ProductInput) => window.api.products.create(payload),
     onSuccess: async () => {
       closeProductDrawer()
-      await Promise.all([refreshProducts(), refreshCategories()])
+      await Promise.all([refreshProducts(), refreshCategories(), refreshPosCatalog()])
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible crear el producto.')
@@ -204,7 +261,7 @@ export function ProductsPage() {
       selected ? window.api.products.update({ id: selected.id, ...payload }) : Promise.resolve(null),
     onSuccess: async () => {
       closeProductDrawer()
-      await Promise.all([refreshProducts(), refreshCategories()])
+      await Promise.all([refreshProducts(), refreshCategories(), refreshPosCatalog()])
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : 'No fue posible actualizar el producto.')
@@ -613,6 +670,18 @@ export function ProductsPage() {
         open={productDrawerOpen}
         title={selected?.name ?? 'Nuevo producto'}
       >
+        {selected?.type === 'compound' ? (
+          <Card className="mb-4" padding="md">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-slate-900">BOM (dependencias)</h3>
+              </div>
+              <Button onClick={openBomModal} type="button" variant="secondary">
+                Configurar BOM
+              </Button>
+            </div>
+          </Card>
+        ) : null}
         <ProductForm
           categories={categoryOptions}
           defaultCategoryId={selectedCategoryId}
@@ -633,6 +702,91 @@ export function ProductsPage() {
           }}
         />
       </CatalogProductDrawer>
+
+      <Modal
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setBomModalOpen(false)
+              }}
+              variant="secondary"
+            >
+              Cerrar
+            </Button>
+            <Button disabled={bomUpsertMutation.isPending || !selected} onClick={() => bomUpsertMutation.mutate()} variant="primary">
+              {bomUpsertMutation.isPending ? 'Guardando...' : 'Guardar BOM'}
+            </Button>
+          </>
+        }
+        onClose={() => setBomModalOpen(false)}
+        open={bomModalOpen}
+        title="Configurar BOM"
+      >
+        <p className="text-sm text-slate-600">
+          Define qué componentes se descuentan al vender 1 unidad del producto derivado.
+        </p>
+
+        <div className="mt-4">
+          <label className="block text-sm text-slate-700">
+            Buscar componente
+            <Input className="mt-1" onChange={(e) => setBomSearch(e.target.value)} placeholder="Ej. paquete café, leche..." value={bomSearch} />
+          </label>
+
+          {bomSearchQuery.data?.items?.length ? (
+            <div className="mt-2 max-h-[220px] overflow-auto rounded-xl border border-border bg-white">
+              {(bomSearchQuery.data.items ?? []).map((p) => (
+                <button
+                  className="flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm hover:bg-slate-50"
+                  key={p.id}
+                  onClick={() => {
+                    setBomDraftItems((prev) => {
+                      if (prev.some((x) => x.componentProductId === p.id)) {
+                        return prev
+                      }
+                      return [...prev, { componentProductId: p.id, quantityPerUnit: 1 }]
+                    })
+                  }}
+                  type="button"
+                >
+                  <span className="truncate">{p.name}</span>
+                  <span className="text-xs text-slate-500">#{p.id}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-5">
+          <h4 className="text-sm font-semibold text-slate-800">Componentes</h4>
+          {bomDraftItems.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">Aún no hay componentes.</p>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {bomDraftItems.map((it) => {
+                const fromExisting = (bomItemsQuery.data ?? []).find((x) => x.componentProductId === it.componentProductId)
+                const fromSearch = (bomSearchQuery.data?.items ?? []).find((x) => x.id === it.componentProductId)
+                const label = fromExisting?.componentName ?? fromSearch?.name ?? `Producto #${it.componentProductId}`
+                return (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-slate-50 px-3 py-2" key={it.componentProductId}>
+                  <span className="min-w-[140px] text-sm text-slate-800">{label}</span>
+                  <Button
+                    className="ml-auto"
+                    onClick={() => setBomDraftItems((prev) => prev.filter((x) => x.componentProductId !== it.componentProductId))}
+                    type="button"
+                    variant="danger"
+                  >
+                    Quitar
+                  </Button>
+                </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {bomSaveError ? <p className="mt-3 text-sm text-rose-600">{bomSaveError}</p> : null}
+      </Modal>
 
       <Modal maxWidthClass="max-w-lg" onClose={closeCategoryModal} open={categoryModalOpen} title={categoryModalTitle}>
         <CategoryForm

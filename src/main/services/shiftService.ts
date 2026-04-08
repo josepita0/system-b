@@ -192,6 +192,11 @@ export class ShiftService {
       throw new ValidationError(parsed.error.issues.map((issue) => issue.message).join(', '))
     }
 
+    const closingNote = parsed.data.closingNote.trim()
+    if (!closingNote) {
+      throw new ValidationError('Indique una nota de cierre.')
+    }
+
     const session = this.repository.getSessionById(parsed.data.sessionId)
     if (!session) {
       throw new ShiftStateError('Sesion de caja no encontrada.')
@@ -203,6 +208,6 @@ export class ShiftService {
 
     const expectedCash = session.openingCash + this.repository.getSalesTotalForSession(session.id)
     const pendingReconcileTotal = this.repository.getTotalPendingReconcileOpenTabs()
-    return this.repository.closeSession(session.id, expectedCash, parsed.data.countedCash, pendingReconcileTotal)
+    return this.repository.closeSession(session.id, expectedCash, parsed.data.countedCash, pendingReconcileTotal, closingNote)
   }
 }

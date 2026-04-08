@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { parsePageParams } from '../../shared/schemas/paginationSchema'
+import { parsePageParams, searchPagedInputSchema } from '../../shared/schemas/paginationSchema'
 import { inventoryChannels } from '../../shared/ipc/inventory'
 import { getDb } from '../database/connection'
 import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
@@ -109,12 +109,15 @@ export function registerInventoryHandlers() {
   ipcMain.handle(inventoryChannels.listBalancePaged, (_event, raw: unknown) =>
     executeIpc(() => {
       guards.requirePermission('inventory.view')
-      const p = parsePageParams(raw ?? {})
-      const result = service.listBalancePaged(p.page, p.pageSize)
+      const p = searchPagedInputSchema.parse(raw ?? {})
+      const categoryId = raw && typeof raw === 'object' ? Number((raw as any).categoryId) : undefined
+      const result = service.listBalancePaged(p.page, p.pageSize, p.search, Number.isFinite(categoryId) ? categoryId : undefined)
       const rows = result.items as Array<{
         product_id: number
         sku: string
         product_name: string
+        category_id?: number
+        category_name?: string
         min_stock: number
         stock: number
         consumption_mode: 'unit' | 'progressive'
@@ -122,7 +125,11 @@ export function registerInventoryHandlers() {
         capacity_unit: string | null
       }>
       return {
-        items: rows.map(mapBalanceRow),
+        items: rows.map((row) => ({
+          ...mapBalanceRow(row as any),
+          categoryId: (row as any).category_id != null ? Number((row as any).category_id) : null,
+          categoryName: (row as any).category_name ?? null,
+        })),
         total: result.total,
         page: result.page,
         pageSize: result.pageSize,
