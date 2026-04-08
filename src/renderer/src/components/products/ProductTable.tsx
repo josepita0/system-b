@@ -37,8 +37,12 @@ export function ProductTable({ products, onEdit, onDelete, selectedProductId }: 
               key={product.id}
             >
               <td className="px-4 py-3">
-                {catalogMediaUrl(product.imageRelPath) ? (
-                  <img alt="" className="h-10 w-10 rounded-md border border-border object-cover" src={catalogMediaUrl(product.imageRelPath)!} />
+                {catalogMediaUrl(product.primaryImageRelPath ?? product.imageRelPath) ? (
+                  <img
+                    alt=""
+                    className="h-10 w-10 rounded-md border border-border object-cover"
+                    src={catalogMediaUrl(product.primaryImageRelPath ?? product.imageRelPath)!}
+                  />
                 ) : (
                   <span className="text-slate-400">—</span>
                 )}

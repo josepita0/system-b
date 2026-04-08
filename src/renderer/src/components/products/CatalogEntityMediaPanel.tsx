@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { catalogMediaUrl } from '@shared/lib/catalogMediaUrl'
 
 type EntityKind = 'category' | 'product'
@@ -22,6 +23,7 @@ export function CatalogEntityMediaPanel({
 }: CatalogEntityMediaPanelProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
   const imageSrc = catalogMediaUrl(imageRelPath)
   const label = kind === 'category' ? 'categoria' : 'producto'
 
@@ -62,36 +64,37 @@ export function CatalogEntityMediaPanel({
             </div>
           )}
           <div className="flex flex-wrap gap-2">
-            <button
-              className="rounded-md border border-border bg-slate-100 px-2 py-1 text-xs text-slate-800 disabled:opacity-50"
-              disabled={busy}
-              onClick={() =>
-                run(() =>
-                  kind === 'category'
-                    ? window.api.products.setCategoryImage(entityId)
-                    : window.api.products.setProductImage(entityId),
-                )
-              }
-              type="button"
-            >
-              Elegir imagen
-            </button>
-            {imageRelPath ? (
+            {kind === 'category' ? (
+              <>
+                <button
+                  className="rounded-md border border-border bg-slate-100 px-2 py-1 text-xs text-slate-800 disabled:opacity-50"
+                  disabled={busy}
+                  onClick={() => run(() => window.api.products.setCategoryImage(entityId))}
+                  type="button"
+                >
+                  Elegir imagen
+                </button>
+                {imageRelPath ? (
+                  <button
+                    className="rounded-md bg-slate-800 px-2 py-1 text-xs text-slate-300 disabled:opacity-50"
+                    disabled={busy}
+                    onClick={() => run(() => window.api.products.clearCategoryImage(entityId))}
+                    type="button"
+                  >
+                    Quitar
+                  </button>
+                ) : null}
+              </>
+            ) : (
               <button
-                className="rounded-md bg-slate-800 px-2 py-1 text-xs text-slate-300 disabled:opacity-50"
+                className="rounded-md border border-border bg-slate-100 px-2 py-1 text-xs text-slate-800 disabled:opacity-50"
                 disabled={busy}
-                onClick={() =>
-                  run(() =>
-                    kind === 'category'
-                      ? window.api.products.clearCategoryImage(entityId)
-                      : window.api.products.clearProductImage(entityId),
-                  )
-                }
+                onClick={() => navigate('/galeria-imagenes', { state: { linkProductId: entityId } })}
                 type="button"
               >
-                Quitar
+                Gestionar en galería
               </button>
-            ) : null}
+            )}
           </div>
         </div>
 

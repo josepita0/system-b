@@ -162,7 +162,7 @@ export function ProductForm({
       </Button>
       <CatalogEntityMediaPanel
         entityId={product?.id ?? null}
-        imageRelPath={product?.imageRelPath ?? null}
+        imageRelPath={product?.primaryImageRelPath ?? product?.imageRelPath ?? null}
         kind="product"
         onChanged={onMediaChanged}
         pdfOriginalName={product?.pdfOriginalName ?? null}

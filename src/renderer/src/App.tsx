@@ -31,6 +31,7 @@ const InventoryHistoryPage = lazy(() => import('./pages/inventory/InventoryHisto
 const ConsumptionRulesPage = lazy(() => import('./pages/consumptions/ConsumptionRulesPage').then((module) => ({ default: module.ConsumptionRulesPage })))
 const CashSettingsPage = lazy(() => import('./pages/settings/CashSettingsPage').then((m) => ({ default: m.CashSettingsPage })))
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })))
+const ImageGalleryPage = lazy(() => import('./pages/images/ImageGalleryPage').then((m) => ({ default: m.ImageGalleryPage })))
 
 /** Rutas antiguas /usuarios/:id/editar redirigen al listado abriendo el modal de edicion. */
 function UserEditRouteRedirect() {
@@ -59,6 +60,7 @@ function buildAppNavItems(role: string): NavEntry[] {
         icon: 'cog',
         children: [
           { to: '/', label: 'Productos', icon: 'grid', end: true },
+          { to: '/galeria-imagenes', label: 'Galeria de imagenes', icon: 'grid' },
           { to: '/consumos', label: 'Consumos', icon: 'flask' },
           { to: '/clientes-vip', label: 'Clientes VIP', icon: 'star' },
           { to: '/ajustes/caja', label: 'Caja', icon: 'clock' },
@@ -306,6 +308,14 @@ export default function App() {
                   </ProtectedRoute>
                 }
                 path="/clientes-vip"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="manager">
+                    <ImageGalleryPage />
+                  </ProtectedRoute>
+                }
+                path="/galeria-imagenes"
               />
               <Route
                 element={

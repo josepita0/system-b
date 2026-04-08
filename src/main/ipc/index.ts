@@ -14,6 +14,7 @@ import { registerSettingsHandlers } from './settingsHandlers'
 import { registerDashboardHandlers } from './dashboardHandlers'
 import { registerInternalConsumptionHandlers } from './internalConsumptionHandlers'
 import { registerBomHandlers } from './bomHandlers'
+import { registerImageGalleryHandlers } from './imageGalleryHandlers'
 
 export function registerIpcHandlers() {
   registerAuthHandlers()
@@ -21,6 +22,7 @@ export function registerIpcHandlers() {
   registerDocumentHandlers()
   registerLicenseHandlers()
   registerProductHandlers()
+  registerImageGalleryHandlers()
   registerSaleHandlers()
   registerShiftHandlers()
   registerReportHandlers()

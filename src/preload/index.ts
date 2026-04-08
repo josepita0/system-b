@@ -16,6 +16,7 @@ import { settingsChannels } from '../shared/ipc/settings'
 import { dashboardChannels } from '../shared/ipc/dashboard'
 import { internalConsumptionChannels } from '../shared/ipc/internalConsumptions'
 import { bomChannels } from '../shared/ipc/bom'
+import { imageGalleryChannels } from '../shared/ipc/imageGallery'
 
 async function invokeIpc<T>(channel: string, ...args: unknown[]) {
   const result = (await ipcRenderer.invoke(channel, ...args)) as IpcResult<T>
@@ -181,6 +182,18 @@ const api = {
     upsert: (payload: unknown) => invokeIpc(bomChannels.upsert, payload),
     removeAll: (parentProductId: number) => invokeIpc(bomChannels.removeAll, parentProductId),
     getVirtualStock: (parentProductId: number) => invokeIpc(bomChannels.getVirtualStock, parentProductId),
+  },
+  imageGallery: {
+    pickFiles: () => invokeIpc(imageGalleryChannels.pickFiles),
+    pickFolder: () => invokeIpc(imageGalleryChannels.pickFolder),
+    importFiles: (filePaths: string[]) => invokeIpc(imageGalleryChannels.importFiles, filePaths),
+    importFolder: (folderPath: string) => invokeIpc(imageGalleryChannels.importFolder, folderPath),
+    list: (params: unknown) => invokeIpc(imageGalleryChannels.list, params),
+    updateMetadata: (id: number, patch: unknown) => invokeIpc(imageGalleryChannels.updateMetadata, id, patch),
+    deleteBatch: (ids: number[]) => invokeIpc(imageGalleryChannels.deleteBatch, ids),
+    linkToProduct: (payload: unknown) => invokeIpc(imageGalleryChannels.linkToProduct, payload),
+    unlinkFromProduct: (payload: unknown) => invokeIpc(imageGalleryChannels.unlinkFromProduct, payload),
+    setPrimaryForProduct: (payload: unknown) => invokeIpc(imageGalleryChannels.setPrimaryForProduct, payload),
   },
 }
 

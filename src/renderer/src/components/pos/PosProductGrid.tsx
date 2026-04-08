@@ -26,7 +26,7 @@ export function PosProductGrid({ products, loading, selectedCategoryId, onAddPro
   return (
     <div className="grid min-h-0 min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,148px),220px))] justify-center gap-3">
       {products.map((product) => {
-        const img = catalogMediaUrl(product.imageRelPath)
+        const img = catalogMediaUrl(product.primaryImageRelPath ?? product.imageRelPath)
         return (
           <button
             className={cn(
@@ -42,12 +42,12 @@ export function PosProductGrid({ products, loading, selectedCategoryId, onAddPro
           >
             <div
               className={cn(
-                'flex aspect-[4/3] w-full shrink-0 items-center justify-center',
+                'flex aspect-[4/3] w-full shrink-0 items-center justify-center overflow-hidden',
                 highContrast ? 'bg-white/5' : 'bg-slate-100',
               )}
             >
               {img ? (
-                <img alt="" className="h-full w-full object-cover" src={img} />
+                <img alt="" className="block h-full w-full object-cover" decoding="async" loading="lazy" src={img} />
               ) : (
                 <span className={cn('text-3xl', highContrast ? 'text-white/30' : 'text-slate-300')}>◇</span>
               )}

@@ -14,6 +14,7 @@ type ProductRow = {
   min_stock: number
   show_in_sales: number
   is_active: number
+  primary_image_relpath: string | null
   image_relpath: string | null
   image_mime: string | null
   pdf_relpath: string | null
@@ -37,6 +38,7 @@ function mapRow(row: ProductRow): Product {
     minStock: row.min_stock,
     showInSales: row.show_in_sales ?? 1,
     isActive: row.is_active,
+    primaryImageRelPath: row.primary_image_relpath ?? null,
     imageRelPath: row.image_relpath ?? null,
     imageMime: row.image_mime ?? null,
     pdfRelPath: row.pdf_relpath ?? null,
@@ -54,9 +56,12 @@ export class ProductRepository {
     SELECT
       p.*,
       c.name AS category_name,
-      c.slug AS category_slug
+      c.slug AS category_slug,
+      i.stored_relpath AS primary_image_relpath
     FROM products p
     INNER JOIN categories c ON c.id = p.category_id
+    LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+    LEFT JOIN images i ON i.id = pi.image_id
   `
 
   list(categoryId?: number) {

@@ -56,6 +56,8 @@ export interface Product {
   /** POS: controla si el producto aparece en la pantalla de ventas. */
   showInSales: number
   isActive: number
+  /** Imagen principal obtenida desde `product_images` (galería). */
+  primaryImageRelPath: string | null
   imageRelPath: string | null
   imageMime: string | null
   pdfRelPath: string | null
