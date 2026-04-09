@@ -89,13 +89,11 @@ export class ShiftService {
     if (hasAtLeastRole(actor.role, 'manager')) {
       const ids = this.repository.listClosedSessionsForManager(200, 0)
       const closed = this.repository.getHistoryEntriesByIds(ids)
-      return this.prependCurrentOpenSession(closed)
+      return this.prependCurrentOpenSession(closed, actor)
     }
 
     const idsOwn = this.repository.listEmployeeEligibleSessionIds(actor.id)
-    const latestId = this.repository.getLatestClosedSessionId()
-    const merged = [...new Set([...(latestId != null ? [latestId] : []), ...idsOwn])]
-    const entries = this.repository.getHistoryEntriesByIds(merged)
+    const entries = this.repository.getHistoryEntriesByIds(idsOwn)
     entries.sort((a, b) => {
       const ta = a.closedAt ?? ''
       const tb = b.closedAt ?? ''
@@ -105,7 +103,7 @@ export class ShiftService {
       }
       return b.id - a.id
     })
-    return this.prependCurrentOpenSession(entries)
+    return this.prependCurrentOpenSession(entries, actor)
   }
 
   listHistoryPaged(actor: AuthenticatedUser, page: number, pageSize: number): PagedResult<CashSessionHistoryEntry> {
@@ -146,10 +144,15 @@ export class ShiftService {
   }
 
   /** Incluye el turno abierto al inicio para seguimiento en tiempo real del efectivo y pagarés. */
-  private prependCurrentOpenSession(entries: CashSessionHistoryEntry[]) {
+  private prependCurrentOpenSession(entries: CashSessionHistoryEntry[], actor: AuthenticatedUser) {
     const cur = this.repository.getCurrentSession()
     if (!cur || cur.status !== 'open') {
       return entries
+    }
+    if (!hasAtLeastRole(actor.role, 'manager')) {
+      if (cur.openedByUserId == null || cur.openedByUserId !== actor.id) {
+        return entries
+      }
     }
     const row = this.repository.getHistoryEntryById(cur.id)
     if (!row) {
@@ -169,8 +172,9 @@ export class ShiftService {
       const current = this.repository.getCurrentSession()
       const isCurrentOpen = current != null && current.id === sessionId
       if (!hasAtLeastRole(actor.role, 'manager')) {
-        if (!isCurrentOpen) {
-          throw new AuthorizationError('No puede ver el detalle de un turno abierto que no sea el actual.')
+        const openedBySelf = entry.openedByUserId != null && entry.openedByUserId === actor.id
+        if (!isCurrentOpen || !openedBySelf) {
+          throw new AuthorizationError('No puede ver el detalle de este turno abierto.')
         }
       }
     } else if (!hasAtLeastRole(actor.role, 'manager')) {

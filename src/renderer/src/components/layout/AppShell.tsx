@@ -364,7 +364,7 @@ export function AppShell({ children, userDisplayName, userRole, navItems, onLogo
               alt=""
               className="h-10 w-10 object-contain p-0.5"
               decoding="async"
-              src={`${import.meta.env.BASE_URL}app-logo.svg`}
+              src={`${import.meta.env.BASE_URL}icon.png`}
             />
           </div>
           <button

@@ -54,6 +54,7 @@ function buildPermissions(role: User['role']): UserPermission[] {
         'vip.manage',
         'inventory.view',
         'inventory.manage',
+        'internal_consumption.create',
       ]
     case 'manager':
       return [
@@ -67,10 +68,11 @@ function buildPermissions(role: User['role']): UserPermission[] {
         'vip.manage',
         'inventory.view',
         'inventory.manage',
+        'internal_consumption.create',
       ]
     case 'employee':
     default:
-      return ['sales.use', 'documents.self', 'shifts.open', 'inventory.view']
+      return ['sales.use', 'documents.self', 'shifts.open', 'inventory.view', 'internal_consumption.create']
   }
 }
 

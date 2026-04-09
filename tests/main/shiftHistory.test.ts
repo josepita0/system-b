@@ -101,7 +101,7 @@ describe('Shift history and visibility', () => {
     expect(ids).not.toContain(badTab.id)
   })
 
-  it('listHistory merges latest global for employee', () => {
+  it('employee listHistory only includes own eligible closed sessions, not other employees', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-shifthist-merge-'))
     const dbPath = path.join(directory, 'test.sqlite')
     const db = createDatabase(dbPath)
@@ -132,7 +132,7 @@ describe('Shift history and visibility', () => {
 
     const hist = service.listHistory(mockUser(self, 'employee'))
     const sessionIds = hist.map((h) => h.id)
-    expect(sessionIds).toContain(sOther.id)
+    expect(sessionIds).not.toContain(sOther.id)
     expect(sessionIds).toContain(sSelf.id)
     expect(new Set(sessionIds).size).toBe(sessionIds.length)
   })

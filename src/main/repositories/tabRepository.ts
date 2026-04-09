@@ -12,13 +12,13 @@ export type CustomerTabRow = {
 export class TabRepository {
   constructor(private readonly db: Database.Database) {}
 
-  create(customerName: string, cashSessionId: number, employeeId: number) {
+  create(customerName: string, cashSessionId: number, employeeId: number, vipCustomerId: number | null = null) {
     const result = this.db
       .prepare(
-        `INSERT INTO customer_tabs (customer_name, opened_cash_session_id, opened_by_employee_id)
-         VALUES (?, ?, ?)`,
+        `INSERT INTO customer_tabs (customer_name, opened_cash_session_id, opened_by_employee_id, vip_customer_id)
+         VALUES (?, ?, ?, ?)`,
       )
-      .run(customerName.trim(), cashSessionId, employeeId)
+      .run(customerName.trim(), cashSessionId, employeeId, vipCustomerId)
 
     return Number(result.lastInsertRowid)
   }
@@ -30,7 +30,8 @@ export class TabRepository {
                 opened_cash_session_id AS openedCashSessionId,
                 settled_at AS settledAt, settled_cash_session_id AS settledCashSessionId,
                 cancelled_at AS cancelledAt, cancelled_cash_session_id AS cancelledCashSessionId,
-                cancelled_by_employee_id AS cancelledByEmployeeId, cancel_reason AS cancelReason
+                cancelled_by_employee_id AS cancelledByEmployeeId, cancel_reason AS cancelReason,
+                vip_customer_id AS vipCustomerId
          FROM customer_tabs WHERE id = ?`,
       )
       .get(id) as
@@ -46,6 +47,7 @@ export class TabRepository {
           cancelledCashSessionId: number | null
           cancelledByEmployeeId: number | null
           cancelReason: string | null
+          vipCustomerId: number | null
         }
       | undefined
     return row

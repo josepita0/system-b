@@ -1,7 +1,7 @@
 import { Button } from '@renderer/components/ui/Button'
 import { cn } from '@renderer/lib/cn'
 
-const PAGE_SIZE_OPTIONS = [10, 25, 50] as const
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const
 
 type Props = {
   page: number

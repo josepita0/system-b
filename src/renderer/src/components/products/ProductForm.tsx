@@ -29,6 +29,7 @@ function createInitialState(categoryId?: number | null): ProductInput {
     type: 'simple',
     categoryId: categoryId ?? 0,
     salePrice: 0,
+    complementSalePrice: null,
     minStock: 0,
     showInSales: 1,
   }
@@ -58,6 +59,7 @@ export function ProductForm({
       type: product.type,
       categoryId: product.categoryId,
       salePrice: product.salePrice,
+      complementSalePrice: product.complementSalePrice,
       minStock: product.minStock,
       showInSales: product.showInSales ?? 1,
     })
@@ -73,6 +75,7 @@ export function ProductForm({
           ...form,
           name: nameTrimmed,
           sku: nameTrimmed,
+          complementSalePrice: form.complementSalePrice ?? null,
         }
         await onSubmit(payload)
         if (!product) {
@@ -132,6 +135,27 @@ export function ProductForm({
           value={form.salePrice}
           onChange={(event) => setForm((state) => ({ ...state, salePrice: Number(event.target.value) }))}
         />
+      </label>
+      <label className="grid gap-1 text-sm text-slate-700">
+        <span>Precio complementario</span>
+        <input
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Opcional: mismo que venta si se deja vacio"
+          value={form.complementSalePrice ?? ''}
+          onChange={(event) => {
+            const raw = event.target.value
+            setForm((state) => ({
+              ...state,
+              complementSalePrice: raw === '' ? null : Number(raw),
+            }))
+          }}
+        />
+        <span className="text-xs text-slate-500">
+          Al elegir este producto como complemento (p. ej. combinado), se usa este importe en lugar del precio de venta.
+        </span>
       </label>
       <label className="grid gap-1 text-sm text-slate-700">
         <span>Stock minimo</span>

@@ -9,8 +9,21 @@ import { tableTheadClass } from '@renderer/lib/tableStyles'
 import { TablePagination } from '@renderer/components/ui/TablePagination'
 import { DEFAULT_PAGE_SIZE } from '@shared/types/pagination'
 import type { ShiftCloseReport } from '@shared/types/report'
-import type { ShiftSessionDetail } from '@shared/types/shift'
+import type { CashSession, ShiftSessionDetail } from '@shared/types/shift'
+import type { UserRole } from '@shared/types/user'
+import { useAuthStore } from '@renderer/store/authStore'
 import { OpenShiftModal } from '@renderer/components/shifts/OpenShiftModal'
+
+/** Administrador / Encargado: cualquier caja abierta. Empleado: solo la que él abrió. */
+function canManageOpenCashSession(role: UserRole | undefined, userId: number | undefined, session: CashSession | null | undefined) {
+  if (!session || session.status !== 'open') {
+    return false
+  }
+  if (role === 'admin' || role === 'manager') {
+    return true
+  }
+  return session.openedByUserId != null && userId != null && session.openedByUserId === userId
+}
 
 function displayExpected(row: {
   status: string
@@ -107,7 +120,8 @@ function ShiftSessionMovementsLists(props: {
                 <div className="flex flex-wrap justify-between gap-2 text-slate-800">
                   <span>
                     #{sale.id} · {saleTypeLabel(sale.saleType)}
-                    {sale.tabCustomerName ? ` · Cuenta: ${sale.tabCustomerName}` : ''} · {sale.createdAt}
+                    {sale.tabCustomerName ? ` · Cuenta: ${sale.tabCustomerName}` : ''}
+                    {sale.vipCustomerName ? ` · VIP: ${sale.vipCustomerName}` : ''} · {sale.createdAt}
                   </span>
                   <span className="font-semibold tabular-nums text-brand">{sale.total.toFixed(2)}</span>
                 </div>
@@ -155,6 +169,7 @@ function ShiftSessionMovementsLists(props: {
 
 export function ShiftsPage() {
   const queryClient = useQueryClient()
+  const user = useAuthStore((s) => s.user)
   const [detailSessionId, setDetailSessionId] = useState<number | null>(null)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [openModalOpen, setOpenModalOpen] = useState(false)
@@ -199,11 +214,14 @@ export function ShiftsPage() {
     setHistoryPage(1)
   }, [historyPageSize])
 
-  /** Si el listado aún no incluye la sesión abierta (caché / carrera), se antepone una fila desde `current()`. */
+  /** Si el listado aún no incluye la sesión abierta (caché / carrera), se antepone una fila desde `current()` — solo si el usuario puede gestionarla (misma regla que el backend). */
   const historyRows = useMemo(() => {
     const rows = historyQuery.data?.items ?? []
     const cur = currentQuery.data
     if (!cur || cur.status !== 'open') {
+      return rows
+    }
+    if (!canManageOpenCashSession(user?.role, user?.id, cur)) {
       return rows
     }
     if (rows.some((r) => r.id === cur.id)) {
@@ -220,6 +238,8 @@ export function ShiftsPage() {
         openedByUserId: cur.openedByUserId ?? null,
         openedByLabel: null,
         openingCash: cur.openingCash,
+        openingCashNote: cur.openingCashNote ?? null,
+        closingNote: cur.closingNote ?? null,
         expectedCash: cur.expectedCash,
         countedCash: cur.countedCash,
         differenceCash: cur.differenceCash,
@@ -230,7 +250,7 @@ export function ShiftsPage() {
       },
       ...rows,
     ]
-  }, [historyQuery.data, currentQuery.data])
+  }, [historyQuery.data, currentQuery.data, user?.id, user?.role])
 
   const detailQuery = useQuery({
     queryKey: ['shift', 'detail', detailSessionId],
@@ -238,7 +258,9 @@ export function ShiftsPage() {
     enabled: typeof detailSessionId === 'number',
   })
 
-  const closeModalSessionId = currentQuery.data?.status === 'open' ? currentQuery.data.id : undefined
+  const canManageCurrentOpen = canManageOpenCashSession(user?.role, user?.id, currentQuery.data ?? undefined)
+  const closeModalSessionId =
+    canManageCurrentOpen && currentQuery.data?.status === 'open' ? currentQuery.data.id : undefined
   const closeModalDetailQuery = useQuery({
     queryKey: ['shift', 'closeModal', closeModalSessionId],
     queryFn: () => window.api.shifts.getSessionDetail(closeModalSessionId!),
@@ -348,7 +370,7 @@ export function ShiftsPage() {
     setCloseModalOpen(true)
   }
 
-  const closeShiftModalOpen = closeModalOpen && currentQuery.data?.status === 'open'
+  const closeShiftModalOpen = closeModalOpen && canManageCurrentOpen && currentQuery.data?.status === 'open'
 
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-6">
@@ -357,19 +379,31 @@ export function ShiftsPage() {
         <p className="text-sm text-slate-500">Apertura, cierre, histórico y conciliación de pagarés.</p>
       </div>
       <Card className="shadow-sm" padding="lg">
-        {currentQuery.data ? (
-          <div className="space-y-3 text-slate-700">
-            <p className="font-medium text-slate-900">Sesión abierta: #{currentQuery.data.id}</p>
-            <p className="text-sm">
-              Fecha operativa: {currentQuery.data.businessDate} · {formatNowClock(nowTick)}
-            </p>
-            {closeFeedback ? (
-              <p className={`text-sm ${closeFeedback.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{closeFeedback.message}</p>
-            ) : null}
-            <Button disabled={confirmCloseMutation.isPending} onClick={openCloseModal} variant="warning">
-              Cerrar turno
-            </Button>
-          </div>
+        {currentQuery.isLoading || (currentQuery.data?.status === 'open' && !user) ? (
+          <p className="text-sm text-slate-500">Cargando estado de caja...</p>
+        ) : currentQuery.data?.status === 'open' ? (
+          canManageCurrentOpen ? (
+            <div className="space-y-3 text-slate-700">
+              <p className="font-medium text-slate-900">Sesión abierta: #{currentQuery.data.id}</p>
+              <p className="text-sm">
+                Fecha operativa: {currentQuery.data.businessDate} · {formatNowClock(nowTick)}
+              </p>
+              {closeFeedback ? (
+                <p className={`text-sm ${closeFeedback.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{closeFeedback.message}</p>
+              ) : null}
+              <Button disabled={confirmCloseMutation.isPending} onClick={openCloseModal} variant="warning">
+                Cerrar turno
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3 text-slate-700">
+              <p className="font-medium text-slate-900">Caja abierta en otra sesión</p>
+              <p className="text-sm text-slate-600">
+                Hay un turno en curso (#{currentQuery.data.id}, fecha operativa {currentQuery.data.businessDate}). Fue abierto por
+                otro usuario; no puede cerrarlo ni verlo en su historial. Use Ventas con normalidad mientras la caja siga abierta.
+              </p>
+            </div>
+          )
         ) : (
           <div className="space-y-3 text-slate-700">
             <p>No hay turno activo.</p>

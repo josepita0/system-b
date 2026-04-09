@@ -20,6 +20,7 @@ export const productSchema = z.object({
   type: z.enum(['simple', 'compound']),
   categoryId: z.number().int().positive(),
   salePrice: z.number().nonnegative(),
+  complementSalePrice: z.number().nonnegative().nullable().optional(),
   minStock: z.number().int().nonnegative(),
   showInSales: z.number().int().min(0).max(1).optional().default(1),
 })

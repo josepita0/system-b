@@ -39,6 +39,9 @@ describe('database migrations', () => {
     expect(tables).toContain('category_sale_formats')
     expect(tables).toContain('customer_tabs')
 
+    const tabColumns = db.pragma('table_info(customer_tabs)') as Array<{ name: string }>
+    expect(tabColumns.map((column) => column.name)).toContain('vip_customer_id')
+
     const categoryColumns = db.pragma('table_info(categories)') as Array<{ name: string }>
     expect(categoryColumns.map((column) => column.name)).toContain('supports_children')
     expect(categoryColumns.map((column) => column.name)).toContain('inherits_sale_formats')

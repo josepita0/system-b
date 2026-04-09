@@ -22,7 +22,7 @@ export function registerInternalConsumptionHandlers() {
 
   ipcMain.handle(internalConsumptionChannels.create, (_event, payload: unknown) =>
     executeIpc(() => {
-      const actor = guards.requirePermission('inventory.manage')
+      const actor = guards.requirePermission('internal_consumption.create')
       return service.create(payload as never, actor.id)
     }),
   )

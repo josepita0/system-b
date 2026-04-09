@@ -4,7 +4,7 @@
   "description": "Sistema local de gestion de barra con Electron, React y SQLite.",
   "main": "dist-electron/src/main/index.js",
   "scripts": {
-    "native:electron": "electron-rebuild -f -w better-sqlite3",
+    "native:electron": "electron-rebuild -f -w better-sqlite3,sharp",
     "native:node": "npm rebuild better-sqlite3",
     "postinstall": "electron-builder install-app-deps",
     "copy:migrations": "node scripts/copy-main-assets.js",
@@ -37,6 +37,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.1",
+    "sharp": "^0.34.5",
     "zod": "^4.3.6",
     "zustand": "^5.0.12"
   },

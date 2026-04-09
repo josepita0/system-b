@@ -452,4 +452,107 @@ describe('SaleService', () => {
     expect(items[0].complement_product_id).toBe(coke.id)
     expect(Number(items[0].unit_price)).toBeCloseTo(3.25)
   })
+
+  it('uses complement_sale_price for the complement when set instead of sale_price', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-sale-complement-price-'))
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
+
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+
+    const shiftService = new ShiftService(new ShiftRepository(db))
+    const openerId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('O','P','employee',1)`).run()
+        .lastInsertRowid,
+    )
+    shiftService.open(
+      {
+        shiftCode: 'day',
+        businessDate: '2026-03-22',
+        openingCash: 0,
+      },
+      openerId,
+    )
+
+    const { saleService, categories, products, saleFormats, catalogMedia } = buildSaleService(db)
+    const productService = new ProductService(products, categories, catalogMedia)
+    const refrescos = categories.getBySlug('refrescos')!
+    const ron = categories.getBySlug('ron')!
+
+    const categoryService = new CategoryService(categories, saleFormats, catalogMedia)
+    const tree = categoryService.listTree()
+    const ronNode = findCategoryNode(tree, ron.id)!
+    const fmtId = ronNode.effectiveSaleFormatIds[0]
+
+    const existingFormat = saleFormats.getById(fmtId)!
+    saleFormats.update({
+      id: existingFormat.id,
+      code: existingFormat.code,
+      name: existingFormat.name,
+      sortOrder: existingFormat.sortOrder,
+      requiresComplement: true,
+      complementCategoryRootId: refrescos.id,
+    })
+
+    const base = productService.create({
+      sku: 'SALE-COMP-BASE-CP',
+      name: 'Cacique',
+      type: 'simple',
+      categoryId: ron.id,
+      salePrice: 10,
+      minStock: 0,
+    })
+    const coke = productService.create({
+      sku: 'SALE-COMP-COKE-CP',
+      name: 'Coca-cola',
+      type: 'simple',
+      categoryId: refrescos.id,
+      salePrice: 1,
+      minStock: 0,
+    })
+
+    db.prepare('UPDATE products SET complement_sale_price = ? WHERE id = ?').run(2, coke.id)
+
+    db.prepare(
+      `INSERT INTO sale_format_product_consumptions (product_id, sale_format_id, consume_quantity, unit, base_price)
+       VALUES (?, ?, ?, 'ml', ?)`,
+    ).run(base.id, fmtId, 50, 2.25)
+
+    const empId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('T','U','employee',1)`).run()
+        .lastInsertRowid,
+    )
+
+    db.prepare(
+      `INSERT INTO product_inventory_movements (product_id, movement_type, quantity, reference_type, note)
+       VALUES (?, 'entry', ?, 'test', 'seed')`,
+    ).run(base.id, 100)
+    db.prepare(
+      `INSERT INTO product_inventory_movements (product_id, movement_type, quantity, reference_type, note)
+       VALUES (?, 'entry', ?, 'test', 'seed')`,
+    ).run(coke.id, 100)
+
+    const created = saleService.createSale(
+      {
+        items: [{ productId: base.id, quantity: 1, saleFormatId: fmtId, complementProductId: coke.id }],
+      },
+      empId,
+    )
+
+    expect(created.total).toBe(4.25)
+
+    const items = db
+      .prepare(
+        'SELECT product_id, unit_price, sale_format_id, complement_product_id FROM sale_items WHERE sale_id = ? ORDER BY id ASC',
+      )
+      .all(created.id) as Array<{
+      product_id: number
+      unit_price: number
+      sale_format_id: number | null
+      complement_product_id: number | null
+    }>
+    expect(items).toHaveLength(1)
+    expect(Number(items[0].unit_price)).toBeCloseTo(4.25)
+  })
 })

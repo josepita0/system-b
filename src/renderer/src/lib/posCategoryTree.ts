@@ -13,6 +13,15 @@ export function findCategoryNode(nodes: CategoryTreeNode[], id: number): Categor
   return null
 }
 
+/** Padre directo de la categoría en el árbol, o null si es raíz o no existe. */
+export function findParentCategoryNode(tree: CategoryTreeNode[], categoryId: number): CategoryTreeNode | null {
+  const node = findCategoryNode(tree, categoryId)
+  if (!node || node.parentId == null) {
+    return null
+  }
+  return findCategoryNode(tree, node.parentId)
+}
+
 /** Categoria raiz del arbol que contiene el id dado. */
 export function findRootAncestor(tree: CategoryTreeNode[], categoryId: number): CategoryTreeNode | null {
   const node = findCategoryNode(tree, categoryId)

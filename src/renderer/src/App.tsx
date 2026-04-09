@@ -124,13 +124,13 @@ export default function App() {
   })
 
   const handleLogout = () => {
-    const session = currentShiftQuery.data
-    if (session && session.status === 'open') {
-      window.alert(
-        'No puede cerrar sesión mientras haya un turno de caja abierto. Cierre el turno en Turnos (confirme con su contraseña) para que otra persona pueda iniciar sesión.',
-      )
-      return
-    }
+    // const session = currentShiftQuery.data
+    // if (session && session.status === 'open') {
+    //   window.alert(
+    //     'No puede cerrar sesión mientras haya un turno de caja abierto. Cierre el turno en Turnos (confirme con su contraseña) para que otra persona pueda iniciar sesión.',
+    //   )
+    //   return
+    // }
     logoutMutation.mutate()
   }
 

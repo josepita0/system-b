@@ -41,6 +41,22 @@ export interface CancelledEmptyAccountInShift {
   reason: string
 }
 
+export interface ShiftCloseInternalConsumptionLine {
+  productName: string
+  sku: string
+  quantity: number
+  note: string | null
+}
+
+/** Consumo interno registrado en la sesión de caja del cierre. */
+export interface ShiftCloseInternalConsumptionDoc {
+  id: number
+  reason: string
+  createdAt: string
+  createdByLabel: string
+  lines: ShiftCloseInternalConsumptionLine[]
+}
+
 export interface ShiftCloseReport {
   sessionId: number
   businessDate: string
@@ -71,6 +87,8 @@ export interface ShiftCloseReport {
   accountsPendingLiquidation: AccountOpenedInShift[]
   /** Cuentas canceladas (vacías) durante este turno, con motivo. */
   cancelledEmptyAccounts?: CancelledEmptyAccountInShift[]
+  /** Consumos internos activos vinculados a esta sesión de caja. */
+  internalConsumptions: ShiftCloseInternalConsumptionDoc[]
   pdfPath: string
   /** Si el correo con PDF se envió en el acto por SMTP (sin depender de la cola). */
   emailSentImmediately?: boolean

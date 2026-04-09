@@ -19,9 +19,15 @@ export const createSaleSchema = z.object({
   chargedTotal: z.number().nonnegative().optional(),
 })
 
-export const openTabSchema = z.object({
-  customerName: z.string().trim().min(1, 'Indique el nombre del cliente.').max(200),
-})
+export const openTabSchema = z
+  .object({
+    customerName: z.string().trim().max(200),
+    vipCustomerId: z.number().int().positive().optional(),
+  })
+  .refine((data) => data.customerName.length > 0 || data.vipCustomerId != null, {
+    message: 'Indique el nombre del cliente o seleccione un cliente VIP.',
+    path: ['customerName'],
+  })
 
 export const settleTabSchema = z.object({
   tabId: z.number().int().positive(),

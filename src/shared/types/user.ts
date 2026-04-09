@@ -15,6 +15,7 @@ export type UserPermission =
   | 'vip.manage'
   | 'inventory.view'
   | 'inventory.manage'
+  | 'internal_consumption.create'
 
 export interface User {
   id: number

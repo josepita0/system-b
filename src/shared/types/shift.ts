@@ -84,6 +84,8 @@ export interface ShiftSessionSaleDetail {
   tabId: number | null
   /** Cliente de la cuenta (pagaré), si la venta está vinculada a `customer_tabs`. */
   tabCustomerName: string | null
+  /** Nombre del cliente VIP en la venta, si aplica. */
+  vipCustomerName: string | null
   lines: ShiftSessionSaleLineDetail[]
 }
 

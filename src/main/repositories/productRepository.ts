@@ -11,6 +11,7 @@ type ProductRow = {
   category_slug: string
   consumption_mode: string
   sale_price: number
+  complement_sale_price: number | null | undefined
   min_stock: number
   show_in_sales: number
   is_active: number
@@ -35,6 +36,7 @@ function mapRow(row: ProductRow): Product {
     categorySlug: row.category_slug,
     consumptionMode: row.consumption_mode === 'progressive' ? 'progressive' : 'unit',
     salePrice: row.sale_price,
+    complementSalePrice: row.complement_sale_price ?? null,
     minStock: row.min_stock,
     showInSales: row.show_in_sales ?? 1,
     isActive: row.is_active,
@@ -183,17 +185,25 @@ export class ProductRepository {
   }
 
   create(input: ProductInput) {
+    const payload = {
+      ...input,
+      complementSalePrice: input.complementSalePrice ?? null,
+    }
     const result = this.db
       .prepare(
-        `INSERT INTO products (sku, name, type, category_id, sale_price, min_stock, show_in_sales)
-         VALUES (@sku, @name, @type, @categoryId, @salePrice, @minStock, @showInSales)`,
+        `INSERT INTO products (sku, name, type, category_id, sale_price, complement_sale_price, min_stock, show_in_sales)
+         VALUES (@sku, @name, @type, @categoryId, @salePrice, @complementSalePrice, @minStock, @showInSales)`,
       )
-      .run(input)
+      .run(payload)
 
     return this.getById(Number(result.lastInsertRowid))!
   }
 
   update(input: ProductUpdateInput) {
+    const payload = {
+      ...input,
+      complementSalePrice: input.complementSalePrice ?? null,
+    }
     this.db
       .prepare(
         `UPDATE products
@@ -202,12 +212,13 @@ export class ProductRepository {
              type = @type,
              category_id = @categoryId,
              sale_price = @salePrice,
+             complement_sale_price = @complementSalePrice,
              min_stock = @minStock,
              show_in_sales = @showInSales,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = @id`,
       )
-      .run(input)
+      .run(payload)
 
     return this.getById(input.id)!
   }

@@ -157,12 +157,8 @@ export class ShiftRepository {
     return rows.map((r) => r.id)
   }
 
-  /** Comprueba si el empleado puede ver el detalle de una sesión (misma regla que lista + última cerrada global). */
+  /** Comprueba si el empleado puede ver el detalle de una sesión cerrada (misma regla que el listado). */
   canEmployeeViewSession(userId: number, sessionId: number) {
-    const latest = this.getLatestClosedSessionId()
-    if (latest === sessionId) {
-      return true
-    }
     const row = this.db
       .prepare(
         `SELECT cs.id
@@ -310,9 +306,11 @@ export class ShiftRepository {
     const sales = this.db
       .prepare(
         `SELECT s.id, s.sale_type, s.total, s.created_at, s.tab_id,
-                ct.customer_name AS tab_customer_name
+                ct.customer_name AS tab_customer_name,
+                v.name AS vip_customer_name
          FROM sales s
          LEFT JOIN customer_tabs ct ON ct.id = s.tab_id
+         LEFT JOIN vip_customers v ON v.id = s.vip_customer_id
          WHERE s.cash_session_id = ?
          ORDER BY s.id ASC`,
       )
@@ -323,6 +321,7 @@ export class ShiftRepository {
       created_at: string
       tab_id: number | null
       tab_customer_name: string | null
+      vip_customer_name: string | null
     }>
 
     const lineStmt = this.db.prepare(
@@ -336,6 +335,7 @@ export class ShiftRepository {
       createdAt: s.created_at,
       tabId: s.tab_id != null ? Number(s.tab_id) : null,
       tabCustomerName: s.tab_customer_name?.trim() ? s.tab_customer_name.trim() : null,
+      vipCustomerName: s.vip_customer_name?.trim() ? s.vip_customer_name.trim() : null,
       lines: (lineStmt.all(s.id) as Array<{ product_name: string; quantity: number; subtotal: number }>).map(
         (li) => ({
           productName: li.product_name,

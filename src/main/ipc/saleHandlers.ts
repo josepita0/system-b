@@ -22,6 +22,31 @@ import { AuditLogRepository } from '../repositories/auditLogRepository'
 import { BomService } from '../services/bomService'
 import { createIpcGuards } from './guards'
 import { executeIpc } from './response'
+import type { OpenTabInput } from '../../shared/types/sale'
+
+/** IPC puede enviar tipos sueltos; asegura el shape que valida `openTabSchema`. */
+function normalizeOpenTabIpcPayload(payload: unknown): OpenTabInput {
+  if (payload == null || typeof payload !== 'object') {
+    return { customerName: '' }
+  }
+  const o = payload as Record<string, unknown>
+  const customerName =
+    typeof o.customerName === 'string' ? o.customerName.trim().slice(0, 200) : ''
+  let vipCustomerId: number | undefined
+  const raw = o.vipCustomerId
+  if (typeof raw === 'number' && Number.isInteger(raw) && raw > 0) {
+    vipCustomerId = raw
+  } else if (typeof raw === 'string' && raw.trim() !== '') {
+    const n = Number(raw.trim())
+    if (Number.isInteger(n) && n > 0) {
+      vipCustomerId = n
+    }
+  }
+  if (vipCustomerId != null) {
+    return { customerName, vipCustomerId }
+  }
+  return { customerName }
+}
 
 export function registerSaleHandlers() {
   const db = getDb()
@@ -113,7 +138,7 @@ export function registerSaleHandlers() {
   ipcMain.handle(salesChannels.openTab, (_event, payload: unknown) =>
     executeIpc(() => {
       const actor = guards.requirePermission('sales.use')
-      return saleService.openTab(payload as never, actor.id)
+      return saleService.openTab(normalizeOpenTabIpcPayload(payload), actor.id)
     }),
   )
 

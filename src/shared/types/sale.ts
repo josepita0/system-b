@@ -28,6 +28,7 @@ export interface CustomerTabSummary {
 
 export interface OpenTabInput {
   customerName: string
+  vipCustomerId?: number
 }
 
 export interface OpenTabResult {

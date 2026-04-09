@@ -12,5 +12,5 @@ export interface PagedResult<T> {
   pageSize: number
 }
 
-export const DEFAULT_PAGE_SIZE = 25
+export const DEFAULT_PAGE_SIZE = 5
 export const MAX_PAGE_SIZE = 100

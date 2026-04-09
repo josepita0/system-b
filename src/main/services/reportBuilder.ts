@@ -12,6 +12,7 @@ import type {
 } from '../../shared/types/report'
 import { ReportGenerationError } from '../errors'
 import { getDatabasePath } from '../database/connection'
+import { InternalConsumptionRepository } from '../repositories/internalConsumptionRepository'
 import { InventoryRepository } from '../repositories/inventoryRepository'
 import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
 import { ShiftRepository } from '../repositories/shiftRepository'
@@ -39,6 +40,7 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
   const productsSold = getProductsSoldForSession(db, sessionId)
   const accountsPendingLiquidation = shiftRepository.getOpenPendingAccountsToLiquidate()
   const cancelledEmptyAccounts = shiftRepository.getCancelledEmptyAccountsInSession(sessionId)
+  const internalConsumptions = new InternalConsumptionRepository(db).listActiveWithLinesForSession(sessionId)
   /** Misma base que el cierre de turno y la suma de «Total cuenta» (todas las cuentas abiertas). */
   const shiftPendingReconcile = Math.round(shiftRepository.getTotalPendingReconcileOpenTabs() * 100) / 100
   const closedByLabel = getClosedByLabel(db, session.openedByUserId)
@@ -74,6 +76,7 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
     productsSold,
     accountsPendingLiquidation,
     cancelledEmptyAccounts,
+    internalConsumptions,
     pdfPath: '',
   })
 
@@ -105,6 +108,7 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
     productsSold,
     accountsPendingLiquidation,
     cancelledEmptyAccounts,
+    internalConsumptions,
     pdfPath,
   } satisfies ShiftCloseReport
 }
@@ -115,12 +119,14 @@ function formatClosureAtLabel(closedAt: string | null) {
   }
   try {
     return new Date(closedAt).toLocaleString('es-ES', {
+      timeZone: 'Europe/Madrid',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
+      hour12: false,
     })
   } catch {
     return null
@@ -130,12 +136,14 @@ function formatClosureAtLabel(closedAt: string | null) {
 function formatOpenedAtLabel(openedAt: string) {
   try {
     return new Date(openedAt).toLocaleString('es-ES', {
+      timeZone: 'Europe/Madrid',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
+      hour12: false,
     })
   } catch {
     return openedAt
@@ -409,6 +417,82 @@ function createPdf(report: ShiftCloseReport): string {
 
   const afterCards = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY
   startY = afterCards + 22
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(30, 32, 38)
+  doc.text('Consumos internos del turno', margin, startY)
+  startY += 14
+
+  if (report.internalConsumptions.length === 0) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...C.labelGrey)
+    doc.text('Sin consumos internos registrados en esta sesion.', margin, startY)
+    startY += 18
+  } else {
+    const formatInternalConsumptionNote = (reason: string, lineNote: string | null) => {
+      const parts: string[] = []
+      const r = reason.trim()
+      if (r) {
+        parts.push(r.length > 80 ? `${r.slice(0, 77)}...` : r)
+      }
+      const n = lineNote?.trim()
+      if (n) {
+        parts.push(n.length > 80 ? `${n.slice(0, 77)}...` : n)
+      }
+      return parts.length > 0 ? parts.join(' · ') : '—'
+    }
+
+    const icBody: string[][] = []
+    for (const ic of report.internalConsumptions) {
+      if (ic.lines.length > 0) {
+        for (const l of ic.lines) {
+          icBody.push([
+            l.productName.length > 36 ? `${l.productName.slice(0, 33)}...` : l.productName,
+            formatQuantityEs(l.quantity),
+            formatInternalConsumptionNote(ic.reason, l.note),
+          ])
+        }
+      } else {
+        icBody.push(['Sin lineas en el documento.', '—', formatInternalConsumptionNote(ic.reason, null)])
+      }
+    }
+
+    autoTable(doc, {
+      startY,
+      head: [['Producto', 'Cantidad', 'Nota']],
+      body: icBody,
+      theme: 'grid',
+      tableWidth: innerW,
+      margin: { left: margin, right: margin },
+      styles: {
+        fontSize: 8,
+        cellPadding: { top: 5, right: 6, bottom: 5, left: 6 },
+        lineColor: C.border,
+        lineWidth: 0.35,
+        valign: 'top',
+        overflow: 'linebreak',
+      },
+      headStyles: {
+        fillColor: C.tableHead,
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 8,
+      },
+      alternateRowStyles: {
+        fillColor: C.zebra,
+      },
+      columnStyles: {
+        0: { cellWidth: innerW * 0.34, halign: 'left' },
+        1: { cellWidth: innerW * 0.14, halign: 'center' },
+        2: { cellWidth: innerW * 0.52, halign: 'left' },
+      },
+    })
+
+    const afterIc = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY
+    startY = afterIc + 16
+  }
 
   const cancelled = (report.cancelledEmptyAccounts ?? []).filter((a) => a.reason.trim().length > 0)
   if (cancelled.length > 0) {

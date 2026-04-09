@@ -52,6 +52,8 @@ export interface Product {
   /** Inventario: unitario o progresivo (ml / lotes). */
   consumptionMode: 'unit' | 'progressive'
   salePrice: number
+  /** Si se define, sustituye a `salePrice` al sumar el complemento en formatos que lo requieren (p. ej. combinado). */
+  complementSalePrice: number | null
   minStock: number
   /** POS: controla si el producto aparece en la pantalla de ventas. */
   showInSales: number
@@ -73,6 +75,8 @@ export interface ProductInput {
   type: ProductType
   categoryId: number
   salePrice: number
+  /** Opcional: precio al actuar como complemento; omitir o null usa `salePrice`. */
+  complementSalePrice?: number | null
   minStock: number
   /** POS: controla si el producto aparece en la pantalla de ventas. */
   showInSales?: number

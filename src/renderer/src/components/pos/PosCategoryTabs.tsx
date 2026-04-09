@@ -1,6 +1,6 @@
 import type { CategoryTreeNode } from '@shared/types/product'
 import { cn } from '@renderer/lib/cn'
-import { findCategoryNode, findRootAncestor } from '@renderer/lib/posCategoryTree'
+import { findCategoryNode, findParentCategoryNode, findRootAncestor } from '@renderer/lib/posCategoryTree'
 
 type Props = {
   tree: CategoryTreeNode[]
@@ -129,6 +129,12 @@ function CategoryIcon({ name, className }: { name: string; className?: string })
 export function PosCategoryTabs({ tree, selectedCategoryId, onSelectCategory, loading, error }: Props) {
   const selectedNode = selectedCategoryId != null ? findCategoryNode(tree, selectedCategoryId) : null
   const activeRoot = selectedCategoryId != null ? findRootAncestor(tree, selectedCategoryId) : null
+  const subcategoriesParent =
+    selectedNode && selectedNode.children.length > 0
+      ? selectedNode
+      : selectedCategoryId != null
+        ? findParentCategoryNode(tree, selectedCategoryId)
+        : null
 
   if (loading) {
     return <p className="text-sm text-slate-500">Cargando catalogo...</p>
@@ -166,16 +172,16 @@ export function PosCategoryTabs({ tree, selectedCategoryId, onSelectCategory, lo
         })}
       </div>
 
-      {selectedNode && selectedNode.children.length > 0 ? (
+      {subcategoriesParent && subcategoriesParent.children.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {selectedNode.children.map((child) => {
+          {subcategoriesParent.children.map((child) => {
             const isSel = selectedCategoryId === child.id
             return (
               <button
                 className={cn(
                   'inline-flex items-center gap-2.5 rounded-full border px-5 py-2.5 text-base transition-colors',
                   isSel
-                    ? 'border-brand bg-brand-muted font-medium text-brand'
+                    ? 'border-brand bg-brand-muted font-semibold text-brand shadow-sm ring-2 ring-brand/35 ring-offset-2 ring-offset-white'
                     : 'border-border bg-white text-slate-700 hover:border-slate-300',
                 )}
                 key={child.id}
@@ -184,7 +190,7 @@ export function PosCategoryTabs({ tree, selectedCategoryId, onSelectCategory, lo
                 }}
                 type="button"
               >
-                <CategoryIcon className="h-5 w-5" name={activeRoot?.name ?? selectedNode.name} />
+                <CategoryIcon className="h-5 w-5" name={activeRoot?.name ?? subcategoriesParent.name} />
                 {child.name}
                 {child.productCount > 0 ? (
                   <span className="text-slate-400"> ({child.productCount})</span>

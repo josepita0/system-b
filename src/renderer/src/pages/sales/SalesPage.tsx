@@ -13,6 +13,7 @@ import { PosTicketPanel } from '@renderer/components/pos/PosTicketPanel'
 import { PosToolbar } from '@renderer/components/pos/PosToolbar'
 import { selectFieldClass } from '@renderer/components/pos/posFieldClasses'
 import { cn } from '@renderer/lib/cn'
+import { effectiveComplementUnitPrice } from '@shared/lib/productPricing'
 import { findCategoryNode } from '@renderer/lib/posCategoryTree'
 import { requireSalesRemoveTabChargeLine, requireSalesTabChargeDetail } from '@renderer/lib/salesPreload'
 import { resolveShiftForDate } from '@renderer/utils/resolveShiftForDate'
@@ -66,6 +67,7 @@ export function SalesPage() {
   const [selectedVipCustomerId, setSelectedVipCustomerId] = useState<number | null>(null)
   const [newTabModalOpen, setNewTabModalOpen] = useState(false)
   const [newTabName, setNewTabName] = useState('')
+  const [newTabVipCustomerId, setNewTabVipCustomerId] = useState<number | ''>('')
   const [cashPaymentModalOpen, setCashPaymentModalOpen] = useState(false)
   const [cashReceivedInput, setCashReceivedInput] = useState('')
   const [vipChargedTotalInput, setVipChargedTotalInput] = useState('')
@@ -208,13 +210,14 @@ export function SalesPage() {
 
   const resolveDefaultUnitPrice = useCallback(
     (product: Product, saleFormatId: number | null, complement: Product | null): number => {
+      const complementAdd = complement ? effectiveComplementUnitPrice(complement) : 0
       if (saleFormatId == null) {
-        return product.salePrice + (complement?.salePrice ?? 0)
+        return product.salePrice + complementAdd
       }
       const byFormat = basePriceByProductAndFormat.get(product.id)
       const priceFromRule = byFormat?.get(saleFormatId) ?? byFormat?.get(null) ?? null
       const base = priceFromRule != null ? priceFromRule : product.salePrice
-      return base + (complement?.salePrice ?? 0)
+      return base + complementAdd
     },
     [basePriceByProductAndFormat],
   )
@@ -222,11 +225,12 @@ export function SalesPage() {
   // Apertura de turno ahora se gestiona con modal (`OpenShiftModal`).
 
   const openTabMutation = useMutation({
-    mutationFn: (customerName: string) => window.api.sales.openTab({ customerName }),
+    mutationFn: (payload: { customerName: string; vipCustomerId?: number }) => window.api.sales.openTab(payload),
     onSuccess: async (data) => {
       setSelectedTabId(data.id)
       setNewTabModalOpen(false)
       setNewTabName('')
+      setNewTabVipCustomerId('')
       await queryClient.invalidateQueries({ queryKey: ['sales', 'openTabs'] })
     },
   })
@@ -868,14 +872,28 @@ export function SalesPage() {
               onClick={() => {
                 setNewTabModalOpen(false)
                 setNewTabName('')
+                setNewTabVipCustomerId('')
               }}
               variant="secondary"
             >
               Cancelar
             </Button>
             <Button
-              disabled={!newTabName.trim() || openTabMutation.isPending}
-              onClick={() => openTabMutation.mutate(newTabName.trim())}
+              disabled={
+                openTabMutation.isPending || (!newTabName.trim() && newTabVipCustomerId === '')
+              }
+              onClick={() => {
+                const payload: { customerName: string; vipCustomerId?: number } = {
+                  customerName: newTabName.trim(),
+                }
+                if (newTabVipCustomerId !== '') {
+                  const id = Number(newTabVipCustomerId)
+                  if (Number.isInteger(id) && id > 0) {
+                    payload.vipCustomerId = id
+                  }
+                }
+                openTabMutation.mutate(payload)
+              }}
               variant="primary"
             >
               {openTabMutation.isPending ? 'Abriendo...' : 'Abrir cuenta'}
@@ -885,12 +903,39 @@ export function SalesPage() {
         onClose={() => {
           setNewTabModalOpen(false)
           setNewTabName('')
+          setNewTabVipCustomerId('')
         }}
         open={newTabModalOpen}
         title="Nueva cuenta"
       >
-        <p className="text-sm text-slate-600">Nombre del cliente (obligatorio)</p>
-        <Input className="mt-4" onChange={(e) => setNewTabName(e.target.value)} placeholder="Ej. Maria Lopez" value={newTabName} />
+        <p className="text-sm text-slate-600">
+          Nombre del cliente
+          {newTabVipCustomerId === '' ? ' (obligatorio si no elige VIP)' : ' (opcional si elige VIP; se usará el nombre del VIP)'}
+        </p>
+        <Input
+          className="mt-4"
+          onChange={(e) => setNewTabName(e.target.value)}
+          placeholder={newTabVipCustomerId === '' ? 'Ej. Maria Lopez' : 'Opcional: alias o nota en cuenta'}
+          value={newTabName}
+        />
+        <p className="mt-4 text-sm text-slate-600">Cliente VIP (opcional; no disponible para cuentas con exoneración total)</p>
+        <select
+          className={cn(selectFieldClass, 'mt-2 w-full')}
+          onChange={(e) => {
+            const v = e.target.value
+            setNewTabVipCustomerId(v === '' ? '' : Number(v))
+          }}
+          value={newTabVipCustomerId === '' ? '' : String(newTabVipCustomerId)}
+        >
+          <option value="">Sin VIP</option>
+          {(vipCustomersQuery.data ?? [])
+            .filter((c) => c.conditionType !== 'exempt')
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+        </select>
         {openTabMutation.isError ? (
           <p className="mt-2 text-sm text-rose-600">{(openTabMutation.error as Error)?.message}</p>
         ) : null}

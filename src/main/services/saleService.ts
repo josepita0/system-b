@@ -13,6 +13,7 @@ import type {
   TabChargeDetail,
   TabSettlementResult,
 } from '../../shared/types/sale'
+import type { VipCustomer } from '../../shared/types/vipCustomer'
 import {
   createSaleSchema,
   cancelEmptyTabSchema,
@@ -20,6 +21,7 @@ import {
   removeTabChargeLineSchema,
   settleTabSchema,
 } from '../../shared/schemas/saleSchema'
+import { effectiveComplementUnitPrice } from '../../shared/lib/productPricing'
 import { ShiftStateError, StockError, ValidationError } from '../errors'
 import { CategoryRepository } from '../repositories/categoryRepository'
 import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
@@ -114,7 +116,25 @@ export class SaleService {
       throw new ShiftStateError('No hay turno de caja abierto.')
     }
 
-    const id = this.tabs.create(parsed.data.customerName, session.id, employeeId)
+    let vipCustomerId: number | null = parsed.data.vipCustomerId ?? null
+    let vip: VipCustomer | null = null
+    if (vipCustomerId != null) {
+      vip = this.vipCustomers.getById(vipCustomerId)
+      if (!vip || vip.isActive !== 1) {
+        throw new ValidationError('Cliente VIP no disponible.')
+      }
+      if (vip.conditionType === 'exempt') {
+        throw new ValidationError('No se puede asociar un cliente VIP exento a una cuenta pagaré.')
+      }
+    }
+
+    const nameFromInput = parsed.data.customerName.trim()
+    const customerName = nameFromInput || (vip?.name.trim() ?? '')
+    if (!customerName) {
+      throw new ValidationError('Indique el nombre del cliente o seleccione un cliente VIP.')
+    }
+
+    const id = this.tabs.create(customerName, session.id, employeeId, vipCustomerId)
     const row = this.tabs.getById(id)
     if (!row) {
       throw new ValidationError('No se pudo crear la cuenta.')
@@ -226,14 +246,19 @@ export class SaleService {
       throw new ShiftStateError('No hay turno de caja abierto.')
     }
 
+    let tabForVip: ReturnType<TabRepository['getById']> | undefined
     if (parsed.data.tabId != null) {
-      const tab = this.tabs.getById(parsed.data.tabId)
-      if (!tab || tab.status !== 'open') {
+      tabForVip = this.tabs.getById(parsed.data.tabId)
+      if (!tabForVip || tabForVip.status !== 'open') {
         throw new ValidationError('La cuenta no existe o ya fue liquidada.')
       }
     }
 
-    const vipCustomerId = parsed.data.vipCustomerId ?? null
+    let vipCustomerId = parsed.data.vipCustomerId ?? null
+    if (parsed.data.tabId != null && vipCustomerId == null && tabForVip?.vipCustomerId != null) {
+      vipCustomerId = tabForVip.vipCustomerId
+    }
+
     const vip = vipCustomerId != null ? this.vipCustomers.getById(vipCustomerId) : null
     if (vipCustomerId != null && (!vip || vip.isActive !== 1)) {
       throw new ValidationError('Cliente VIP no disponible.')
@@ -245,7 +270,6 @@ export class SaleService {
     const tree = this.categoryService.listTree()
     const lines: SaleLineInsert[] = []
     const inventoryAccum = new Map<number, number>()
-    const inventoryBomAccum = new Map<number, number>()
     const progressiveToConsume = new Map<number, number>()
 
     const resolveDefaultUnitPrice = (productId: number, saleFormatId: number | null): number | null => {
@@ -263,11 +287,10 @@ export class SaleService {
         throw new ValidationError('Producto no disponible.')
       }
       if (product.type !== 'simple') {
-        // Producto derivado: descuenta componentes según BOM.
-        const exits = this.bom.expandToComponents(product.id, quantity)
-        for (const ex of exits) {
-          const prev = inventoryBomAccum.get(ex.componentProductId) ?? 0
-          inventoryBomAccum.set(ex.componentProductId, prev - ex.quantityToExit)
+        // Compuesto: exige BOM definido; no se descuenta inventario de componentes automáticamente en la venta.
+        const bomItems = this.bom.getItems(product.id)
+        if (bomItems.length === 0) {
+          throw new ValidationError('El producto no tiene BOM configurado.')
         }
         return
       }
@@ -357,7 +380,7 @@ export class SaleService {
       }
 
       const defaultFromRule = resolveDefaultUnitPrice(product.id, saleFormatId)
-      const complementPrice = complementProduct ? complementProduct.salePrice : 0
+      const complementPrice = complementProduct ? effectiveComplementUnitPrice(complementProduct) : 0
       const catalogUnitPrice = (defaultFromRule != null ? defaultFromRule : product.salePrice) + complementPrice
       const chargedUnitPrice =
         rawLine.chargedUnitPrice !== undefined && rawLine.chargedUnitPrice !== null
@@ -438,13 +461,8 @@ export class SaleService {
       productId,
       quantity,
     }))
-    const inventoryBomExits = [...inventoryBomAccum.entries()].map(([productId, quantity]) => ({
-      productId,
-      quantity,
-      referenceType: 'sale_bom',
-    }))
 
-    for (const exit of [...inventoryExits, ...inventoryBomExits]) {
+    for (const exit of inventoryExits) {
       // Consumo progresivo: la disponibilidad real la valida consumeProgressive (ml en lotes), no la suma de movimientos ni el conteo de lotes.
       if (this.inventory.isProgressiveProduct(exit.productId)) {
         continue
@@ -464,7 +482,7 @@ export class SaleService {
       chargedTotal,
       realTotal,
       lines,
-      [...inventoryExits, ...inventoryBomExits],
+      inventoryExits,
       saleType,
       tabId,
       vipCustomerId,

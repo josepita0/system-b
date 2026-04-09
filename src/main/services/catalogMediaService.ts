@@ -3,17 +3,12 @@ import path from 'node:path'
 import { dialog, shell } from 'electron'
 import { getCatalogMediaDirectory } from '../catalogMedia/catalogMediaDirectory'
 import { AuthorizationError, NotFoundError, ValidationError } from '../errors'
+import { writeOptimizedCatalogImage } from '../lib/catalogImageOptimize'
 import { CategoryRepository } from '../repositories/categoryRepository'
 import { ProductRepository } from '../repositories/productRepository'
 
 const imageExtensions = new Set(['.png', '.jpg', '.jpeg'])
 const pdfExtension = '.pdf'
-
-const imageMimeByExtension: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-}
 
 function mediaRoot() {
   const root = getCatalogMediaDirectory()
@@ -64,12 +59,12 @@ export class CatalogMediaService {
       throw new ValidationError('Solo se permiten imagenes PNG o JPEG.')
     }
 
-    const rel = this.copyIntoEntityFolder('categories', categoryId, sourcePath)
+    const { rel, mime } = await this.writeOptimizedImageIntoEntityFolder('categories', categoryId, sourcePath)
     deleteRelFile(category.imageRelPath)
 
     this.categories.patchMedia(categoryId, {
       imageRelPath: rel,
-      imageMime: imageMimeByExtension[extension] ?? 'application/octet-stream',
+      imageMime: mime,
     })
 
     return this.categories.getById(categoryId)!
@@ -153,12 +148,12 @@ export class CatalogMediaService {
       throw new ValidationError('Solo se permiten imagenes PNG o JPEG.')
     }
 
-    const rel = this.copyIntoEntityFolder('products', productId, sourcePath)
+    const { rel, mime } = await this.writeOptimizedImageIntoEntityFolder('products', productId, sourcePath)
     deleteRelFile(product.imageRelPath)
 
     this.products.patchMedia(productId, {
       imageRelPath: rel,
-      imageMime: imageMimeByExtension[extension] ?? 'application/octet-stream',
+      imageMime: mime,
     })
 
     return this.products.getById(productId)!
@@ -271,5 +266,17 @@ export class CatalogMediaService {
     const destPath = path.join(destDir, `${Date.now()}-${baseName}`)
     fs.copyFileSync(sourcePath, destPath)
     return path.join(entity, String(entityId), path.basename(destPath)).replace(/\\/g, '/')
+  }
+
+  private async writeOptimizedImageIntoEntityFolder(
+    entity: 'categories' | 'products',
+    entityId: number,
+    sourcePath: string,
+  ): Promise<{ rel: string; mime: string }> {
+    const destDir = path.join(mediaRoot(), entity, String(entityId))
+    const base = `${Date.now()}-img`
+    const { fullPath, mime } = await writeOptimizedCatalogImage(sourcePath, destDir, base)
+    const rel = path.join(entity, String(entityId), path.basename(fullPath)).replace(/\\/g, '/')
+    return { rel, mime }
   }
 }

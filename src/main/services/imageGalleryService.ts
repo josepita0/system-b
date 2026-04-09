@@ -4,18 +4,12 @@ import { dialog } from 'electron'
 import { getCatalogMediaDirectory } from '../catalogMedia/catalogMediaDirectory'
 import { NotFoundError, ValidationError } from '../errors'
 import type { GalleryImage, GalleryImageListParams, GalleryImageListResult, GalleryImageMetadataPatch } from '../../shared/types/imageGallery'
+import { writeOptimizedCatalogImage } from '../lib/catalogImageOptimize'
 import { ImageRepository } from '../repositories/imageRepository'
 import { ProductImageRepository } from '../repositories/productImageRepository'
 import { ProductRepository } from '../repositories/productRepository'
 
 const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp'])
-
-const imageMimeByExtension: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-}
 
 function mediaRoot() {
   const root = getCatalogMediaDirectory()
@@ -83,7 +77,7 @@ export class ImageGalleryService {
     return picked.filePaths[0]
   }
 
-  importImagesFromFiles(filePaths: string[]): GalleryImage[] {
+  async importImagesFromFiles(filePaths: string[]): Promise<GalleryImage[]> {
     const created: GalleryImage[] = []
     for (const sourcePath of filePaths) {
       const extension = path.extname(sourcePath).toLowerCase()
@@ -94,33 +88,34 @@ export class ImageGalleryService {
         throw new NotFoundError('Archivo no encontrado.')
       }
 
-      const stats = fs.statSync(sourcePath)
       const originalName = path.basename(sourcePath)
-      const mime = imageMimeByExtension[extension] ?? 'application/octet-stream'
-      const tmpRel = normalizeRelPath(path.join('images', 'pending', `${Date.now()}-${Math.random()}-${originalName}`))
-      const tmpFull = path.join(mediaRoot(), tmpRel)
-      fs.mkdirSync(path.dirname(tmpFull), { recursive: true })
-      fs.copyFileSync(sourcePath, tmpFull)
+      const pendingDir = path.join(mediaRoot(), 'images', 'pending')
+      const pendingBase = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+      const { fullPath: pendingFull, mime } = await writeOptimizedCatalogImage(sourcePath, pendingDir, pendingBase)
+      const pendingRel = normalizeRelPath(path.relative(mediaRoot(), pendingFull))
+      const stat = fs.statSync(pendingFull)
 
       const row = this.images.create({
         originalName,
-        storedRelPath: tmpRel,
+        storedRelPath: pendingRel,
         mime,
-        sizeBytes: stats.size,
+        sizeBytes: stat.size,
         name: path.parse(originalName).name,
       })
 
-      const destRel = normalizeRelPath(path.join('images', String(row.id), `${Date.now()}-${originalName}`))
-      const destFull = path.join(mediaRoot(), destRel)
-      fs.mkdirSync(path.dirname(destFull), { recursive: true })
-      fs.renameSync(tmpFull, destFull)
+      const destDir = path.join(mediaRoot(), 'images', String(row.id))
+      fs.mkdirSync(destDir, { recursive: true })
+      const destName = path.basename(pendingFull)
+      const destFull = path.join(destDir, destName)
+      fs.renameSync(pendingFull, destFull)
+      const destRel = normalizeRelPath(path.join('images', String(row.id), destName))
       const updated = this.images.updateRelPath(row.id, destRel)
       created.push(updated)
     }
     return created
   }
 
-  importImagesFromFolder(folderPath: string): GalleryImage[] {
+  async importImagesFromFolder(folderPath: string): Promise<GalleryImage[]> {
     if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
       throw new NotFoundError('Carpeta no encontrada.')
     }
