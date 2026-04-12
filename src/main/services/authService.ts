@@ -72,7 +72,7 @@ function buildPermissions(role: User['role']): UserPermission[] {
       ]
     case 'employee':
     default:
-      return ['sales.use', 'documents.self', 'shifts.open', 'inventory.view', 'internal_consumption.create']
+      return ['sales.use', 'documents.self', 'shifts.open', 'inventory.view', 'internal_consumption.create', 'products.manage']
   }
 }
 

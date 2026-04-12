@@ -6,20 +6,37 @@ export interface ReplenishmentItem {
   minStock: number
 }
 
-export interface ProductSalesTotal {
-  productId: number
-  productName: string
-  quantity: number
-  total: number
-  /** Nombre del cliente VIP en ventas de este producto, o "N/A". */
-  vipCustomerLabel: string
-}
-
 /** Línea de consumo cargada a una cuenta (pagaré) abierta en el turno. */
 export interface AccountOpenedConsumptionLine {
   productName: string
   quantity: number
   subtotal: number
+}
+
+/** Una línea de venta al contado (POS) en la sesión, sin agrupar. */
+export interface PosSaleLineDetail {
+  productName: string
+  quantity: number
+  /** Nombre del cliente VIP en esa venta, o "N/A". */
+  vipCustomerLabel: string
+  priceChangeNote: string | null
+  /** Importe de la línea; 0 si la venta es VIP exonerada. */
+  lineTotal: number
+}
+
+/**
+ * Cuenta con al menos un cargo (tab_charge) en la sesión de cierre;
+ * incluye todo el detalle de consumos de la cuenta y el saldo.
+ */
+export interface TabChargeSessionAccount {
+  tabId: number
+  customerName: string
+  openedAt: string
+  consumptionLines: AccountOpenedConsumptionLine[]
+  /** Suma de subtotales de cargos a la cuenta (saldo teórico). */
+  balanceTotal: number
+  /** Si el VIP asociado a la cuenta es exonerado, el PDF muestra total cuenta en 0. */
+  isVipExempt: boolean
 }
 
 /** Cuenta (pagaré) abierta durante el turno que se está cerrando. */
@@ -82,7 +99,10 @@ export interface ShiftCloseReport {
   shiftPendingReconcile: number
   /** Fecha y hora del cierre de sesión (solo si el PDF se genera con la caja ya cerrada). */
   closureAtLabel?: string | null
-  productsSold: ProductSalesTotal[]
+  /** Ventas POS (contado), una fila por movimiento. */
+  posSaleLines: PosSaleLineDetail[]
+  /** Cuentas con cargos en esta sesión (detalle completo de cada cuenta). */
+  tabChargeAccountsInSession: TabChargeSessionAccount[]
   /** Cuentas pagaré abiertas con saldo pendiente (cualquier turno de apertura). */
   accountsPendingLiquidation: AccountOpenedInShift[]
   /** Cuentas canceladas (vacías) durante este turno, con motivo. */

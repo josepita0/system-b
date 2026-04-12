@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CategoryTreeNode, Product, SaleFormat } from '@shared/types/product'
 import type { SaleFormatConsumptionRule } from '@shared/types/consumptionRule'
 import { Button } from '@renderer/components/ui/Button'
@@ -10,12 +10,12 @@ import { PosAccountsSection } from '@renderer/components/pos/PosAccountsSection'
 import { PosCategoryTabs } from '@renderer/components/pos/PosCategoryTabs'
 import { PosProductGrid } from '@renderer/components/pos/PosProductGrid'
 import { PosTicketPanel } from '@renderer/components/pos/PosTicketPanel'
-import { PosToolbar } from '@renderer/components/pos/PosToolbar'
 import { selectFieldClass } from '@renderer/components/pos/posFieldClasses'
 import { cn } from '@renderer/lib/cn'
 import { effectiveComplementUnitPrice } from '@shared/lib/productPricing'
 import { findCategoryNode } from '@renderer/lib/posCategoryTree'
 import { requireSalesRemoveTabChargeLine, requireSalesTabChargeDetail } from '@renderer/lib/salesPreload'
+import type { TabChargeLineDetail } from '@shared/types/sale'
 import { resolveShiftForDate } from '@renderer/utils/resolveShiftForDate'
 import { OpenShiftModal } from '@renderer/components/shifts/OpenShiftModal'
 import { useUiPrefsStore } from '@renderer/store/uiPrefsStore'
@@ -48,6 +48,25 @@ function roundMoney2(n: number): number {
 
 function moneyToCents(n: number): number {
   return Math.round(roundMoney2(n) * 100)
+}
+
+function registeredChargeToTicketLine(line: TabChargeLineDetail) {
+  const qty = line.quantity
+  const unit = qty > 0 ? roundMoney2(line.subtotal / qty) : 0
+  return {
+    key: `reg-${line.saleItemId}`,
+    productName: line.productName,
+    quantity: qty,
+    unitPrice: unit,
+    catalogUnitPrice: unit,
+    discount: 0,
+    formatLabel: null as string | null,
+    complementLabel: null as string | null,
+    priceChangeNote: null as string | null,
+    canEditPrice: false,
+    readOnly: true as const,
+    lineSubtotal: line.subtotal,
+  }
 }
 
 export function SalesPage() {
@@ -90,6 +109,7 @@ export function SalesPage() {
   const [removeLineModalOpen, setRemoveLineModalOpen] = useState(false)
   const [removeLineSaleItemId, setRemoveLineSaleItemId] = useState<number | null>(null)
   const [removeLineReason, setRemoveLineReason] = useState('')
+  const prevSelectedTabIdRef = useRef<number | null>(null)
 
   const currentShiftQuery = useQuery({
     queryKey: ['shift', 'current'],
@@ -118,6 +138,12 @@ export function SalesPage() {
     queryKey: ['sales', 'tabChargeDetail', settleModalTabId],
     queryFn: () => requireSalesTabChargeDetail()(settleModalTabId!),
     enabled: typeof settleModalTabId === 'number',
+  })
+
+  const selectedTabChargeDetailQuery = useQuery({
+    queryKey: ['sales', 'tabChargeDetail', selectedTabId],
+    queryFn: () => requireSalesTabChargeDetail()(selectedTabId!),
+    enabled: saleMode === 'tab' && typeof selectedTabId === 'number',
   })
 
   const vipCustomersQuery = useQuery({
@@ -232,6 +258,7 @@ export function SalesPage() {
       setNewTabName('')
       setNewTabVipCustomerId('')
       await queryClient.invalidateQueries({ queryKey: ['sales', 'openTabs'] })
+      await queryClient.invalidateQueries({ queryKey: ['sales', 'tabChargeDetail', data.id] })
     },
   })
 
@@ -272,8 +299,26 @@ export function SalesPage() {
   })
 
   const saleMutation = useMutation({
-    mutationFn: () =>
-      window.api.sales.create({
+    mutationFn: () => {
+      const draftTotal = roundMoney2(
+        cart.reduce((sum, line) => sum + (line.quantity * line.unitPrice - line.discount), 0),
+      )
+      /** En cuenta pagaré el VIP viene de la cuenta, no del selector (solo visible en contado). */
+      const effectiveVipId =
+        saleMode === 'tab'
+          ? (selectedTabChargeDetailQuery.data?.vipCustomerId ?? null)
+          : selectedVipCustomerId
+      const vip =
+        effectiveVipId != null
+          ? (vipCustomersQuery.data ?? []).find((c) => c.id === effectiveVipId) ?? null
+          : null
+      let chargedTotal: number | undefined
+      if (vip?.conditionType === 'discount_manual') {
+        const t = vipChargedTotalInput.trim()
+        chargedTotal = t !== '' ? Number(t.replace(',', '.')) : draftTotal
+      }
+
+      return window.api.sales.create({
         items: cart.map((line) => ({
           productId: line.productId,
           quantity: line.quantity,
@@ -285,11 +330,9 @@ export function SalesPage() {
         })),
         tabId: saleMode === 'tab' && selectedTabId != null ? selectedTabId : undefined,
         vipCustomerId: selectedVipCustomerId ?? undefined,
-        chargedTotal:
-          selectedVipCustomerId != null && vipChargedTotalInput.trim() !== ''
-            ? Number(vipChargedTotalInput.replace(',', '.'))
-            : undefined,
-      }),
+        chargedTotal,
+      })
+    },
     onSuccess: async () => {
       setCart([])
       setCashPaymentModalOpen(false)
@@ -298,6 +341,9 @@ export function SalesPage() {
       setSelectedVipCustomerId(null)
       await queryClient.invalidateQueries({ queryKey: ['shift', 'current'] })
       await queryClient.invalidateQueries({ queryKey: ['sales'] })
+      if (selectedTabId != null) {
+        await queryClient.invalidateQueries({ queryKey: ['sales', 'tabChargeDetail', selectedTabId] })
+      }
     },
   })
 
@@ -314,6 +360,25 @@ export function SalesPage() {
       return tree[0]!.id
     })
   }, [tree])
+
+  /** Borrador no cruza modo de venta. */
+  useEffect(() => {
+    setCart([])
+    prevSelectedTabIdRef.current = null
+  }, [saleMode])
+
+  /** Al cambiar de una cuenta ya seleccionada a otra, descartar borrador (no al elegir la primera cuenta). */
+  useEffect(() => {
+    if (saleMode !== 'tab') {
+      prevSelectedTabIdRef.current = selectedTabId ?? null
+      return
+    }
+    const prev = prevSelectedTabIdRef.current
+    prevSelectedTabIdRef.current = selectedTabId
+    if (prev != null && selectedTabId != null && prev !== selectedTabId) {
+      setCart([])
+    }
+  }, [selectedTabId, saleMode])
 
   const beginAddProduct = useCallback(
     (product: Product) => {
@@ -449,11 +514,35 @@ export function SalesPage() {
     [cart],
   )
 
+  const registeredTicketTotal = useMemo(() => {
+    if (saleMode !== 'tab' || selectedTabId == null) {
+      return 0
+    }
+    const lines = selectedTabChargeDetailQuery.data?.lines ?? []
+    return roundMoney2(lines.reduce((sum, line) => sum + line.subtotal, 0))
+  }, [saleMode, selectedTabId, selectedTabChargeDetailQuery.data?.lines])
+
+  /** Total mostrado en el ticket: cargos ya registrados + borrador. */
+  const displayTicketTotal = useMemo(
+    () => roundMoney2(registeredTicketTotal + cartTotal),
+    [registeredTicketTotal, cartTotal],
+  )
+
   const totalDue = useMemo(() => roundMoney2(cartTotal), [cartTotal])
 
+  const effectiveVipCustomerId = useMemo(() => {
+    if (saleMode === 'tab') {
+      return selectedTabChargeDetailQuery.data?.vipCustomerId ?? null
+    }
+    return selectedVipCustomerId
+  }, [saleMode, selectedTabChargeDetailQuery.data?.vipCustomerId, selectedVipCustomerId])
+
   const selectedVip = useMemo(
-    () => (vipCustomersQuery.data ?? []).find((c) => c.id === selectedVipCustomerId) ?? null,
-    [selectedVipCustomerId, vipCustomersQuery.data],
+    () =>
+      effectiveVipCustomerId != null
+        ? (vipCustomersQuery.data ?? []).find((c) => c.id === effectiveVipCustomerId) ?? null
+        : null,
+    [effectiveVipCustomerId, vipCustomersQuery.data],
   )
 
   const parsedVipChargedTotal = useMemo(() => {
@@ -564,22 +653,26 @@ export function SalesPage() {
         } · Total real ${totalDue.toFixed(2)}`
       : null
 
-  const ticketLines = useMemo(
-    () =>
-      cart.map((line) => ({
-        key: line.key,
-        productName: line.productName,
-        quantity: line.quantity,
-        unitPrice: line.unitPrice,
-        catalogUnitPrice: line.catalogUnitPrice,
-        discount: line.discount,
-        formatLabel: line.formatLabel,
-        complementLabel: line.complementLabel,
-        priceChangeNote: line.priceChangeNote,
-        canEditPrice: true,
-      })),
-    [cart],
-  )
+  const ticketLines = useMemo(() => {
+    const draft = cart.map((line) => ({
+      key: line.key,
+      productName: line.productName,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      catalogUnitPrice: line.catalogUnitPrice,
+      discount: line.discount,
+      formatLabel: line.formatLabel,
+      complementLabel: line.complementLabel,
+      priceChangeNote: line.priceChangeNote,
+      canEditPrice: true,
+      readOnly: false as const,
+    }))
+    if (saleMode !== 'tab' || selectedTabId == null) {
+      return draft
+    }
+    const registered = (selectedTabChargeDetailQuery.data?.lines ?? []).map(registeredChargeToTicketLine)
+    return [...registered, ...draft]
+  }, [cart, saleMode, selectedTabId, selectedTabChargeDetailQuery.data?.lines])
 
   const internalConsumptionMutation = useMutation({
     mutationFn: async () => {
@@ -608,7 +701,10 @@ export function SalesPage() {
   })
 
   const cartPriceNotesValid = useMemo(() => {
-    if (selectedVipCustomerId != null) {
+    if (saleMode === 'tab' && selectedTabId != null && selectedTabChargeDetailQuery.isLoading) {
+      return true
+    }
+    if (effectiveVipCustomerId != null) {
       return true
     }
     for (const line of cart) {
@@ -617,7 +713,7 @@ export function SalesPage() {
       }
     }
     return true
-  }, [cart, selectedVipCustomerId])
+  }, [cart, effectiveVipCustomerId, saleMode, selectedTabId, selectedTabChargeDetailQuery.isLoading])
 
   useEffect(() => {
     if (cartPriceNotesValid) {
@@ -717,6 +813,8 @@ export function SalesPage() {
                 <Button
                   onClick={() => {
                     setSaleMode('tab')
+                    setSelectedVipCustomerId(null)
+                    setVipChargedTotalInput('')
                   }}
                   variant={saleMode === 'tab' ? 'warning' : 'secondary'}
                 >
@@ -724,18 +822,6 @@ export function SalesPage() {
                 </Button>
               </div>
             </div>
-
-            <PosToolbar
-              onNewTab={() => {
-                setNewTabModalOpen(true)
-              }}
-              onSelectTab={(id) => {
-                setSelectedTabId(id)
-              }}
-              openTabs={openTabsQuery.data ?? []}
-              saleMode={saleMode}
-              selectedTabId={selectedTabId}
-            />
 
             <Card className="shrink-0" padding="md">
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Categorías</h2>
@@ -786,6 +872,12 @@ export function SalesPage() {
             <div className="flex min-h-[260px] flex-1 flex-col lg:min-h-0 gap-2">
             <PosAccountsSection
               loading={openTabsQuery.isLoading}
+              onNewTab={() => {
+                setNewTabModalOpen(true)
+              }}
+              onSelectTab={(id) => {
+                setSelectedTabId(id)
+              }}
               onSettleClick={(t) => {
                 setSettleCashReceived('')
                 setSettleModalTabId(t.id)
@@ -797,16 +889,24 @@ export function SalesPage() {
                   : null
               }
               removeLinePending={removeTabChargeLineMutation.isPending}
+              selectedTabId={selectedTabId}
               settleError={
                 settleTabMutation.isError
                   ? ((settleTabMutation.error as Error)?.message ?? 'No se pudo liquidar.')
                   : null
               }
               settlePending={settleTabMutation.isPending}
+              showNewAccountButton={saleMode === 'tab'}
             />
               <PosTicketPanel
-                cartTotal={cartTotal}
-                hasVipSelected={selectedVipCustomerId != null}
+                cartTotal={displayTicketTotal}
+                confirmDisabled={
+                  saleMutation.isPending ||
+                  (saleMode === 'tab'
+                    ? selectedTabId == null || cart.length === 0
+                    : cart.length === 0)
+                }
+                hasVipSelected={effectiveVipCustomerId != null}
                 lines={ticketLines}
                 onConfirmClick={handleConfirmSale}
                 onSelectVip={(id) => {
@@ -814,6 +914,7 @@ export function SalesPage() {
                   setVipChargedTotalInput('')
                 }}
                 selectedVipCustomerId={selectedVipCustomerId}
+                showVipSelector={saleMode === 'cash'}
                 vipCustomers={vipCustomersQuery.data ?? []}
                 vipLoading={vipCustomersQuery.isLoading}
                 vipNote={vipNote}
@@ -846,6 +947,9 @@ export function SalesPage() {
                   setCart((c) => c.map((l) => (l.key === key ? { ...l, quantity } : l)))
                 }}
                 onRemoveLine={(key) => {
+                  if (key.startsWith('reg-')) {
+                    return
+                  }
                   setCart((c) => c.filter((l) => l.key !== key))
                 }}
                 saleError={
@@ -896,7 +1000,7 @@ export function SalesPage() {
               }}
               variant="primary"
             >
-              {openTabMutation.isPending ? 'Abriendo...' : 'Abrir cuenta'}
+              {openTabMutation.isPending ? 'Creando...' : 'Crear'}
             </Button>
           </>
         }
@@ -918,7 +1022,9 @@ export function SalesPage() {
           placeholder={newTabVipCustomerId === '' ? 'Ej. Maria Lopez' : 'Opcional: alias o nota en cuenta'}
           value={newTabName}
         />
-        <p className="mt-4 text-sm text-slate-600">Cliente VIP (opcional; no disponible para cuentas con exoneración total)</p>
+        <p className="mt-4 text-sm text-slate-600">
+          Cliente VIP (opcional; permite llevar el control del consumo y condiciones en esta cuenta)
+        </p>
         <select
           className={cn(selectFieldClass, 'mt-2 w-full')}
           onChange={(e) => {
@@ -928,13 +1034,12 @@ export function SalesPage() {
           value={newTabVipCustomerId === '' ? '' : String(newTabVipCustomerId)}
         >
           <option value="">Sin VIP</option>
-          {(vipCustomersQuery.data ?? [])
-            .filter((c) => c.conditionType !== 'exempt')
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+          {(vipCustomersQuery.data ?? []).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+              {c.conditionType === 'exempt' ? ' — exonerado' : ''}
+            </option>
+          ))}
         </select>
         {openTabMutation.isError ? (
           <p className="mt-2 text-sm text-rose-600">{(openTabMutation.error as Error)?.message}</p>
@@ -943,27 +1048,29 @@ export function SalesPage() {
 
       <Modal
         footer={
-          <>
-            <Button onClick={closeSettleModal} variant="secondary">
-              Cancelar
-            </Button>
-            <Button
-              disabled={
-                settleTabMutation.isPending ||
-                removeTabChargeLineMutation.isPending ||
-                tabChargeDetailQuery.isLoading ||
-                !settlePaymentSufficient
-              }
-              onClick={() => settleModalTabId != null && settleTabMutation.mutate(settleModalTabId)}
-              variant="primary"
-            >
-              {settleTabMutation.isPending
-                ? 'Procesando...'
-                : settleBalanceCents === 0
-                  ? 'Cerrar cuenta'
-                  : 'Confirmar cobro'}
-            </Button>
-          </>
+          settleDetail && settleDetail.lines.length === 0 ? undefined : (
+            <>
+              <Button onClick={closeSettleModal} variant="secondary">
+                Cancelar
+              </Button>
+              <Button
+                disabled={
+                  settleTabMutation.isPending ||
+                  removeTabChargeLineMutation.isPending ||
+                  tabChargeDetailQuery.isLoading ||
+                  !settlePaymentSufficient
+                }
+                onClick={() => settleModalTabId != null && settleTabMutation.mutate(settleModalTabId)}
+                variant="primary"
+              >
+                {settleTabMutation.isPending
+                  ? 'Procesando...'
+                  : settleBalanceCents === 0
+                    ? 'Cerrar cuenta'
+                    : 'Confirmar cobro'}
+              </Button>
+            </>
+          )
         }
         maxWidthClass="max-w-lg"
         onClose={closeSettleModal}
@@ -974,18 +1081,31 @@ export function SalesPage() {
             : 'Liquidar cuenta (efectivo)'
         }
       >
-        <p className="text-sm text-slate-600">
-          Revise los cargos a la cuenta, quite lineas si corresponde e indique el efectivo recibido para calcular el cambio.
-        </p>
-
         {tabChargeDetailQuery.isLoading ? (
-          <p className="mt-4 text-sm text-slate-500">Cargando detalle...</p>
+          <>
+            <p className="text-sm text-slate-600">
+              Revise los cargos a la cuenta, quite lineas si corresponde e indique el efectivo recibido para calcular el
+              cambio.
+            </p>
+            <p className="mt-4 text-sm text-slate-500">Cargando detalle...</p>
+          </>
         ) : tabChargeDetailQuery.isError ? (
-          <p className="mt-4 text-sm text-rose-600">
-            {(tabChargeDetailQuery.error as Error)?.message ?? 'No se pudo cargar la cuenta.'}
-          </p>
+          <>
+            <p className="text-sm text-slate-600">
+              Revise los cargos a la cuenta, quite lineas si corresponde e indique el efectivo recibido para calcular el
+              cambio.
+            </p>
+            <p className="mt-4 text-sm text-rose-600">
+              {(tabChargeDetailQuery.error as Error)?.message ?? 'No se pudo cargar la cuenta.'}
+            </p>
+          </>
         ) : settleDetail ? (
           <>
+            <p className="text-sm text-slate-600">
+              {settleDetail.lines.length === 0
+                ? 'Esta cuenta no tiene cargos pendientes.'
+                : 'Revise los cargos a la cuenta, quite lineas si corresponde e indique el efectivo recibido para calcular el cambio.'}
+            </p>
             <div className="mt-4 space-y-2">
               <h4 className="text-xs font-medium uppercase tracking-wide text-slate-500">Cargos pendientes</h4>
               {settleDetail.lines.length === 0 ? (
@@ -1037,43 +1157,47 @@ export function SalesPage() {
               )}
             </div>
 
-            <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-slate-50 px-3 py-2 text-slate-800">
-              <span>Total a cobrar</span>
-              <span className={cn(posLargeText ? 'text-3xl' : 'text-2xl', 'font-semibold tabular-nums text-brand')}>
-                {settleDetail.balance.toFixed(2)}
-              </span>
-            </div>
+            {settleDetail.lines.length > 0 ? (
+              <>
+                <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-slate-50 px-3 py-2 text-slate-800">
+                  <span>Total a cobrar</span>
+                  <span className={cn(posLargeText ? 'text-3xl' : 'text-2xl', 'font-semibold tabular-nums text-brand')}>
+                    {settleDetail.balance.toFixed(2)}
+                  </span>
+                </div>
 
-            {settleBalanceCents > 0 ? (
-              <label className="mt-4 block text-sm text-slate-700">
-                Monto recibido
-                <Input
-                  autoFocus
-                  className="mt-1"
-                  min={0}
-                  onChange={(e) => setSettleCashReceived(e.target.value)}
-                  step={0.01}
-                  type="number"
-                  value={settleCashReceived}
-                />
-              </label>
-            ) : (
-              <p className="mt-4 text-sm text-slate-500">Saldo 0: se cerrara la cuenta sin cobro en efectivo.</p>
-            )}
+                {settleBalanceCents > 0 ? (
+                  <label className="mt-4 block text-sm text-slate-700">
+                    Monto recibido
+                    <Input
+                      autoFocus
+                      className="mt-1"
+                      min={0}
+                      onChange={(e) => setSettleCashReceived(e.target.value)}
+                      step={0.01}
+                      type="number"
+                      value={settleCashReceived}
+                    />
+                  </label>
+                ) : (
+                  <p className="mt-4 text-sm text-slate-500">Saldo 0: se cerrara la cuenta sin cobro en efectivo.</p>
+                )}
 
-            {settleChangeAmount != null ? (
-              <div className="mt-4 flex items-center justify-between text-slate-800">
-                <span>Cambio</span>
-                <span className={cn(posLargeText ? 'text-3xl' : 'text-2xl', 'font-semibold tabular-nums text-brand')}>
-                  {settleChangeAmount.toFixed(2)}
-                </span>
-              </div>
-            ) : null}
-            {settleShortfall != null ? (
-              <p className="mt-3 text-sm text-amber-700">Falta {settleShortfall.toFixed(2)} para cubrir el total.</p>
-            ) : null}
-            {parsedSettleReceived == null && settleCashReceived.trim() !== '' && settleBalanceCents > 0 ? (
-              <p className="mt-2 text-xs text-rose-600">Indique un monto valido.</p>
+                {settleChangeAmount != null ? (
+                  <div className="mt-4 flex items-center justify-between text-slate-800">
+                    <span>Cambio</span>
+                    <span className={cn(posLargeText ? 'text-3xl' : 'text-2xl', 'font-semibold tabular-nums text-brand')}>
+                      {settleChangeAmount.toFixed(2)}
+                    </span>
+                  </div>
+                ) : null}
+                {settleShortfall != null ? (
+                  <p className="mt-3 text-sm text-amber-700">Falta {settleShortfall.toFixed(2)} para cubrir el total.</p>
+                ) : null}
+                {parsedSettleReceived == null && settleCashReceived.trim() !== '' && settleBalanceCents > 0 ? (
+                  <p className="mt-2 text-xs text-rose-600">Indique un monto valido.</p>
+                ) : null}
+              </>
             ) : null}
           </>
         ) : null}
@@ -1214,7 +1338,16 @@ export function SalesPage() {
                 !cashPaymentSufficient ||
                 saleMutation.isPending ||
                 (selectedVip?.conditionType === 'discount_manual' &&
-                  (parsedVipChargedTotal == null || parsedVipChargedTotal > totalDue))
+                  (() => {
+                    const t = vipChargedTotalInput.trim()
+                    if (t === '') {
+                      return false
+                    }
+                    if (parsedVipChargedTotal == null) {
+                      return true
+                    }
+                    return parsedVipChargedTotal > totalDue
+                  })())
               }
               onClick={() => saleMutation.mutate()}
               variant="primary"
@@ -1560,7 +1693,7 @@ export function SalesPage() {
                 const rounded = roundMoney2(u)
                 const diff = Math.abs(rounded - line.catalogUnitPrice) > 0.001
                 const note = priceEditNote.trim()
-                if (diff && selectedVipCustomerId == null && !note) {
+                if (diff && effectiveVipCustomerId == null && !note) {
                   setPriceEditError('Indique el motivo del cambio de precio.')
                   return
                 }
@@ -1608,14 +1741,14 @@ export function SalesPage() {
               />
             </label>
             <label className="mt-4 block text-sm text-slate-700">
-              {selectedVipCustomerId != null
+              {effectiveVipCustomerId != null
                 ? 'Motivo del cambio (opcional)'
                 : 'Motivo del cambio (obligatorio si el precio difiere del catalogo)'}
               <textarea
                 className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                 onChange={(e) => setPriceEditNote(e.target.value)}
                 placeholder={
-                  selectedVipCustomerId != null ? 'Ej. promocion acordada' : 'Ej. descuento por rotura de empaque'
+                  effectiveVipCustomerId != null ? 'Ej. promocion acordada' : 'Ej. descuento por rotura de empaque'
                 }
                 value={priceEditNote}
               />

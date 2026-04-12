@@ -12,6 +12,7 @@ import type { ShiftCloseReport } from '@shared/types/report'
 import type { CashSession, ShiftSessionDetail } from '@shared/types/shift'
 import type { UserRole } from '@shared/types/user'
 import { useAuthStore } from '@renderer/store/authStore'
+import { usePosStore } from '@renderer/store/posStore'
 import { OpenShiftModal } from '@renderer/components/shifts/OpenShiftModal'
 
 /** Administrador / Encargado: cualquier caja abierta. Empleado: solo la que él abrió. */
@@ -170,6 +171,8 @@ function ShiftSessionMovementsLists(props: {
 export function ShiftsPage() {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
+  const setUser = useAuthStore((s) => s.setUser)
+  const setActiveSessionId = usePosStore((s) => s.setActiveSessionId)
   const [detailSessionId, setDetailSessionId] = useState<number | null>(null)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [openModalOpen, setOpenModalOpen] = useState(false)
@@ -319,6 +322,15 @@ export function ShiftsPage() {
           msg += ' No se configuró envío por correo (revise destinatario en el panel de licencia).'
         }
         setCloseFeedback({ ok: true, message: msg })
+
+        // Al cerrar turno y generar el PDF de "Cierre de turno", forzamos logout y volvemos a login.
+        try {
+          await window.api.auth.logout()
+        } finally {
+          setUser(null)
+          setActiveSessionId(null)
+          await queryClient.invalidateQueries()
+        }
       }
     },
     onError: (e) => {

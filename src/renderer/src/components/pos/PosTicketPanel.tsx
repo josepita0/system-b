@@ -15,6 +15,10 @@ export type TicketCartLine = {
   complementLabel?: string | null
   priceChangeNote: string | null
   canEditPrice?: boolean
+  /** Cargos ya registrados en cuenta: solo lectura en el ticket. */
+  readOnly?: boolean
+  /** Total de línea desde servidor (registrada); evita descuadres por redondeo. */
+  lineSubtotal?: number
 }
 
 type Props = {
@@ -22,6 +26,10 @@ type Props = {
   cartTotal: number
   saleMode: 'cash' | 'tab'
   selectedTabId: number | null
+  /** Deshabilita el botón principal (p. ej. en cuenta abierta sin líneas nuevas por registrar). */
+  confirmDisabled: boolean
+  /** Solo en modo contado: selector VIP en el ticket. */
+  showVipSelector: boolean
   salePending: boolean
   saleError: string | null
   hasVipSelected: boolean
@@ -53,6 +61,9 @@ function LineMeta({ line }: { line: TicketCartLine }) {
 }
 
 function lineTotal(line: TicketCartLine): number {
+  if (line.readOnly && line.lineSubtotal != null) {
+    return line.lineSubtotal
+  }
   return line.quantity * line.unitPrice - line.discount
 }
 
@@ -65,6 +76,8 @@ export function PosTicketPanel({
   cartTotal,
   saleMode,
   selectedTabId,
+  confirmDisabled,
+  showVipSelector,
   salePending,
   saleError,
   hasVipSelected,
@@ -80,8 +93,6 @@ export function PosTicketPanel({
   onEditPriceClick,
   onEditComplementClick,
 }: Props) {
-  const confirmDisabled =
-    lines.length === 0 || salePending || (saleMode === 'tab' && selectedTabId == null)
   const posLargeText = useUiPrefsStore((s) => s.posLargeText)
   const highContrast = useUiPrefsStore((s) => s.highContrast)
 
@@ -106,51 +117,55 @@ export function PosTicketPanel({
         </div>
       </div>
 
-      <div
-        className={cn(
-          'shrink-0 border-b px-3 py-2',
-          highContrast ? 'border-white/10 bg-slate-900/60' : 'border-slate-100 bg-slate-50/60',
-        )}
-      >
-        <label className="flex items-center gap-2">
-          <span
-            className={cn(
-              'shrink-0 text-[11px] font-medium uppercase tracking-wide',
-              highContrast ? 'text-white/60' : 'text-slate-400',
-            )}
-            title="Opcional"
-          >
-            VIP
-          </span>
-          <select
-            aria-label="Cliente VIP (opcional)"
-            className={`${selectFieldClass} min-w-0 flex-1 py-1.5 text-sm`}
-            disabled={vipLoading}
-            onChange={(e) => {
-              const v = e.target.value
-              onSelectVip(v === '' ? null : Number(v))
-            }}
-            value={selectedVipCustomerId ?? ''}
-          >
-            <option value="">{vipLoading ? 'Cargando...' : 'Sin VIP'}</option>
-            {vipCustomers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} — {c.conditionType === 'exempt' ? 'Exonerado' : 'Manual'}
-              </option>
-            ))}
-          </select>
-        </label>
-        {vipNote ? (
-          <p className={cn('mt-1.5 line-clamp-2 text-[11px] leading-snug', highContrast ? 'text-white/70' : 'text-slate-500')}>
-            {vipNote}
-          </p>
-        ) : null}
-      </div>
+      {showVipSelector ? (
+        <div
+          className={cn(
+            'shrink-0 border-b px-3 py-2',
+            highContrast ? 'border-white/10 bg-slate-900/60' : 'border-slate-100 bg-slate-50/60',
+          )}
+        >
+          <label className="flex items-center gap-2">
+            <span
+              className={cn(
+                'shrink-0 text-[11px] font-medium uppercase tracking-wide',
+                highContrast ? 'text-white/60' : 'text-slate-400',
+              )}
+              title="Opcional"
+            >
+              VIP
+            </span>
+            <select
+              aria-label="Cliente VIP (opcional)"
+              className={`${selectFieldClass} min-w-0 flex-1 py-1.5 text-sm`}
+              disabled={vipLoading}
+              onChange={(e) => {
+                const v = e.target.value
+                onSelectVip(v === '' ? null : Number(v))
+              }}
+              value={selectedVipCustomerId ?? ''}
+            >
+              <option value="">{vipLoading ? 'Cargando...' : 'Sin VIP'}</option>
+              {vipCustomers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} — {c.conditionType === 'exempt' ? 'Exonerado' : 'Manual'}
+                </option>
+              ))}
+            </select>
+          </label>
+          {vipNote ? (
+            <p className={cn('mt-1.5 line-clamp-2 text-[11px] leading-snug', highContrast ? 'text-white/70' : 'text-slate-500')}>
+              {vipNote}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3">
         {lines.length === 0 ? (
           <p className={cn('py-6 text-center text-sm', highContrast ? 'text-white/70' : 'text-slate-500')}>
-            Sin lineas. Agregue productos del catalogo.
+            {saleMode === 'tab' && selectedTabId != null
+              ? 'Sin lineas en el ticket. Elija una cuenta o agregue productos.'
+              : 'Sin lineas. Agregue productos del catalogo.'}
           </p>
         ) : (
           <ul className={cn('divide-y', highContrast ? 'divide-white/10' : 'divide-slate-200')}>
@@ -192,65 +207,78 @@ export function PosTicketPanel({
                     ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    <div
-                      className={cn(
-                        'flex items-center overflow-hidden rounded-lg border',
-                        highContrast ? 'border-white/15 bg-white/10' : 'border-slate-200 bg-slate-50',
-                      )}
-                      title="Unidades vendidas (no modifica el precio unitario)"
-                    >
-                      <button
-                        aria-label="Restar una unidad"
-                        className={cn(
-                          'px-2 py-1.5 text-base leading-none transition-colors',
-                          highContrast ? 'text-white hover:bg-white/10' : 'text-slate-700 hover:bg-slate-200/80',
-                        )}
-                        onClick={() => {
-                          const next = Math.max(1, round2(line.quantity - 1))
-                          onQuantityChange(line.key, next)
-                        }}
-                        type="button"
-                      >
-                        −
-                      </button>
+                    {line.readOnly ? (
                       <span
                         className={cn(
-                          'min-w-[2rem] px-0.5 text-center font-semibold tabular-nums',
-                          posLargeText ? 'text-base' : 'text-sm',
-                          highContrast ? 'text-white' : 'text-slate-900',
+                          'rounded-lg border px-2 py-1.5 text-xs font-medium tabular-nums',
+                          highContrast ? 'border-white/15 text-white/80' : 'border-slate-200 text-slate-500',
                         )}
                       >
-                        {formatUnits(line.quantity)}
+                        Registrado
                       </span>
-                      <button
-                        aria-label="Sumar una unidad"
-                        className={cn(
-                          'px-2 py-1.5 text-base leading-none transition-colors',
-                          highContrast ? 'text-white hover:bg-white/10' : 'text-slate-700 hover:bg-slate-200/80',
-                        )}
-                        onClick={() => {
-                          onQuantityChange(line.key, round2(line.quantity + 1))
-                        }}
-                        type="button"
-                      >
-                        +
-                      </button>
-                    </div>
-                    <button
-                      className={cn(
-                        'flex h-10 w-10 items-center justify-center rounded-lg text-xl transition-colors',
-                        highContrast
-                          ? 'text-white/70 hover:bg-white/10 hover:text-white'
-                          : 'text-slate-400 hover:bg-rose-50 hover:text-rose-600',
-                      )}
-                      onClick={() => {
-                        onRemoveLine(line.key)
-                      }}
-                      title="Quitar linea"
-                      type="button"
-                    >
-                      ×
-                    </button>
+                    ) : (
+                      <>
+                        <div
+                          className={cn(
+                            'flex items-center overflow-hidden rounded-lg border',
+                            highContrast ? 'border-white/15 bg-white/10' : 'border-slate-200 bg-slate-50',
+                          )}
+                          title="Unidades vendidas (no modifica el precio unitario)"
+                        >
+                          <button
+                            aria-label="Restar una unidad"
+                            className={cn(
+                              'px-2 py-1.5 text-base leading-none transition-colors',
+                              highContrast ? 'text-white hover:bg-white/10' : 'text-slate-700 hover:bg-slate-200/80',
+                            )}
+                            onClick={() => {
+                              const next = Math.max(1, round2(line.quantity - 1))
+                              onQuantityChange(line.key, next)
+                            }}
+                            type="button"
+                          >
+                            −
+                          </button>
+                          <span
+                            className={cn(
+                              'min-w-[2rem] px-0.5 text-center font-semibold tabular-nums',
+                              posLargeText ? 'text-base' : 'text-sm',
+                              highContrast ? 'text-white' : 'text-slate-900',
+                            )}
+                          >
+                            {formatUnits(line.quantity)}
+                          </span>
+                          <button
+                            aria-label="Sumar una unidad"
+                            className={cn(
+                              'px-2 py-1.5 text-base leading-none transition-colors',
+                              highContrast ? 'text-white hover:bg-white/10' : 'text-slate-700 hover:bg-slate-200/80',
+                            )}
+                            onClick={() => {
+                              onQuantityChange(line.key, round2(line.quantity + 1))
+                            }}
+                            type="button"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <button
+                          className={cn(
+                            'flex h-10 w-10 items-center justify-center rounded-lg text-xl transition-colors',
+                            highContrast
+                              ? 'text-white/70 hover:bg-white/10 hover:text-white'
+                              : 'text-slate-400 hover:bg-rose-50 hover:text-rose-600',
+                          )}
+                          onClick={() => {
+                            onRemoveLine(line.key)
+                          }}
+                          title="Quitar linea"
+                          type="button"
+                        >
+                          ×
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -269,7 +297,7 @@ export function PosTicketPanel({
                       value={line.discount}
                     />
                   </label> */}
-                  {line.canEditPrice === false ? null : (
+                  {line.readOnly || line.canEditPrice === false ? null : (
                     <Button
                       className="text-xs"
                       onClick={() => {
@@ -281,7 +309,7 @@ export function PosTicketPanel({
                       Cambiar precio
                     </Button>
                   )}
-                  {onEditComplementClick && line.complementLabel ? (
+                  {onEditComplementClick && line.complementLabel && !line.readOnly ? (
                     <Button
                       className="text-xs"
                       onClick={() => {

@@ -61,6 +61,8 @@ export interface TabChargeLineDetail {
 export interface TabChargeDetail {
   tabId: number
   customerName: string
+  /** Cliente VIP vinculado a la cuenta al abrirla; null si no aplica. */
+  vipCustomerId: number | null
   balance: number
   lines: TabChargeLineDetail[]
 }

@@ -123,9 +123,6 @@ export class SaleService {
       if (!vip || vip.isActive !== 1) {
         throw new ValidationError('Cliente VIP no disponible.')
       }
-      if (vip.conditionType === 'exempt') {
-        throw new ValidationError('No se puede asociar un cliente VIP exento a una cuenta pagaré.')
-      }
     }
 
     const nameFromInput = parsed.data.customerName.trim()
@@ -262,9 +259,6 @@ export class SaleService {
     const vip = vipCustomerId != null ? this.vipCustomers.getById(vipCustomerId) : null
     if (vipCustomerId != null && (!vip || vip.isActive !== 1)) {
       throw new ValidationError('Cliente VIP no disponible.')
-    }
-    if (vip?.conditionType === 'exempt' && parsed.data.tabId != null) {
-      throw new ValidationError('No se permite exoneracion VIP en ventas a cuenta.')
     }
 
     const tree = this.categoryService.listTree()
@@ -445,10 +439,8 @@ export class SaleService {
         chargedTotal = 0
         vipConditionSnapshot = JSON.stringify({ conditionType: 'exempt' })
       } else if (vip.conditionType === 'discount_manual') {
-        const override = parsed.data.chargedTotal
-        if (override == null) {
-          throw new ValidationError('Indique el monto a cobrar para el cliente VIP.')
-        }
+        // Sin monto explícito: cobrar el total real (mismo criterio que el POS al mostrar el resumen).
+        const override = parsed.data.chargedTotal ?? realTotal
         if (override > realTotal + 0.0001) {
           throw new ValidationError('El monto a cobrar no puede exceder el total real.')
         }

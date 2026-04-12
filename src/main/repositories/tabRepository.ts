@@ -83,8 +83,10 @@ export class TabRepository {
 
   getTabChargeDetail(tabId: number): TabChargeDetail | null {
     const tab = this.db
-      .prepare(`SELECT id, customer_name, status FROM customer_tabs WHERE id = ?`)
-      .get(tabId) as { id: number; customer_name: string; status: string } | undefined
+      .prepare(
+        `SELECT id, customer_name, status, vip_customer_id AS vipCustomerId FROM customer_tabs WHERE id = ?`,
+      )
+      .get(tabId) as { id: number; customer_name: string; status: string; vipCustomerId: number | null } | undefined
 
     if (!tab || tab.status !== 'open') {
       return null
@@ -122,6 +124,7 @@ export class TabRepository {
     return {
       tabId: tab.id,
       customerName: tab.customer_name,
+      vipCustomerId: tab.vipCustomerId != null ? Number(tab.vipCustomerId) : null,
       balance: Math.round(balance * 100) / 100,
       lines,
     }

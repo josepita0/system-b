@@ -6,13 +6,20 @@ function resolveRendererEntry() {
   return path.join(app.getAppPath(), 'dist', 'renderer', 'index.html')
 }
 
-/** Icono de ventana / barra de tareas en dev (`build/icon.png`). Tras `npm run build`, el .exe usa el mismo recurso vía electron-builder. */
+/**
+ * Icono de la ventana (y coherente con favicon).
+ * En producción el PNG está en el asar: `dist/renderer/icon.png` (viene de `public/`).
+ * En desarrollo: `public/icon.png` o `build/icon.png` tras `npm run sync:app-icon`.
+ */
 function resolveWindowIcon(): string | undefined {
   const candidates = [
-    path.join(app.getAppPath(), 'build', 'icon.png'),
-    // dist-electron/src/main/windows -> raíz del repo (4 niveles)
-    path.join(__dirname, '..', '..', '..', '..', 'build', 'icon.png'),
+    path.join(app.getAppPath(), 'dist', 'renderer', 'icon.png'),
+    path.join(__dirname, '..', '..', '..', '..', 'dist', 'renderer', 'icon.png'),
+    path.join(__dirname, '..', '..', '..', '..', 'public', 'icon.png'),
+    path.join(process.cwd(), 'dist', 'renderer', 'icon.png'),
+    path.join(process.cwd(), 'public', 'icon.png'),
     path.join(process.cwd(), 'build', 'icon.png'),
+    path.join(app.getAppPath(), 'build', 'icon.png'),
   ]
   for (const p of candidates) {
     try {

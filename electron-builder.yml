@@ -26,6 +26,8 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  installerIcon: icon.ico
+  uninstallerIcon: icon.ico
   # Si el modo diferencial queda activo, electron-builder ignora useZip y siempre genera .nsis.7z.
   differentialPackage: false
   # No usar useZip: true: el instalador falla al instalar ("Error opening ZIP file" / descompresion).

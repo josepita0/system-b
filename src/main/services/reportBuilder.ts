@@ -5,10 +5,13 @@ import autoTable from 'jspdf-autotable'
 import type { RowInput } from 'jspdf-autotable'
 import type Database from 'better-sqlite3'
 import type {
+  AccountOpenedConsumptionLine,
   AccountOpenedInShift,
   CancelledEmptyAccountInShift,
+  PosSaleLineDetail,
   ReplenishmentItem,
   ShiftCloseReport,
+  TabChargeSessionAccount,
 } from '../../shared/types/report'
 import { ReportGenerationError } from '../errors'
 import { getDatabasePath } from '../database/connection'
@@ -37,7 +40,8 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
   const inventory = inventoryRepository.getInventoryBalance()
   const replenishment = productInventoryRepository.getReplenishmentList()
   const daySalesTotal = shiftRepository.getSalesTotalForSession(sessionId)
-  const productsSold = getProductsSoldForSession(db, sessionId)
+  const posSaleLines = getPosSaleLinesForSession(db, sessionId)
+  const tabChargeAccountsInSession = getTabChargeAccountsInSession(db, sessionId)
   const accountsPendingLiquidation = shiftRepository.getOpenPendingAccountsToLiquidate()
   const cancelledEmptyAccounts = shiftRepository.getCancelledEmptyAccountsInSession(sessionId)
   const internalConsumptions = new InternalConsumptionRepository(db).listActiveWithLinesForSession(sessionId)
@@ -73,7 +77,8 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
     closedByLabel,
     currencyCode,
     closureAtLabel,
-    productsSold,
+    posSaleLines,
+    tabChargeAccountsInSession,
     accountsPendingLiquidation,
     cancelledEmptyAccounts,
     internalConsumptions,
@@ -105,7 +110,8 @@ export async function generateShiftCloseReport(db: Database.Database, sessionId:
     closedByLabel,
     currencyCode,
     closureAtLabel,
-    productsSold,
+    posSaleLines,
+    tabChargeAccountsInSession,
     accountsPendingLiquidation,
     cancelledEmptyAccounts,
     internalConsumptions,
@@ -150,8 +156,10 @@ function formatOpenedAtLabel(openedAt: string) {
   }
 }
 
-function formatAccountConsumptionCell(account: AccountOpenedInShift, fmtEuro: (n: number) => string) {
-  const lines = account.consumptionLines
+function formatAccountConsumptionCell(
+  lines: AccountOpenedConsumptionLine[],
+  fmtEuro: (n: number) => string,
+) {
   if (lines.length === 0) {
     return 'Sin cargos registrados en la cuenta.'
   }
@@ -194,47 +202,131 @@ function roleToSpanishLabel(role: string) {
   }
 }
 
-function getProductsSoldForSession(db: Database.Database, sessionId: number) {
+function getPosSaleLinesForSession(db: Database.Database, sessionId: number): PosSaleLineDetail[] {
   const rows = db
     .prepare(
-      `SELECT sale_items.product_id AS productId,
-              sale_items.product_name AS productName,
-              SUM(sale_items.quantity) AS quantity,
-              SUM(sale_items.subtotal) AS total,
-              GROUP_CONCAT(DISTINCT TRIM(COALESCE(vip_customers.name, ''))) AS vipNames
-       FROM sale_items
-       INNER JOIN sales ON sales.id = sale_items.sale_id
-       LEFT JOIN vip_customers ON vip_customers.id = sales.vip_customer_id
-       WHERE sales.cash_session_id = ?
-       GROUP BY sale_items.product_id, sale_items.product_name
-       ORDER BY total DESC`,
+      `SELECT si.product_name AS productName,
+              si.quantity AS quantity,
+              si.subtotal AS subtotal,
+              si.price_change_note AS priceChangeNote,
+              TRIM(COALESCE(v.name, '')) AS vipName,
+              json_extract(s.vip_condition_snapshot, '$.conditionType') AS vipSaleCondition
+       FROM sale_items si
+       INNER JOIN sales s ON s.id = si.sale_id
+       LEFT JOIN vip_customers v ON v.id = s.vip_customer_id
+       WHERE s.cash_session_id = ?
+         AND s.sale_type = 'pos'
+       ORDER BY s.id ASC, si.id ASC`,
     )
     .all(sessionId) as Array<{
-    productId: number
     productName: string
     quantity: number
-    total: number
-    vipNames: string | null
+    subtotal: number
+    priceChangeNote: string | null
+    vipName: string
+    vipSaleCondition: string | null
   }>
 
   return rows.map((r) => {
-    const raw = r.vipNames?.replace(/^,+|,+$/g, '').trim() ?? ''
-    const parts = raw
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-    let vipCustomerLabel = 'N/A'
-    if (parts.length === 1) {
-      vipCustomerLabel = parts[0].length > 36 ? `${parts[0].slice(0, 33)}...` : parts[0]
-    } else if (parts.length > 1) {
-      vipCustomerLabel = 'Varios'
-    }
+    const exempt = r.vipSaleCondition === 'exempt'
+    const lineTotal = exempt ? 0 : Math.round(Number(r.subtotal) * 100) / 100
+    const vipCustomerLabel =
+      r.vipName && r.vipName.length > 0
+        ? r.vipName.length > 36
+          ? `${r.vipName.slice(0, 33)}...`
+          : r.vipName
+        : 'N/A'
+    const rawNote = r.priceChangeNote?.trim() ?? ''
+    const priceChangeNote =
+      rawNote.length > 0 ? (rawNote.length > 120 ? `${rawNote.slice(0, 117)}...` : rawNote) : null
     return {
-      productId: r.productId,
       productName: r.productName,
-      quantity: r.quantity,
-      total: r.total,
+      quantity: Number(r.quantity),
       vipCustomerLabel,
+      priceChangeNote,
+      lineTotal,
+    }
+  })
+}
+
+function getTabChargeAccountsInSession(db: Database.Database, sessionId: number): TabChargeSessionAccount[] {
+  const tabIdRows = db
+    .prepare(
+      `SELECT DISTINCT s.tab_id AS tabId
+       FROM sales s
+       WHERE s.cash_session_id = ?
+         AND s.sale_type = 'tab_charge'
+         AND s.tab_id IS NOT NULL`,
+    )
+    .all(sessionId) as Array<{ tabId: number }>
+
+  if (tabIdRows.length === 0) {
+    return []
+  }
+
+  const metaStmt = db.prepare(
+    `SELECT ct.id AS tabId,
+            ct.customer_name AS customerName,
+            ct.opened_at AS openedAt,
+            v.condition_type AS vipConditionType
+     FROM customer_tabs ct
+     LEFT JOIN vip_customers v ON v.id = ct.vip_customer_id
+     WHERE ct.id = ?`,
+  )
+
+  const linesStmt = db.prepare(
+    `SELECT si.product_name AS productName, si.quantity AS quantity, si.subtotal AS subtotal
+     FROM sale_items si
+     INNER JOIN sales s ON s.id = si.sale_id
+     WHERE s.tab_id = ? AND s.sale_type = 'tab_charge'
+     ORDER BY s.id ASC, si.id ASC`,
+  )
+
+  const balanceStmt = db.prepare(
+    `SELECT COALESCE(SUM(si.subtotal), 0) AS t
+     FROM sale_items si
+     INNER JOIN sales s ON s.id = si.sale_id
+     WHERE s.tab_id = ? AND s.sale_type = 'tab_charge'`,
+  )
+
+  const withMeta = tabIdRows
+    .map(({ tabId }) => {
+      const meta = metaStmt.get(tabId) as
+        | {
+            tabId: number
+            customerName: string
+            openedAt: string
+            vipConditionType: string | null
+          }
+        | undefined
+      if (!meta) {
+        return null
+      }
+      return { tabId, meta }
+    })
+    .filter((x): x is NonNullable<typeof x> => x != null)
+    .sort((a, b) => new Date(a.meta.openedAt).getTime() - new Date(b.meta.openedAt).getTime())
+
+  return withMeta.map(({ tabId, meta }) => {
+    const rawLines = linesStmt.all(tabId) as Array<{
+      productName: string
+      quantity: number
+      subtotal: number
+    }>
+    const balRow = balanceStmt.get(tabId) as { t: number }
+    const balanceTotal = Math.round(Number(balRow.t) * 100) / 100
+    const isVipExempt = meta.vipConditionType === 'exempt'
+    return {
+      tabId,
+      customerName: meta.customerName,
+      openedAt: meta.openedAt,
+      consumptionLines: rawLines.map((li) => ({
+        productName: li.productName,
+        quantity: Number(li.quantity),
+        subtotal: Number(li.subtotal),
+      })),
+      balanceTotal,
+      isVipExempt,
     }
   })
 }
@@ -297,6 +389,8 @@ const C = {
   labelGrey: [100, 100, 110] as [number, number, number],
   border: [200, 204, 210] as [number, number, number],
   zebra: [250, 251, 252] as [number, number, number],
+  /** Fondo del resumen de ventas (contado + cuenta + general). */
+  summaryBand: [214, 236, 220] as [number, number, number],
 }
 
 function createPdf(report: ShiftCloseReport): string {
@@ -418,19 +512,13 @@ function createPdf(report: ShiftCloseReport): string {
   const afterCards = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY
   startY = afterCards + 22
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.setTextColor(30, 32, 38)
-  doc.text('Consumos internos del turno', margin, startY)
-  startY += 14
+  if (report.internalConsumptions.length > 0) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(30, 32, 38)
+    doc.text('Consumos internos del turno', margin, startY)
+    startY += 14
 
-  if (report.internalConsumptions.length === 0) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.setTextColor(...C.labelGrey)
-    doc.text('Sin consumos internos registrados en esta sesion.', margin, startY)
-    startY += 18
-  } else {
     const formatInternalConsumptionNote = (reason: string, lineNote: string | null) => {
       const parts: string[] = []
       const r = reason.trim()
@@ -543,34 +631,233 @@ function createPdf(report: ShiftCloseReport): string {
     startY = afterCancelled + 22
   }
 
+  if (report.accountsPendingLiquidation.length > 0) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(30, 32, 38)
+    doc.text('Cuentas pendientes por liquidar', margin, startY)
+    startY += 14
+
+    const pendingAccountsBody = report.accountsPendingLiquidation.map((a) => [
+      a.customerName,
+      formatOpenedAtLabel(a.openedAt),
+      formatAccountConsumptionCell(a.consumptionLines, fmt),
+      fmt(a.balanceTotal),
+    ])
+
+    autoTable(doc, {
+      startY,
+      head: [['Cliente', 'Apertura', 'Consumos (cargos a cuenta)', 'Total cuenta']],
+      body: pendingAccountsBody,
+      theme: 'grid',
+      tableWidth: innerW,
+      margin: { left: margin, right: margin },
+      styles: {
+        fontSize: 9,
+        cellPadding: { top: 8, right: 8, bottom: 8, left: 8 },
+        lineColor: C.border,
+        lineWidth: 0.35,
+        valign: 'top',
+        overflow: 'linebreak',
+      },
+      headStyles: {
+        fillColor: C.tableHead,
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 8,
+      },
+      bodyStyles: {
+        textColor: [40, 42, 48],
+      },
+      columnStyles: {
+        0: { cellWidth: innerW * 0.18, halign: 'left' },
+        1: { cellWidth: innerW * 0.2, halign: 'left' },
+        2: { cellWidth: innerW * 0.47, halign: 'left' },
+        3: { cellWidth: innerW * 0.15, halign: 'right', fontStyle: 'bold', textColor: C.moneyGreen },
+      },
+      alternateRowStyles: {
+        fillColor: C.zebra,
+      },
+      didParseCell: (data) => {
+        if (data.section !== 'body') {
+          return
+        }
+        if (data.column.index === 3) {
+          data.cell.styles.textColor = C.moneyGreen
+          data.cell.styles.fontStyle = 'bold'
+        }
+      },
+    })
+
+    const afterOpenedTabs = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY
+    startY = afterOpenedTabs + 22
+  }
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
   doc.setTextColor(30, 32, 38)
-  doc.text('Cuentas pendientes por liquidar', margin, startY)
+  doc.text('Ventas al contado', margin, startY)
   startY += 14
 
-  const pendingAccountsBody =
-    report.accountsPendingLiquidation.length === 0
+  const totalContado = Math.round(report.posSaleLines.reduce((s, p) => s + p.lineTotal, 0) * 100) / 100
+  const totalCuentaAbierta =
+    Math.round(
+      report.tabChargeAccountsInSession.reduce((s, a) => s + (a.isVipExempt ? 0 : a.balanceTotal), 0) * 100,
+    ) / 100
+  const totalGeneral = Math.round((totalContado + totalCuentaAbierta) * 100) / 100
+
+  const posBodyRows =
+    report.posSaleLines.length > 0
+      ? report.posSaleLines.map((p) => [
+          p.productName.length > 36 ? `${p.productName.slice(0, 33)}...` : p.productName,
+          formatQuantityEs(p.quantity),
+          p.vipCustomerLabel,
+          p.priceChangeNote ?? '—',
+          formatEuro(p.lineTotal),
+        ])
+      : [['Sin ventas al contado en este turno.', '—', '—', '—', '—']]
+
+  autoTable(doc, {
+    startY,
+    head: [
+      [
+        { content: 'Producto', styles: { halign: 'left' as const } },
+        { content: 'Cantidad', styles: { halign: 'center' as const } },
+        { content: 'Cliente VIP', styles: { halign: 'center' as const } },
+        { content: 'Cambio de precio', styles: { halign: 'left' as const } },
+        { content: 'Total', styles: { halign: 'right' as const } },
+      ],
+    ],
+    body: posBodyRows,
+    foot:
+      report.posSaleLines.length > 0
+        ? [
+            [
+              {
+                content: 'Total ventas al contado',
+                colSpan: 4,
+                styles: {
+                  fillColor: C.barGreen,
+                  textColor: 255,
+                  fontStyle: 'bold',
+                  halign: 'left',
+                  cellPadding: { top: 10, right: 8, bottom: 10, left: 10 },
+                },
+              },
+              {
+                content: formatEuro(totalContado),
+                styles: {
+                  fillColor: C.barGreen,
+                  textColor: 255,
+                  fontStyle: 'bold',
+                  halign: 'right',
+                  cellPadding: { top: 10, right: 10, bottom: 10, left: 8 },
+                },
+              },
+            ],
+          ]
+        : undefined,
+    theme: 'grid',
+    tableWidth: innerW,
+    margin: { left: margin, right: margin },
+    styles: {
+      fontSize: 9,
+      cellPadding: { top: 6, right: 6, bottom: 6, left: 6 },
+      lineColor: C.border,
+      lineWidth: 0.35,
+      valign: 'middle',
+      overflow: 'linebreak',
+    },
+    headStyles: {
+      fillColor: C.tableHead,
+      textColor: 255,
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    bodyStyles: {
+      textColor: [40, 42, 48],
+    },
+    footStyles: {
+      fillColor: C.barGreen,
+      textColor: 255,
+      fontStyle: 'bold',
+    },
+    columnStyles: {
+      0: { cellWidth: innerW * 0.26, halign: 'left' },
+      1: { cellWidth: innerW * 0.12, halign: 'center' },
+      2: { cellWidth: innerW * 0.16, halign: 'center' },
+      3: { cellWidth: innerW * 0.26, halign: 'left' },
+      4: { cellWidth: innerW * 0.2, halign: 'right', fontStyle: 'bold', textColor: C.moneyGreen },
+    },
+    alternateRowStyles: {
+      fillColor: C.zebra,
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && report.posSaleLines.length > 0 && data.column.index === 4) {
+        data.cell.styles.textColor = C.moneyGreen
+        data.cell.styles.fontStyle = 'bold'
+      }
+    },
+  })
+
+  startY = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY) + 24
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(30, 32, 38)
+  doc.text('Ventas en cuenta abierta', margin, startY)
+  startY += 14
+
+  const tabChargeBody =
+    report.tabChargeAccountsInSession.length === 0
       ? [
           [
             {
-              content: 'Sin cuentas pendientes por liquidar',
+              content: 'Sin cargos a cuenta registrados en este turno.',
               colSpan: 4,
               styles: { halign: 'center' as const, textColor: C.labelGrey },
             },
           ],
         ]
-      : report.accountsPendingLiquidation.map((a) => [
+      : report.tabChargeAccountsInSession.map((a) => [
           a.customerName,
           formatOpenedAtLabel(a.openedAt),
-          formatAccountConsumptionCell(a, fmt),
-          fmt(a.balanceTotal),
+          formatAccountConsumptionCell(a.consumptionLines, fmt),
+          formatEuro(a.isVipExempt ? 0 : a.balanceTotal),
         ])
 
   autoTable(doc, {
     startY,
     head: [['Cliente', 'Apertura', 'Consumos (cargos a cuenta)', 'Total cuenta']],
-    body: pendingAccountsBody,
+    body: tabChargeBody,
+    foot:
+      report.tabChargeAccountsInSession.length > 0
+        ? [
+            [
+              {
+                content: 'Total ventas en cuenta abierta',
+                colSpan: 3,
+                styles: {
+                  fillColor: C.barGreen,
+                  textColor: 255,
+                  fontStyle: 'bold',
+                  halign: 'left',
+                  cellPadding: { top: 10, right: 8, bottom: 10, left: 10 },
+                },
+              },
+              {
+                content: formatEuro(totalCuentaAbierta),
+                styles: {
+                  fillColor: C.barGreen,
+                  textColor: 255,
+                  fontStyle: 'bold',
+                  halign: 'right',
+                  cellPadding: { top: 10, right: 10, bottom: 10, left: 8 },
+                },
+              },
+            ],
+          ]
+        : undefined,
     theme: 'grid',
     tableWidth: innerW,
     margin: { left: margin, right: margin },
@@ -591,6 +878,11 @@ function createPdf(report: ShiftCloseReport): string {
     bodyStyles: {
       textColor: [40, 42, 48],
     },
+    footStyles: {
+      fillColor: C.barGreen,
+      textColor: 255,
+      fontStyle: 'bold',
+    },
     columnStyles: {
       0: { cellWidth: innerW * 0.18, halign: 'left' },
       1: { cellWidth: innerW * 0.2, halign: 'left' },
@@ -601,7 +893,7 @@ function createPdf(report: ShiftCloseReport): string {
       fillColor: C.zebra,
     },
     didParseCell: (data) => {
-      if (data.section !== 'body' || report.accountsPendingLiquidation.length === 0) {
+      if (data.section !== 'body' || report.tabChargeAccountsInSession.length === 0) {
         return
       }
       if (data.column.index === 3) {
@@ -611,101 +903,62 @@ function createPdf(report: ShiftCloseReport): string {
     },
   })
 
-  const afterOpenedTabs = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY
-  startY = afterOpenedTabs + 22
+  startY = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY) + 20
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
-  doc.setTextColor(30, 32, 38)
-  doc.text('Productos vendidos', margin, startY)
+  doc.setTextColor(...C.navy)
+  doc.text('Resumen de ventas del turno', margin, startY)
   startY += 14
-
-  const totalProducts = report.productsSold.reduce((s, p) => s + p.total, 0)
-
-  const bodyRows =
-    report.productsSold.length > 0
-      ? report.productsSold.map((p) => [
-          p.productName.length > 42 ? `${p.productName.slice(0, 39)}...` : p.productName,
-          formatQuantityEs(p.quantity),
-          p.vipCustomerLabel,
-          formatEuro(p.total),
-        ])
-      : [['Sin ventas registradas en este turno.', '—', '—', '—']]
 
   autoTable(doc, {
     startY,
     head: [
       [
-        { content: 'Producto', styles: { halign: 'left' as const } },
-        { content: 'Cantidad', styles: { halign: 'center' as const } },
-        { content: 'Cliente VIP', styles: { halign: 'center' as const } },
-        { content: 'Total', styles: { halign: 'right' as const } },
+        { content: 'Total (Contado)', styles: { halign: 'center' as const } },
+        { content: 'Total (Cuenta abierta)', styles: { halign: 'center' as const } },
+        { content: 'Total general', styles: { halign: 'center' as const } },
       ],
     ],
-    body: bodyRows,
-    foot: [
-      [
-        {
-          content: 'Total del turno',
-          colSpan: 3,
-          styles: {
-            fillColor: C.barGreen,
-            textColor: 255,
-            fontStyle: 'bold',
-            halign: 'left',
-            cellPadding: { top: 10, right: 8, bottom: 10, left: 10 },
-          },
-        },
-        {
-          content: formatEuro(totalProducts),
-          styles: {
-            fillColor: C.barGreen,
-            textColor: 255,
-            fontStyle: 'bold',
-            halign: 'right',
-            cellPadding: { top: 10, right: 10, bottom: 10, left: 8 },
-          },
-        },
-      ],
-    ],
+    body: [[formatEuro(totalContado), formatEuro(totalCuentaAbierta), formatEuro(totalGeneral)]],
     theme: 'grid',
     tableWidth: innerW,
     margin: { left: margin, right: margin },
     styles: {
-      fontSize: 10,
-      cellPadding: { top: 6, right: 8, bottom: 6, left: 8 },
+      fontSize: 11,
+      cellPadding: { top: 12, right: 10, bottom: 12, left: 10 },
       lineColor: C.border,
-      lineWidth: 0.35,
+      lineWidth: 0.45,
       valign: 'middle',
-      overflow: 'linebreak',
     },
     headStyles: {
-      fillColor: C.tableHead,
+      fillColor: C.navy,
       textColor: 255,
       fontStyle: 'bold',
-      fontSize: 9,
+      fontSize: 10,
+      cellPadding: { top: 11, right: 8, bottom: 11, left: 8 },
     },
     bodyStyles: {
-      textColor: [40, 42, 48],
-    },
-    footStyles: {
-      fillColor: C.barGreen,
-      textColor: 255,
+      fillColor: C.summaryBand,
+      textColor: [30, 32, 38],
       fontStyle: 'bold',
+      fontSize: 12,
     },
     columnStyles: {
-      0: { cellWidth: innerW * 0.4, halign: 'left' },
-      1: { cellWidth: innerW * 0.18, halign: 'center' },
-      2: { cellWidth: innerW * 0.22, halign: 'center' },
-      3: { cellWidth: innerW * 0.2, halign: 'right', fontStyle: 'bold', textColor: C.moneyGreen },
-    },
-    alternateRowStyles: {
-      fillColor: C.zebra,
+      0: { cellWidth: innerW / 3, halign: 'center' as const },
+      1: { cellWidth: innerW / 3, halign: 'center' as const },
+      2: { cellWidth: innerW / 3, halign: 'center' as const },
     },
     didParseCell: (data) => {
-      if (data.section === 'body' && report.productsSold.length > 0 && data.column.index === 3) {
+      if (data.section !== 'body' || data.row.index !== 0) {
+        return
+      }
+      data.cell.styles.fillColor = C.summaryBand
+      if (data.column.index === 2) {
+        data.cell.styles.fontSize = 14
         data.cell.styles.textColor = C.moneyGreen
-        data.cell.styles.fontStyle = 'bold'
+      } else {
+        data.cell.styles.textColor = [40, 44, 52]
       }
     },
   })
