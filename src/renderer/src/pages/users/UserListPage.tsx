@@ -111,6 +111,10 @@ export function UserListPage() {
     mutationFn: (targetEmployeeId: number) => window.api.license.generatePanelAccessCode({ targetEmployeeId }),
   })
 
+  const sendPasswordResetCodeMutation = useMutation({
+    mutationFn: (targetEmployeeId: number) => window.api.users.sendPasswordResetEmailCode(targetEmployeeId),
+  })
+
   const lastPanelCode = generatePanelCodeMutation.data
 
   const closeCreateModal = () => {
@@ -187,6 +191,14 @@ export function UserListPage() {
         </div>
       ) : null}
 
+      {sendPasswordResetCodeMutation.error ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          {sendPasswordResetCodeMutation.error instanceof Error
+            ? sendPasswordResetCodeMutation.error.message
+            : 'No fue posible enviar el codigo.'}
+        </div>
+      ) : null}
+
       {lastPanelCode ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           <p className="font-medium text-slate-900">Codigo temporal para panel de licencias</p>
@@ -206,6 +218,7 @@ export function UserListPage() {
               users={pagedUsers}
               onEdit={openEditModal}
               onGenerateLicensePanelCode={(userId) => generatePanelCodeMutation.mutate(userId)}
+              onSendPasswordResetCode={(userId) => sendPasswordResetCodeMutation.mutate(userId)}
               onView={(userId) => navigate(`/usuarios/${userId}`)}
             />
             <TablePagination

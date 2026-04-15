@@ -10,6 +10,7 @@ export const userChannels = {
   myProfile: 'users:myProfile',
   issueCredentials: 'users:issueCredentials',
   regenerateRecoveryCodes: 'users:regenerateRecoveryCodes',
+  sendPasswordResetEmailCode: 'users:sendPasswordResetEmailCode',
 } as const
 
 export interface UserApi {
@@ -21,4 +22,5 @@ export interface UserApi {
   myProfile: () => Promise<User>
   issueCredentials: (userId: number) => Promise<IssueUserCredentialsResult>
   regenerateRecoveryCodes: (userId: number) => Promise<string[]>
+  sendPasswordResetEmailCode: (userId: number) => Promise<{ ok: true }>
 }

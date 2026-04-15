@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createDatabase } from '../../src/main/database/connection'
 import { runMigrations } from '../../src/main/database/migrate'
-import { ShiftStateError } from '../../src/main/errors'
+import { AuthorizationError, ShiftStateError } from '../../src/main/errors'
 import { CategoryRepository } from '../../src/main/repositories/categoryRepository'
 import { ProductInventoryRepository } from '../../src/main/repositories/productInventoryRepository'
 import { ProductRepository } from '../../src/main/repositories/productRepository'
@@ -15,7 +15,9 @@ import { SaleFormatRepository } from '../../src/main/repositories/saleFormatRepo
 import { ShiftRepository } from '../../src/main/repositories/shiftRepository'
 import { VipCustomerRepository } from '../../src/main/repositories/vipCustomerRepository'
 import { SaleFormatConsumptionRepository } from '../../src/main/repositories/saleFormatConsumptionRepository'
+import { BomRepository } from '../../src/main/repositories/bomRepository'
 import { CatalogMediaService } from '../../src/main/services/catalogMediaService'
+import { BomService } from '../../src/main/services/bomService'
 import { CategoryService } from '../../src/main/services/categoryService'
 import { ProductService } from '../../src/main/services/productService'
 import { SaleService } from '../../src/main/services/saleService'
@@ -45,6 +47,8 @@ function buildSaleService(db: ReturnType<typeof createDatabase>) {
   const tabs = new TabRepository(db)
   const vipCustomers = new VipCustomerRepository(db)
   const consumptions = new SaleFormatConsumptionRepository(db)
+  const boms = new BomRepository(db)
+  const bom = new BomService(boms, inventory)
   return {
     saleService: new SaleService(
       shifts,
@@ -58,12 +62,14 @@ function buildSaleService(db: ReturnType<typeof createDatabase>) {
       tabs,
       vipCustomers,
       consumptions,
+      bom,
     ),
     shifts,
     products,
     categories,
     saleFormats,
     catalogMedia,
+    vipCustomers,
   }
 }
 
@@ -106,7 +112,7 @@ describe('SaleService', () => {
     )
 
     expect(() =>
-      saleService.createSale({ items: [{ productId: product.id, quantity: 1 }] }, empId),
+      saleService.createSale({ items: [{ productId: product.id, quantity: 1 }] }, { id: empId, role: 'employee' }),
     ).toThrow(ShiftStateError)
   })
 
@@ -154,7 +160,10 @@ describe('SaleService', () => {
        VALUES (?, 'entry', ?, 'test', 'seed')`,
     ).run(product.id, 100)
 
-    const created = saleService.createSale({ items: [{ productId: product.id, quantity: 2 }] }, empId)
+    const created = saleService.createSale(
+      { items: [{ productId: product.id, quantity: 2 }] },
+      { id: empId, role: 'employee' },
+    )
 
     expect(created.total).toBe(7)
     expect(created.cashSessionId).toBeGreaterThan(0)
@@ -212,7 +221,10 @@ describe('SaleService', () => {
        VALUES (?, 'entry', ?, 'test', 'seed')`,
     ).run(product.id, 100)
 
-    saleService.createSale({ items: [{ productId: product.id, quantity: 2 }], tabId: tab.id }, empId)
+    saleService.createSale(
+      { items: [{ productId: product.id, quantity: 2 }], tabId: tab.id },
+      { id: empId, role: 'employee' },
+    )
 
     expect(shifts.getSalesTotalForSession(session.id)).toBe(0)
 
@@ -268,7 +280,10 @@ describe('SaleService', () => {
        VALUES (?, 'entry', ?, 'test', 'seed')`,
     ).run(product.id, 100)
 
-    saleService.createSale({ items: [{ productId: product.id, quantity: 3 }], tabId: tab.id }, empId)
+    saleService.createSale(
+      { items: [{ productId: product.id, quantity: 3 }], tabId: tab.id },
+      { id: empId, role: 'employee' },
+    )
 
     const closed = shiftService.close({
       sessionId: session.id,
@@ -336,7 +351,10 @@ describe('SaleService', () => {
        VALUES (?, 'entry', ?, 'test', 'seed')`,
     ).run(product.id, 100)
 
-    const created = saleService.createSale({ items: [{ productId: product.id, quantity: 1, saleFormatId: fmtId }] }, empId)
+    const created = saleService.createSale(
+      { items: [{ productId: product.id, quantity: 1, saleFormatId: fmtId }] },
+      { id: empId, role: 'employee' },
+    )
     expect(created.total).toBe(2.25)
 
     const item = db
@@ -431,7 +449,7 @@ describe('SaleService', () => {
       {
         items: [{ productId: base.id, quantity: 1, saleFormatId: fmtId, complementProductId: coke.id }],
       },
-      empId,
+      { id: empId, role: 'employee' },
     )
 
     expect(created.total).toBe(3.25)
@@ -537,7 +555,7 @@ describe('SaleService', () => {
       {
         items: [{ productId: base.id, quantity: 1, saleFormatId: fmtId, complementProductId: coke.id }],
       },
-      empId,
+      { id: empId, role: 'employee' },
     )
 
     expect(created.total).toBe(4.25)
@@ -554,5 +572,161 @@ describe('SaleService', () => {
     }>
     expect(items).toHaveLength(1)
     expect(Number(items[0].unit_price)).toBeCloseTo(4.25)
+  })
+
+  it('rejects non-VIP price change for employee', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-sale-price-guard-employee-'))
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
+
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+
+    const shiftService = new ShiftService(new ShiftRepository(db))
+    const openerId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('O','P','employee',1)`).run()
+        .lastInsertRowid,
+    )
+    shiftService.open(
+      {
+        shiftCode: 'day',
+        businessDate: '2026-03-23',
+        openingCash: 0,
+      },
+      openerId,
+    )
+
+    const { saleService, categories, products, catalogMedia } = buildSaleService(db)
+    const productService = new ProductService(products, categories, catalogMedia)
+    const refrescos = categories.getBySlug('refrescos')!
+    const product = productService.create({
+      sku: 'SALE-PRICE-GUARD-EMP',
+      name: 'Agua con cambio',
+      type: 'simple',
+      categoryId: refrescos.id,
+      salePrice: 10,
+      minStock: 0,
+    })
+
+    const empId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('E','M','employee',1)`).run()
+        .lastInsertRowid,
+    )
+
+    db.prepare(
+      `INSERT INTO product_inventory_movements (product_id, movement_type, quantity, reference_type, note)
+       VALUES (?, 'entry', ?, 'test', 'seed')`,
+    ).run(product.id, 100)
+
+    expect(() =>
+      saleService.createSale(
+        { items: [{ productId: product.id, quantity: 1, chargedUnitPrice: 9, priceChangeNote: 'promo' }] },
+        { id: empId, role: 'employee' },
+      ),
+    ).toThrow(AuthorizationError)
+  })
+
+  it('allows non-VIP price change for manager/admin (with note)', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-sale-price-guard-manager-'))
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
+
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+
+    const shiftService = new ShiftService(new ShiftRepository(db))
+    const openerId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('O','P','employee',1)`).run()
+        .lastInsertRowid,
+    )
+    shiftService.open(
+      {
+        shiftCode: 'day',
+        businessDate: '2026-03-23',
+        openingCash: 0,
+      },
+      openerId,
+    )
+
+    const { saleService, categories, products, catalogMedia } = buildSaleService(db)
+    const productService = new ProductService(products, categories, catalogMedia)
+    const refrescos = categories.getBySlug('refrescos')!
+    const product = productService.create({
+      sku: 'SALE-PRICE-GUARD-MGR',
+      name: 'Agua con cambio manager',
+      type: 'simple',
+      categoryId: refrescos.id,
+      salePrice: 10,
+      minStock: 0,
+    })
+
+    const managerId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('M','G','manager',1)`).run()
+        .lastInsertRowid,
+    )
+
+    db.prepare(
+      `INSERT INTO product_inventory_movements (product_id, movement_type, quantity, reference_type, note)
+       VALUES (?, 'entry', ?, 'test', 'seed')`,
+    ).run(product.id, 100)
+
+    const created = saleService.createSale(
+      { items: [{ productId: product.id, quantity: 1, chargedUnitPrice: 9, priceChangeNote: 'promo' }] },
+      { id: managerId, role: 'manager' },
+    )
+    expect(created.total).toBe(9)
+  })
+
+  it('allows VIP price change even for employee', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-sale-price-guard-vip-'))
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ filePath: dbPath, close: () => db.close() })
+
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+
+    const shiftService = new ShiftService(new ShiftRepository(db))
+    const openerId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('O','P','employee',1)`).run()
+        .lastInsertRowid,
+    )
+    shiftService.open(
+      {
+        shiftCode: 'day',
+        businessDate: '2026-03-23',
+        openingCash: 0,
+      },
+      openerId,
+    )
+
+    const { saleService, categories, products, catalogMedia, vipCustomers } = buildSaleService(db)
+    const vip = vipCustomers.create({ name: 'VIP Test', conditionType: 'discount_manual' })
+
+    const productService = new ProductService(products, categories, catalogMedia)
+    const refrescos = categories.getBySlug('refrescos')!
+    const product = productService.create({
+      sku: 'SALE-PRICE-GUARD-VIP',
+      name: 'Agua VIP con cambio',
+      type: 'simple',
+      categoryId: refrescos.id,
+      salePrice: 10,
+      minStock: 0,
+    })
+
+    const empId = Number(
+      db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('E','V','employee',1)`).run()
+        .lastInsertRowid,
+    )
+
+    db.prepare(
+      `INSERT INTO product_inventory_movements (product_id, movement_type, quantity, reference_type, note)
+       VALUES (?, 'entry', ?, 'test', 'seed')`,
+    ).run(product.id, 100)
+
+    const created = saleService.createSale(
+      { items: [{ productId: product.id, quantity: 1, chargedUnitPrice: 9 }], vipCustomerId: vip.id },
+      { id: empId, role: 'employee' },
+    )
+    expect(created.total).toBe(9)
   })
 })

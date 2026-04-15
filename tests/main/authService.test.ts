@@ -1,11 +1,21 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createDatabase } from '../../src/main/database/connection'
 import { runMigrations } from '../../src/main/database/migrate'
 import { AuthService } from '../../src/main/services/authService'
 import { SetupService } from '../../src/main/services/setupService'
+
+const sendMailMock = vi.fn().mockResolvedValue({})
+
+vi.mock('nodemailer', () => ({
+  default: {
+    createTransport: () => ({
+      sendMail: sendMailMock,
+    }),
+  },
+}))
 
 const cleanupQueue: Array<{ directory: string; close?: () => void }> = []
 
@@ -15,6 +25,7 @@ afterEach(() => {
     item.close?.()
     fs.rmSync(item.directory, { recursive: true, force: true })
   }
+  sendMailMock.mockClear()
 })
 
 describe('AuthService', () => {
@@ -110,5 +121,53 @@ describe('AuthService', () => {
 
     auth.ensureWizardAlignedWithBootstrap()
     expect(setup.getStatus().mustRunWizard).toBe(true)
+  })
+
+  it('resets password with an email code (6 digits) and enforces single-use + rate limit', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'barra-auth-email-'))
+    process.env.SYSTEM_BARRA_DATA_DIR = directory
+    const dbPath = path.join(directory, 'test.sqlite')
+    const db = createDatabase(dbPath)
+    cleanupQueue.push({ directory, close: () => db.close() })
+
+    runMigrations(db, path.join(process.cwd(), 'src', 'main', 'database', 'migrations'))
+
+    // SMTP minimal config (password en texto plano para tests)
+    db.prepare(
+      `UPDATE settings
+       SET smtp_host = 'smtp.test',
+           smtp_port = 587,
+           smtp_user = 'no-reply@test.local',
+           smtp_secure = 0,
+           smtp_password = 'testpass'
+       WHERE id = 1`,
+    ).run()
+
+    // Create user with email + password
+    db.prepare(
+      `INSERT INTO employees (first_name, last_name, email, username, role, password_hash, must_change_password)
+       VALUES ('Bob', 'Email', 'bob@test.local', 'bob', 'employee', 'salt:hash', 0)`,
+    ).run()
+
+    const service = new AuthService(db)
+
+    // request code
+    expect(service.requestPasswordResetEmailCode({ identifier: 'bob' })).toEqual({ ok: true })
+    expect(sendMailMock).toHaveBeenCalledTimes(1)
+
+    const mailArgs = sendMailMock.mock.calls[0]?.[0] as { text?: string } | undefined
+    const text = mailArgs?.text ?? ''
+    const match = text.match(/Tu codigo es: (\d{6})/)
+    expect(match?.[1]).toMatch(/^\d{6}$/)
+    const code = match![1]
+
+    // rate limit: second request immediately should fail
+    expect(() => service.requestPasswordResetEmailCode({ identifier: 'bob' })).toThrow(/Espere un minuto/)
+
+    // consume works once
+    expect(service.resetPasswordWithEmailCode({ identifier: 'bob', code, newPassword: 'NuevaClaveSegura123' })).toEqual({ success: true })
+    expect(() =>
+      service.resetPasswordWithEmailCode({ identifier: 'bob', code, newPassword: 'OtraClaveSegura123' }),
+    ).toThrow(/Codigo invalido o expirado/)
   })
 })

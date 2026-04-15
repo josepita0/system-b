@@ -8,16 +8,19 @@ import { AuditLogRepository } from '../repositories/auditLogRepository'
 import { UserRepository } from '../repositories/userRepository'
 import { randomSecret, hashSecret } from '../security/password'
 import { AuthorizationService } from './authorizationService'
+import { PasswordResetEmailService } from './passwordResetEmailService'
 
 export class UserService {
   private readonly users: UserRepository
   private readonly authorization: AuthorizationService
   private readonly audit: AuditLogRepository
+  private readonly passwordResetEmail: PasswordResetEmailService
 
   constructor(private readonly db: Database.Database) {
     this.users = new UserRepository(db)
     this.authorization = new AuthorizationService()
     this.audit = new AuditLogRepository(db)
+    this.passwordResetEmail = new PasswordResetEmailService(db)
   }
 
   private manageableRoles(actor: AuthenticatedUser): UserRole[] {
@@ -185,5 +188,35 @@ export class UserService {
 
     this.authorization.requireCanManageRole(actor, target.role)
     return issueRecoveryCodes(userId, actor.id)
+  }
+
+  sendPasswordResetEmailCode(actor: AuthenticatedUser, userId: number) {
+    this.authorization.requirePermission(actor.permissions, 'users.send_password_reset_code')
+    const target = this.users.getById(userId)
+    if (!target) {
+      throw new NotFoundError('Usuario no encontrado.')
+    }
+
+    this.authorization.requireCanManageRole(actor, target.role)
+
+    if (!target.email) {
+      throw new ValidationError('El usuario no tiene correo registrado.')
+    }
+
+    this.passwordResetEmail.sendCode({
+      employeeId: target.id,
+      email: target.email,
+      requestedByEmployeeId: actor.id,
+    })
+
+    this.audit.create({
+      actorEmployeeId: actor.id,
+      action: 'user.password_reset_email_code_sent',
+      targetType: 'employee',
+      targetId: target.id,
+      details: { requestedBy: 'manager_action' },
+    })
+
+    return { ok: true as const }
   }
 }

@@ -1,5 +1,6 @@
 import { ZodError } from 'zod'
 import type { CategoryTreeNode } from '../../shared/types/product'
+import type { UserRole } from '../../shared/types/user'
 import type {
   CreateSaleInput,
   CancelEmptyTabInput,
@@ -22,7 +23,7 @@ import {
   settleTabSchema,
 } from '../../shared/schemas/saleSchema'
 import { effectiveComplementUnitPrice } from '../../shared/lib/productPricing'
-import { ShiftStateError, StockError, ValidationError } from '../errors'
+import { AuthorizationError, ShiftStateError, StockError, ValidationError } from '../errors'
 import { CategoryRepository } from '../repositories/categoryRepository'
 import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
 import { ProductRepository } from '../repositories/productRepository'
@@ -232,7 +233,7 @@ export class SaleService {
     return this.products.listInCategories(categoryIds)
   }
 
-  createSale(input: CreateSaleInput, employeeId: number): SaleCreated {
+  createSale(input: CreateSaleInput, actor: { id: number; role: UserRole }): SaleCreated {
     const parsed = createSaleSchema.safeParse(input)
     if (!parsed.success) {
       throw new ValidationError(normalizeZodError(parsed.error))
@@ -242,6 +243,8 @@ export class SaleService {
     if (!session) {
       throw new ShiftStateError('No hay turno de caja abierto.')
     }
+
+    const canOverridePriceForNonVip = actor.role === 'admin' || actor.role === 'manager'
 
     let tabForVip: ReturnType<TabRepository['getById']> | undefined
     if (parsed.data.tabId != null) {
@@ -382,6 +385,9 @@ export class SaleService {
           : catalogUnitPrice
       const priceDiffers = Math.abs(chargedUnitPrice - catalogUnitPrice) > 0.000_001
       if (priceDiffers && !vip) {
+        if (!canOverridePriceForNonVip) {
+          throw new AuthorizationError('No tiene permisos para cambiar el precio (cliente sin VIP).')
+        }
         const note = rawLine.priceChangeNote?.trim() ?? ''
         if (note.length === 0) {
           throw new ValidationError('Indique el motivo del cambio de precio en la linea.')
@@ -470,7 +476,7 @@ export class SaleService {
 
     return this.sales.createSaleWithItems(
       session.id,
-      employeeId,
+      actor.id,
       chargedTotal,
       realTotal,
       lines,

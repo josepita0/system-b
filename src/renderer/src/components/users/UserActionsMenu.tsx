@@ -6,9 +6,11 @@ interface UserActionsMenuProps {
   onView: () => void
   /** Generar codigo temporal para desbloquear el panel de licencias (solo admin, fila propia). */
   onGenerateLicensePanelCode?: () => void
+  /** Enviar codigo por correo para cambio de contrasena (encargado/admin). */
+  onSendPasswordResetCode?: () => void
 }
 
-export function UserActionsMenu({ onEdit, onView, onGenerateLicensePanelCode }: UserActionsMenuProps) {
+export function UserActionsMenu({ onEdit, onView, onGenerateLicensePanelCode, onSendPasswordResetCode }: UserActionsMenuProps) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
@@ -104,6 +106,15 @@ export function UserActionsMenu({ onEdit, onView, onGenerateLicensePanelCode }: 
                   type="button"
                 >
                   Codigo panel licencias
+                </button>
+              ) : null}
+              {onSendPasswordResetCode ? (
+                <button
+                  className="block w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50 cursor-pointer"
+                  onClick={() => handleAction(onSendPasswordResetCode)}
+                  type="button"
+                >
+                  Enviar codigo por correo
                 </button>
               ) : null}
             </div>,

@@ -11,6 +11,16 @@ export interface RecoverPasswordInput {
   newPassword: string
 }
 
+export interface RequestPasswordResetEmailCodeInput {
+  identifier: string
+}
+
+export interface ResetPasswordWithEmailCodeInput {
+  identifier: string
+  code: string
+  newPassword: string
+}
+
 export interface ChangePasswordInput {
   currentPassword: string
   newPassword: string

@@ -1,9 +1,24 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type Database from 'better-sqlite3'
-import type { BootstrapAdminInfo, ChangePasswordInput, LoginInput, SessionInfo, VerifyPasswordInput } from '../../shared/types/auth'
+import type {
+  BootstrapAdminInfo,
+  ChangePasswordInput,
+  LoginInput,
+  RequestPasswordResetEmailCodeInput,
+  ResetPasswordWithEmailCodeInput,
+  SessionInfo,
+  VerifyPasswordInput,
+} from '../../shared/types/auth'
 import type { AuthenticatedUser, User, UserPermission } from '../../shared/types/user'
-import { changePasswordSchema, loginSchema, recoverPasswordSchema, verifyPasswordSchema } from '../../shared/schemas/authSchema'
+import {
+  changePasswordSchema,
+  loginSchema,
+  recoverPasswordSchema,
+  requestPasswordResetEmailCodeSchema,
+  resetPasswordWithEmailCodeSchema,
+  verifyPasswordSchema,
+} from '../../shared/schemas/authSchema'
 import { AuthenticationError, ConflictError, LockedAccountError, NotFoundError, RecoveryCodeError, ValidationError } from '../errors'
 import { getDataDirectory } from '../database/connection'
 import { AuthSessionRepository } from '../repositories/authSessionRepository'
@@ -14,6 +29,7 @@ import { UserRepository } from '../repositories/userRepository'
 import { DEFAULT_INITIAL_ADMIN_PASSWORD, DEFAULT_INITIAL_ADMIN_RECOVERY_CODES } from '../../shared/constants/initialAdmin'
 import { randomRecoveryCodes, randomSecret, hashSecret, sha256, verifySecret } from '../security/password'
 import { clearCurrentSession, readCurrentSession, updateCurrentSessionValidation, writeCurrentSession } from '../security/sessionStorage'
+import { PasswordResetEmailService } from './passwordResetEmailService'
 
 const SESSION_TOUCH_INTERVAL_MS = 5 * 60 * 1000
 
@@ -42,6 +58,7 @@ function buildPermissions(role: User['role']): UserPermission[] {
       return [
         'users.manage_profiles',
         'users.manage_credentials',
+        'users.send_password_reset_code',
         'users.manage_roles.employee',
         'users.manage_roles.manager',
         'users.manage_roles.admin',
@@ -59,6 +76,7 @@ function buildPermissions(role: User['role']): UserPermission[] {
     case 'manager':
       return [
         'users.manage_profiles',
+        'users.send_password_reset_code',
         'users.manage_roles.employee',
         'products.manage',
         'reports.manage',
@@ -82,6 +100,7 @@ export class AuthService {
   private readonly recoveryCodes: RecoveryCodeRepository
   private readonly audit: AuditLogRepository
   private readonly appSetup: AppSetupRepository
+  private readonly passwordResetEmail: PasswordResetEmailService
 
   constructor(private readonly db: Database.Database) {
     this.users = new UserRepository(db)
@@ -89,6 +108,7 @@ export class AuthService {
     this.recoveryCodes = new RecoveryCodeRepository(db)
     this.audit = new AuditLogRepository(db)
     this.appSetup = new AppSetupRepository(db)
+    this.passwordResetEmail = new PasswordResetEmailService(db)
   }
 
   ensureInitialAdmin() {
@@ -273,6 +293,76 @@ export class AuthService {
       targetId: userRow.id,
     })
     clearCurrentSession()
+    return { success: true as const }
+  }
+
+  requestPasswordResetEmailCode(input: RequestPasswordResetEmailCodeInput): { ok: true } {
+    const parsed = requestPasswordResetEmailCodeSchema.safeParse(input)
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues.map((issue) => issue.message).join(', '))
+    }
+
+    const userRow = this.users.getAuthByIdentifier(parsed.data.identifier)
+    if (!userRow || !userRow.is_active || !userRow.email) {
+      // Respuesta generica para evitar enumeracion.
+      return { ok: true as const }
+    }
+
+    this.passwordResetEmail.sendCode({
+      employeeId: userRow.id,
+      email: userRow.email,
+      requestedByEmployeeId: null,
+    })
+
+    this.audit.create({
+      actorEmployeeId: null,
+      action: 'user.password_reset_email_code_sent',
+      targetType: 'employee',
+      targetId: userRow.id,
+      details: { requestedBy: 'self' },
+    })
+
+    return { ok: true as const }
+  }
+
+  resetPasswordWithEmailCode(input: ResetPasswordWithEmailCodeInput) {
+    const parsed = resetPasswordWithEmailCodeSchema.safeParse(input)
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues.map((issue) => issue.message).join(', '))
+    }
+
+    const userRow = this.users.getAuthByIdentifier(parsed.data.identifier)
+    if (!userRow) {
+      throw new NotFoundError('Usuario no encontrado.')
+    }
+    if (!userRow.is_active) {
+      throw new AuthenticationError('La cuenta esta desactivada.')
+    }
+    if (!userRow.email) {
+      throw new ValidationError('El usuario no tiene correo registrado.')
+    }
+
+    const ok = this.passwordResetEmail.verifyAndConsume({ employeeId: userRow.id, code: parsed.data.code })
+    if (!ok) {
+      throw new RecoveryCodeError('Codigo invalido o expirado.')
+    }
+
+    this.users.setPassword(userRow.id, hashSecret(parsed.data.newPassword), 0)
+    if (userRow.username === 'admin') {
+      clearBootstrapInfoFile()
+    }
+
+    this.audit.create({
+      actorEmployeeId: userRow.id,
+      action: 'user.password_reset_email_used',
+      targetType: 'employee',
+      targetId: userRow.id,
+    })
+
+    const current = this.getCurrentUser()
+    if (current?.id === userRow.id) {
+      clearCurrentSession()
+    }
     return { success: true as const }
   }
 

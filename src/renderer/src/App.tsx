@@ -22,6 +22,7 @@ const ShiftsPage = lazy(() => import('./pages/shifts/ShiftsPage').then((module) 
 const UserDetailPage = lazy(() => import('./pages/users/UserDetailPage').then((module) => ({ default: module.UserDetailPage })))
 const UserDocumentsPage = lazy(() => import('./pages/users/UserDocumentsPage').then((module) => ({ default: module.UserDocumentsPage })))
 const UserListPage = lazy(() => import('./pages/users/UserListPage').then((module) => ({ default: module.UserListPage })))
+const MyProfilePage = lazy(() => import('./pages/profile/MyProfilePage').then((module) => ({ default: module.MyProfilePage })))
 const VipCustomersPage = lazy(() => import('./pages/vipCustomers/VipCustomersPage').then((module) => ({ default: module.VipCustomersPage })))
 const InventoryLayout = lazy(() => import('./pages/inventory/InventoryLayout').then((m) => ({ default: m.InventoryLayout })))
 const InventoryDashboardPage = lazy(() =>
@@ -43,6 +44,7 @@ function UserEditRouteRedirect() {
 
 function buildAppNavItems(role: string): NavEntry[] {
   const items: NavEntry[] = [{ to: '/ventas', label: 'Ventas', icon: 'cart' }]
+  items.push({ to: '/mi-perfil', label: 'Mi perfil', icon: 'file' })
   if (role === 'employee') {
     items.push({ to: '/turnos', label: 'Turnos', icon: 'clock' })
   }
@@ -250,6 +252,7 @@ export default function App() {
         <Routes>
               <Route element={<Navigate replace to={user.role === 'employee' ? '/ventas' : '/dashboard'} />} path="/login" />
               <Route element={<SalesPage />} path="/ventas" />
+              <Route element={<MyProfilePage />} path="/mi-perfil" />
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">

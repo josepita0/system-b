@@ -51,11 +51,11 @@ describe('Shift history and visibility', () => {
         .lastInsertRowid,
     )
 
-    const s1 = repo.createSession(1, '2026-03-20', 0, u1)
+    const s1 = repo.createSession(1, '2026-03-20', 0, u1, null)
     db.prepare(`UPDATE cash_sessions SET status = 'closed', closed_at = '2026-03-20T08:00:00', pending_reconcile_total = 0 WHERE id = ?`).run(
       s1.id,
     )
-    const s2 = repo.createSession(1, '2026-03-20', 0, u1)
+    const s2 = repo.createSession(1, '2026-03-20', 0, u1, null)
     db.prepare(`UPDATE cash_sessions SET status = 'closed', closed_at = '2026-03-20T10:00:00', pending_reconcile_total = 0 WHERE id = ?`).run(
       s2.id,
     )
@@ -76,17 +76,17 @@ describe('Shift history and visibility', () => {
         .lastInsertRowid,
     )
 
-    const ok = repo.createSession(1, '2026-03-20', 0, emp)
+    const ok = repo.createSession(1, '2026-03-20', 0, emp, null)
     db.prepare(
       `UPDATE cash_sessions SET status = 'closed', closed_at = '2026-03-20T09:00:00', pending_reconcile_total = 0 WHERE id = ?`,
     ).run(ok.id)
 
-    const badPending = repo.createSession(1, '2026-03-20', 0, emp)
+    const badPending = repo.createSession(1, '2026-03-20', 0, emp, null)
     db.prepare(
       `UPDATE cash_sessions SET status = 'closed', closed_at = '2026-03-20T09:30:00', pending_reconcile_total = 50 WHERE id = ?`,
     ).run(badPending.id)
 
-    const badTab = repo.createSession(1, '2026-03-20', 0, emp)
+    const badTab = repo.createSession(1, '2026-03-20', 0, emp, null)
     db.prepare(
       `UPDATE cash_sessions SET status = 'closed', closed_at = '2026-03-20T09:45:00', pending_reconcile_total = 0 WHERE id = ?`,
     ).run(badTab.id)
@@ -120,12 +120,12 @@ describe('Shift history and visibility', () => {
         .lastInsertRowid,
     )
 
-    const sOther = repo.createSession(1, '2026-03-21', 0, other)
+    const sOther = repo.createSession(1, '2026-03-21', 0, other, null)
     db.prepare(
       `UPDATE cash_sessions SET status = 'closed', closed_at = '2026-03-21T12:00:00', pending_reconcile_total = 0 WHERE id = ?`,
     ).run(sOther.id)
 
-    const sSelf = repo.createSession(1, '2026-03-21', 0, self)
+    const sSelf = repo.createSession(1, '2026-03-21', 0, self, null)
     db.prepare(
       `UPDATE cash_sessions SET status = 'closed', closed_at = '2026-03-21T11:00:00', pending_reconcile_total = 0 WHERE id = ?`,
     ).run(sSelf.id)
@@ -150,7 +150,7 @@ describe('Shift history and visibility', () => {
       db.prepare(`INSERT INTO employees (first_name, last_name, role, is_active) VALUES ('M','M','manager',1)`).run()
         .lastInsertRowid,
     )
-    const s = repo.createSession(1, '2026-03-22', 10, mgr)
+    const s = repo.createSession(1, '2026-03-22', 10, mgr, null)
     db.prepare(
       `UPDATE cash_sessions SET status = 'closed', closed_at = '2026-03-22T08:00:00', expected_cash = 10, counted_cash = 10, pending_reconcile_total = 0 WHERE id = ?`,
     ).run(s.id)

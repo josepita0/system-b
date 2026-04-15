@@ -131,7 +131,7 @@ export function registerSaleHandlers() {
   ipcMain.handle(salesChannels.create, (_event, payload: unknown) =>
     executeIpc(() => {
       const actor = guards.requirePermission('sales.use')
-      return saleService.createSale(payload as never, actor.id)
+      return saleService.createSale(payload as never, actor)
     }),
   )
 

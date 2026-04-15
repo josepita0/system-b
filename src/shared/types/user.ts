@@ -2,6 +2,7 @@ export type UserRole = 'admin' | 'manager' | 'employee'
 export type UserPermission =
   | 'users.manage_profiles'
   | 'users.manage_credentials'
+  | 'users.send_password_reset_code'
   | 'users.manage_roles.employee'
   | 'users.manage_roles.manager'
   | 'users.manage_roles.admin'

@@ -38,6 +38,8 @@ const api = {
     me: () => invokeIpc(authChannels.me),
     changePassword: (payload: unknown) => invokeIpc(authChannels.changePassword, payload),
     recoverPassword: (payload: unknown) => invokeIpc(authChannels.recoverPassword, payload),
+    requestPasswordResetEmailCode: (payload: unknown) => invokeIpc(authChannels.requestPasswordResetEmailCode, payload),
+    resetPasswordWithEmailCode: (payload: unknown) => invokeIpc(authChannels.resetPasswordWithEmailCode, payload),
     verifyPassword: (payload: unknown) => invokeIpc(authChannels.verifyPassword, payload),
   },
   license: {
@@ -66,6 +68,7 @@ const api = {
     myProfile: () => invokeIpc(userChannels.myProfile),
     issueCredentials: (userId: number) => invokeIpc(userChannels.issueCredentials, userId),
     regenerateRecoveryCodes: (userId: number) => invokeIpc(userChannels.regenerateRecoveryCodes, userId),
+    sendPasswordResetEmailCode: (userId: number) => invokeIpc(userChannels.sendPasswordResetEmailCode, userId),
   },
   documents: {
     myDocuments: () => invokeIpc(documentChannels.myDocuments),

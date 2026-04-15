@@ -45,4 +45,7 @@ export function registerUserHandlers() {
       ),
     ),
   )
+  ipcMain.handle(userChannels.sendPasswordResetEmailCode, (_event, userId: number) =>
+    executeIpc(() => service.sendPasswordResetEmailCode(guards.requirePermission('users.send_password_reset_code'), userId)),
+  )
 }

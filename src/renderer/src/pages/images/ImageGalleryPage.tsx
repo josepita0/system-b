@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { catalogMediaUrl } from '@shared/lib/catalogMediaUrl'
-import type { GalleryImage } from '@shared/types/imageGallery'
+import type { GalleryImage, GalleryImageListResult } from '@shared/types/imageGallery'
 import type { Product } from '@shared/types/product'
 import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
@@ -59,7 +59,7 @@ export function ImageGalleryPage() {
     )
   }
 
-  const listQuery = useQuery({
+  const listQuery = useQuery<GalleryImageListResult>({
     queryKey: ['imageGallery', 'list', { q, category, page }],
     queryFn: () =>
       galleryApi.list({
@@ -68,7 +68,7 @@ export function ImageGalleryPage() {
         page,
         pageSize: 48,
       }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   })
 
   const items = listQuery.data?.items ?? []

@@ -19,6 +19,7 @@ import type { TabChargeLineDetail } from '@shared/types/sale'
 import { resolveShiftForDate } from '@renderer/utils/resolveShiftForDate'
 import { OpenShiftModal } from '@renderer/components/shifts/OpenShiftModal'
 import { useUiPrefsStore } from '@renderer/store/uiPrefsStore'
+import { useAuthStore } from '@renderer/store/authStore'
 
 type CartLine = {
   key: string
@@ -71,6 +72,7 @@ function registeredChargeToTicketLine(line: TabChargeLineDetail) {
 
 export function SalesPage() {
   const queryClient = useQueryClient()
+  const user = useAuthStore((s) => s.user)
   const posLargeText = useUiPrefsStore((s) => s.posLargeText)
   const highContrast = useUiPrefsStore((s) => s.highContrast)
   const togglePosLargeText = useUiPrefsStore((s) => s.togglePosLargeText)
@@ -537,6 +539,13 @@ export function SalesPage() {
     return selectedVipCustomerId
   }, [saleMode, selectedTabChargeDetailQuery.data?.vipCustomerId, selectedVipCustomerId])
 
+  const canOverridePriceForCurrentSale = useMemo(() => {
+    if (effectiveVipCustomerId != null) {
+      return true
+    }
+    return user?.role === 'admin' || user?.role === 'manager'
+  }, [effectiveVipCustomerId, user?.role])
+
   const selectedVip = useMemo(
     () =>
       effectiveVipCustomerId != null
@@ -664,7 +673,7 @@ export function SalesPage() {
       formatLabel: line.formatLabel,
       complementLabel: line.complementLabel,
       priceChangeNote: line.priceChangeNote,
-      canEditPrice: true,
+      canEditPrice: canOverridePriceForCurrentSale,
       readOnly: false as const,
     }))
     if (saleMode !== 'tab' || selectedTabId == null) {
@@ -672,7 +681,7 @@ export function SalesPage() {
     }
     const registered = (selectedTabChargeDetailQuery.data?.lines ?? []).map(registeredChargeToTicketLine)
     return [...registered, ...draft]
-  }, [cart, saleMode, selectedTabId, selectedTabChargeDetailQuery.data?.lines])
+  }, [cart, canOverridePriceForCurrentSale, saleMode, selectedTabId, selectedTabChargeDetailQuery.data?.lines])
 
   const internalConsumptionMutation = useMutation({
     mutationFn: async () => {
@@ -922,6 +931,10 @@ export function SalesPage() {
                   setCart((c) => c.map((l) => (l.key === key ? { ...l, discount } : l)))
                 }}
                 onEditPriceClick={(key) => {
+                  if (!canOverridePriceForCurrentSale) {
+                    setCartPriceBlockError('No tiene permisos para cambiar el precio (cliente sin VIP).')
+                    return
+                  }
                   const line = cart.find((l) => l.key === key)
                   if (!line) {
                     return

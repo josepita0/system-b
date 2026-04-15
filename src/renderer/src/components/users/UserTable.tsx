@@ -12,9 +12,18 @@ interface UserTableProps {
   currentUserId?: number | null
   currentUserRole?: User['role'] | null
   onGenerateLicensePanelCode?: (userId: number) => void
+  onSendPasswordResetCode?: (userId: number) => void
 }
 
-export function UserTable({ users, onEdit, onView, currentUserId, currentUserRole, onGenerateLicensePanelCode }: UserTableProps) {
+export function UserTable({
+  users,
+  onEdit,
+  onView,
+  currentUserId,
+  currentUserRole,
+  onGenerateLicensePanelCode,
+  onSendPasswordResetCode,
+}: UserTableProps) {
   return (
     <div className="w-full min-w-0 overflow-x-auto rounded-xl border-2 border-slate-200 bg-white shadow-inner">
       <table className="min-w-full text-left text-sm text-slate-800">
@@ -66,6 +75,11 @@ export function UserTable({ users, onEdit, onView, currentUserId, currentUserRol
                     currentUserId === user.id &&
                     user.role === 'admin'
                       ? () => onGenerateLicensePanelCode(user.id)
+                      : undefined
+                  }
+                  onSendPasswordResetCode={
+                    onSendPasswordResetCode && user.email
+                      ? () => onSendPasswordResetCode(user.id)
                       : undefined
                   }
                   onView={() => onView(user.id)}
