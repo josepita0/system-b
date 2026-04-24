@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { internalConsumptionChannels } from '../../shared/ipc/internalConsumptions'
 import { getDb } from '../database/connection'
 import { InternalConsumptionRepository } from '../repositories/internalConsumptionRepository'
+import { ProductRepository } from '../repositories/productRepository'
 import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
 import { ShiftRepository } from '../repositories/shiftRepository'
 import { AuthService } from '../services/authService'
@@ -15,8 +16,9 @@ export function registerInternalConsumptionHandlers() {
   const db = getDb()
   const shifts = new ShiftRepository(db)
   const docs = new InternalConsumptionRepository(db)
+  const products = new ProductRepository(db)
   const inventory = new ProductInventoryRepository(db)
-  const service = new InternalConsumptionService(shifts, docs, inventory)
+  const service = new InternalConsumptionService(shifts, docs, products, inventory)
   const auth = new AuthService(db)
   const guards = createIpcGuards(auth, new AuthorizationService())
 

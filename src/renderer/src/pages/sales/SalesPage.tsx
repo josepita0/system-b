@@ -709,6 +709,13 @@ export function SalesPage() {
     },
   })
 
+  const internalConsumptionPickedProduct = useMemo(() => {
+    if (internalConsumptionProductId == null) {
+      return null
+    }
+    return (internalConsumptionProductsQuery.data ?? []).find((p) => p.id === internalConsumptionProductId) ?? null
+  }, [internalConsumptionProductId, internalConsumptionProductsQuery.data])
+
   const cartPriceNotesValid = useMemo(() => {
     if (saleMode === 'tab' && selectedTabId != null && selectedTabChargeDetailQuery.isLoading) {
       return true
@@ -1523,6 +1530,11 @@ export function SalesPage() {
         <p className="text-sm text-slate-600">
           Registra un descuento manual de stock (no afecta caja) y queda visible en historial de inventario.
         </p>
+        {internalConsumptionPickedProduct?.type === 'compound' ? (
+          <p className="mt-2 text-sm text-amber-700">
+            Este producto es compuesto (BOM): el consumo se registrará sin afectar stock.
+          </p>
+        ) : null}
 
         <label className="mt-4 block text-sm text-slate-700">
           Motivo (obligatorio)

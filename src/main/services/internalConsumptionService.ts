@@ -8,6 +8,7 @@ import { cancelInternalConsumptionSchema, createInternalConsumptionSchema } from
 import { offsetForPage, parsePageParams } from '../../shared/schemas/paginationSchema'
 import { ConflictError, StockError, ValidationError } from '../errors'
 import { InternalConsumptionRepository } from '../repositories/internalConsumptionRepository'
+import { ProductRepository } from '../repositories/productRepository'
 import { ProductInventoryRepository } from '../repositories/productInventoryRepository'
 import { ShiftRepository } from '../repositories/shiftRepository'
 
@@ -19,6 +20,7 @@ export class InternalConsumptionService {
   constructor(
     private readonly shifts: ShiftRepository,
     private readonly docs: InternalConsumptionRepository,
+    private readonly products: ProductRepository,
     private readonly inventory: ProductInventoryRepository,
   ) {}
 
@@ -36,7 +38,8 @@ export class InternalConsumptionService {
 
     const accum = new Map<number, { qty: number; note: string | null }>()
     for (const line of parsed.data.items) {
-      if (!this.inventory.productExists(line.productId)) {
+      const product = this.products.getById(line.productId)
+      if (!product || product.isActive !== 1) {
         throw new ValidationError('Producto no encontrado.')
       }
       const q = Number(line.quantity)
@@ -52,6 +55,15 @@ export class InternalConsumptionService {
     }
 
     for (const [productId, item] of accum.entries()) {
+      const product = this.products.getById(productId)
+      if (!product || product.isActive !== 1) {
+        throw new ValidationError('Producto no encontrado.')
+      }
+      if (product.type !== 'simple') {
+        // Productos compuestos (BOM) no llevan stock propio: se permite registrar el consumo,
+        // pero no se valida ni se descuenta inventario.
+        continue
+      }
       const stock = this.inventory.getStockByProductId(productId)
       const after = stock - item.qty
       if (after < -0.0001) {
@@ -73,6 +85,10 @@ export class InternalConsumptionService {
     })
 
     for (const it of items) {
+      const product = this.products.getById(it.productId)
+      if (!product || product.isActive !== 1 || product.type !== 'simple') {
+        continue
+      }
       const note = [reason, it.note].filter(Boolean).join(' · ')
       this.inventory.insertMovement({
         productId: it.productId,
@@ -160,6 +176,10 @@ export class InternalConsumptionService {
     }
 
     for (const it of row.items) {
+      const product = this.products.getById(it.product_id)
+      if (!product || product.isActive !== 1 || product.type !== 'simple') {
+        continue
+      }
       this.inventory.insertMovement({
         productId: it.product_id,
         movementType: 'adjustment',
