@@ -249,6 +249,43 @@ function getPosSaleLinesForSession(db: Database.Database, sessionId: number): Po
   })
 }
 
+/** Agrupa líneas POS para el PDF: misma fila si coinciden producto y cliente VIP; suma cantidad e importe. */
+function groupPosSaleLinesByProductAndVip(lines: PosSaleLineDetail[]): PosSaleLineDetail[] {
+  const groups = new Map<string, PosSaleLineDetail[]>()
+  const order: string[] = []
+  for (const line of lines) {
+    const key = `${line.productName}\u0000${line.vipCustomerLabel}`
+    if (!groups.has(key)) {
+      order.push(key)
+      groups.set(key, [])
+    }
+    groups.get(key)!.push(line)
+  }
+  return order.map((key) => {
+    const g = groups.get(key)!
+    const first = g[0]
+    const quantity = Math.round(g.reduce((s, l) => s + l.quantity, 0) * 100) / 100
+    const lineTotal = Math.round(g.reduce((s, l) => s + l.lineTotal, 0) * 100) / 100
+    const nonEmpty = g.map((l) => l.priceChangeNote?.trim() ?? '').filter((s) => s.length > 0)
+    const uniqueNotes = [...new Set(nonEmpty)]
+    let priceChangeNote: string | null = null
+    if (uniqueNotes.length === 1) {
+      const s = uniqueNotes[0]
+      priceChangeNote = s.length > 120 ? `${s.slice(0, 117)}...` : s
+    } else if (uniqueNotes.length > 1) {
+      const joined = uniqueNotes.join(', ')
+      priceChangeNote = joined.length > 120 ? `${joined.slice(0, 117)}...` : joined
+    }
+    return {
+      productName: first.productName,
+      quantity,
+      vipCustomerLabel: first.vipCustomerLabel,
+      priceChangeNote,
+      lineTotal,
+    }
+  })
+}
+
 function getTabChargeAccountsInSession(db: Database.Database, sessionId: number): TabChargeSessionAccount[] {
   const tabIdRows = db
     .prepare(
@@ -706,9 +743,11 @@ function createPdf(report: ShiftCloseReport): string {
     ) / 100
   const totalGeneral = Math.round((totalContado + totalCuentaAbierta) * 100) / 100
 
+  const posLinesForTable = groupPosSaleLinesByProductAndVip(report.posSaleLines)
+
   const posBodyRows =
-    report.posSaleLines.length > 0
-      ? report.posSaleLines.map((p) => [
+    posLinesForTable.length > 0
+      ? posLinesForTable.map((p) => [
           p.productName.length > 36 ? `${p.productName.slice(0, 33)}...` : p.productName,
           formatQuantityEs(p.quantity),
           p.vipCustomerLabel,
@@ -730,7 +769,7 @@ function createPdf(report: ShiftCloseReport): string {
     ],
     body: posBodyRows,
     foot:
-      report.posSaleLines.length > 0
+      posLinesForTable.length > 0
         ? [
             [
               {
@@ -793,7 +832,7 @@ function createPdf(report: ShiftCloseReport): string {
       fillColor: C.zebra,
     },
     didParseCell: (data) => {
-      if (data.section === 'body' && report.posSaleLines.length > 0 && data.column.index === 4) {
+      if (data.section === 'body' && posLinesForTable.length > 0 && data.column.index === 4) {
         data.cell.styles.textColor = C.moneyGreen
         data.cell.styles.fontStyle = 'bold'
       }

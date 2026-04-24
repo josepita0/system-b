@@ -99,7 +99,7 @@ export interface ShiftCloseReport {
   shiftPendingReconcile: number
   /** Fecha y hora del cierre de sesión (solo si el PDF se genera con la caja ya cerrada). */
   closureAtLabel?: string | null
-  /** Ventas POS (contado), una fila por movimiento. */
+  /** Ventas POS (contado), una fila por movimiento; el PDF agrupa por producto y cliente VIP. */
   posSaleLines: PosSaleLineDetail[]
   /** Cuentas con cargos en esta sesión (detalle completo de cada cuenta). */
   tabChargeAccountsInSession: TabChargeSessionAccount[]
