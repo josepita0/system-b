@@ -10,6 +10,13 @@ export class BomService {
     private readonly inventory: ProductInventoryRepository,
   ) {}
 
+  getItemCount(parentProductId: number): number {
+    if (!Number.isFinite(parentProductId) || parentProductId <= 0) {
+      throw new ValidationError('Producto inválido.')
+    }
+    return Number(this.boms.countItems(parentProductId)) || 0
+  }
+
   getItems(parentProductId: number): BomItem[] {
     if (!Number.isFinite(parentProductId) || parentProductId <= 0) {
       throw new ValidationError('Producto inválido.')

@@ -3,6 +3,14 @@ import type Database from 'better-sqlite3'
 export class BomRepository {
   constructor(private readonly db: Database.Database) {}
 
+  countItems(parentProductId: number) {
+    return (
+      this.db.prepare('SELECT COUNT(1) AS c FROM product_bom_items WHERE parent_product_id = ?').get(parentProductId) as {
+        c: number
+      }
+    ).c
+  }
+
   listItems(parentProductId: number) {
     return this.db
       .prepare(

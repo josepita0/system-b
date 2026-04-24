@@ -182,6 +182,7 @@ const api = {
   },
   bom: {
     getItems: (parentProductId: number) => invokeIpc(bomChannels.getItems, parentProductId),
+    getItemCount: (parentProductId: number) => invokeIpc(bomChannels.getItemCount, parentProductId),
     upsert: (payload: unknown) => invokeIpc(bomChannels.upsert, payload),
     removeAll: (parentProductId: number) => invokeIpc(bomChannels.removeAll, parentProductId),
     getVirtualStock: (parentProductId: number) => invokeIpc(bomChannels.getVirtualStock, parentProductId),

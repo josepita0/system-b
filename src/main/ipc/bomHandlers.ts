@@ -27,6 +27,17 @@ export function registerBomHandlers() {
     }),
   )
 
+  ipcMain.handle(bomChannels.getItemCount, (_event, parentProductId: unknown) =>
+    executeIpc(() => {
+      guards.requirePermission('sales.use')
+      const id = Number(parentProductId)
+      if (!Number.isFinite(id) || id <= 0) {
+        throw new ValidationError('Producto inválido.')
+      }
+      return service.getItemCount(id)
+    }),
+  )
+
   ipcMain.handle(bomChannels.upsert, (_event, payload: unknown) =>
     executeIpc(() => {
       guards.requirePermission('products.manage')

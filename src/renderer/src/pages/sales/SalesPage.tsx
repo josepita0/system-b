@@ -80,6 +80,7 @@ export function SalesPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const [productSearch, setProductSearch] = useState('')
   const [cart, setCart] = useState<CartLine[]>([])
+  const [compoundBomWarning, setCompoundBomWarning] = useState<string | null>(null)
   const [configProduct, setConfigProduct] = useState<Product | null>(null)
   const [pickedFormatId, setPickedFormatId] = useState<number | null>(null)
   const [pickedComplementId, setPickedComplementId] = useState<number | null>(null)
@@ -390,9 +391,33 @@ export function SalesPage() {
       }
       const effectiveIds = [...node.effectiveSaleFormatIds].sort((a, b) => a - b)
       if (product.type === 'compound') {
-        setConfigProduct(product)
-        setPickedFormatId(effectiveIds.length === 1 ? effectiveIds[0] : null)
-        setPickedComplementId(null)
+        const saleFormatId = effectiveIds.length ? effectiveIds[0] : null
+        const fmt = saleFormatId != null ? formatById.get(saleFormatId) : undefined
+        const unitPrice = resolveDefaultUnitPrice(product, saleFormatId, null)
+        setCart((prev) => [
+          ...prev,
+          {
+            key: randomKey(),
+            productId: product.id,
+            productName: product.name,
+            categoryId: product.categoryId,
+            unitPrice,
+            catalogUnitPrice: unitPrice,
+            quantity: 1,
+            discount: 0,
+            saleFormatId,
+            complementProductId: null,
+            formatLabel: fmt?.name ?? null,
+            priceChangeNote: null,
+          },
+        ])
+        void window.api.bom.getItemCount(product.id).then((count) => {
+          if (count === 0) {
+            setCompoundBomWarning(
+              `Warning: “${product.name}” es compuesto y no tiene BOM configurado. Se permite la venta, pero no se descontará inventario de componentes.`,
+            )
+          }
+        })
         return
       }
       if (effectiveIds.length === 0) {
@@ -914,6 +939,18 @@ export function SalesPage() {
               settlePending={settleTabMutation.isPending}
               showNewAccountButton={saleMode === 'tab'}
             />
+              {compoundBomWarning ? (
+                <div className="flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                  <p className="min-w-0 flex-1">{compoundBomWarning}</p>
+                  <button
+                    className="shrink-0 rounded-lg px-2 py-1 text-amber-900 hover:bg-amber-100"
+                    onClick={() => setCompoundBomWarning(null)}
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : null}
               <PosTicketPanel
                 cartTotal={displayTicketTotal}
                 confirmDisabled={

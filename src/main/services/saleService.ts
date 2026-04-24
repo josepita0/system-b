@@ -284,11 +284,7 @@ export class SaleService {
         throw new ValidationError('Producto no disponible.')
       }
       if (product.type !== 'simple') {
-        // Compuesto: exige BOM definido; no se descuenta inventario de componentes automáticamente en la venta.
-        const bomItems = this.bom.getItems(product.id)
-        if (bomItems.length === 0) {
-          throw new ValidationError('El producto no tiene BOM configurado.')
-        }
+        // Compuesto: puede venderse aunque no tenga BOM configurado. No se descuenta inventario aquí.
         return
       }
 

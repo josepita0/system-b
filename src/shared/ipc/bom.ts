@@ -2,6 +2,7 @@ import type { BomItem, BomStockVirtualRow, BomUpsertInput } from '../types/bom'
 
 export const bomChannels = {
   getItems: 'bom:getItems',
+  getItemCount: 'bom:getItemCount',
   upsert: 'bom:upsert',
   removeAll: 'bom:removeAll',
   getVirtualStock: 'bom:getVirtualStock',
@@ -9,6 +10,7 @@ export const bomChannels = {
 
 export interface BomApi {
   getItems: (parentProductId: number) => Promise<BomItem[]>
+  getItemCount: (parentProductId: number) => Promise<number>
   upsert: (payload: BomUpsertInput) => Promise<void>
   removeAll: (parentProductId: number) => Promise<void>
   getVirtualStock: (parentProductId: number) => Promise<BomStockVirtualRow>
