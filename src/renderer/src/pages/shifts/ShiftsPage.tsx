@@ -77,6 +77,16 @@ function saleTypeLabel(saleType: string) {
   return saleType
 }
 
+function paymentMethodLabel(paymentMethod: string | null) {
+  if (paymentMethod === 'CASH') {
+    return 'Efectivo'
+  }
+  if (paymentMethod === 'CARD') {
+    return 'Tarjeta'
+  }
+  return null
+}
+
 function formatNowClock(ts: number) {
   return new Date(ts).toLocaleTimeString('es-ES', {
     hour: '2-digit',
@@ -121,6 +131,10 @@ function ShiftSessionMovementsLists(props: {
                 <div className="flex flex-wrap justify-between gap-2 text-slate-800">
                   <span>
                     #{sale.id} · {saleTypeLabel(sale.saleType)}
+                    {(() => {
+                      const pml = paymentMethodLabel(sale.paymentMethod)
+                      return pml ? ` · ${pml}` : ''
+                    })()}
                     {sale.tabCustomerName ? ` · Cuenta: ${sale.tabCustomerName}` : ''}
                     {sale.vipCustomerName ? ` · VIP: ${sale.vipCustomerName}` : ''} · {sale.createdAt}
                   </span>
@@ -552,8 +566,10 @@ export function ShiftsPage() {
                   <th className="px-3 py-3">Turno</th>
                   <th className="px-3 py-3">Abrio</th>
                   <th className="px-3 py-3 text-right">Apertura caja</th>
+                  <th className="px-3 py-3 text-right">Efectivo</th>
+                  <th className="px-3 py-3 text-right">Tarjeta</th>
                   <th className="px-3 py-3 text-right">Esperado</th>
-                  <th className="px-3 py-3 text-right">Contado</th>
+                  {/* <th className="px-3 py-3 text-right">Contado</th> */}
                   <th className="px-3 py-3 text-right">Dif.</th>
                   <th className="px-3 py-3 text-right">Por conciliar</th>
                   <th className="px-3 py-3" />
@@ -583,8 +599,10 @@ export function ShiftsPage() {
                     <td className="px-3 py-3 text-slate-800">{row.shiftName}</td>
                     <td className="px-3 py-3 text-slate-700">{row.openedByLabel ?? '—'}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-slate-900">{row.openingCash.toFixed(2)}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-slate-700">{row.cashSalesTotal != null ? row.cashSalesTotal.toFixed(2) : '—'}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-slate-700">{row.cardSalesTotal != null ? row.cardSalesTotal.toFixed(2) : '—'}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-slate-900">{displayExpected(row)}</td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-900">{displayCounted(row)}</td>
+                    {/* <td className="px-3 py-3 text-right tabular-nums text-slate-900">{displayCounted(row)}</td> */}
                     <td className="px-3 py-3 text-right tabular-nums text-slate-900">{row.differenceCash != null ? row.differenceCash.toFixed(2) : '—'}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-slate-900">{displayPendingReconcile(row)}</td>
                     <td className="px-3 py-3">

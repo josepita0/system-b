@@ -106,6 +106,20 @@ export class ShiftRepository {
     return row.total
   }
 
+  getSalesTotalByPaymentMethod(sessionId: number) {
+    const row = this.db
+      .prepare(
+        `SELECT
+           COALESCE(SUM(CASE WHEN payment_method = 'CASH' THEN total ELSE 0 END), 0) AS cashTotal,
+           COALESCE(SUM(CASE WHEN payment_method = 'CARD' THEN total ELSE 0 END), 0) AS cardTotal
+         FROM sales
+         WHERE cash_session_id = ?
+           AND sale_type IN ('pos', 'tab_payment')`,
+      )
+      .get(sessionId) as { cashTotal: number; cardTotal: number }
+    return { cashTotal: Number(row.cashTotal), cardTotal: Number(row.cardTotal), total: Number(row.cashTotal) + Number(row.cardTotal) }
+  }
+
   /**
    * Suma de saldos pendientes de todas las cuentas pagaré abiertas (cargos tab_charge),
    * sin importar en qué turno se abrió la cuenta ni en cuál se registró el cargo.
@@ -200,7 +214,15 @@ export class ShiftRepository {
       .prepare(
         `SELECT cs.*, COALESCE(s.name, 'Turno') AS shift_name,
                 e.first_name AS opened_by_first_name,
-                e.last_name AS opened_by_last_name
+                e.last_name AS opened_by_last_name,
+                (SELECT COALESCE(SUM(total), 0) FROM sales
+                 WHERE cash_session_id = cs.id
+                   AND sale_type IN ('pos','tab_payment')
+                   AND payment_method = 'CASH') AS cash_sales_total,
+                (SELECT COALESCE(SUM(total), 0) FROM sales
+                 WHERE cash_session_id = cs.id
+                   AND sale_type IN ('pos','tab_payment')
+                   AND payment_method = 'CARD') AS card_sales_total
          FROM cash_sessions cs
          LEFT JOIN shifts s ON s.id = cs.shift_id
          LEFT JOIN employees e ON e.id = cs.opened_by_user_id
@@ -234,6 +256,8 @@ export class ShiftRepository {
           ? Number(row.pending_reconcile_total)
           : null,
       status: row.status,
+      cashSalesTotal: Number(row.cash_sales_total),
+      cardSalesTotal: Number(row.card_sales_total),
     }
 
     if (row.status === 'open') {
@@ -258,11 +282,19 @@ export class ShiftRepository {
     const rows = this.db
       .prepare(
         `SELECT cs.id, cs.shift_id, cs.business_date, cs.opened_at, cs.closed_at,
-               cs.opening_cash, cs.opening_cash_note, cs.closing_note, cs.expected_cash, cs.counted_cash, cs.difference_cash,
+                cs.opening_cash, cs.opening_cash_note, cs.closing_note, cs.expected_cash, cs.counted_cash, cs.difference_cash,
                 cs.status, cs.pending_reconcile_total, cs.opened_by_user_id,
                 COALESCE(s.name, 'Turno') AS shift_name,
                 e.first_name AS opened_by_first_name,
-                e.last_name AS opened_by_last_name
+                e.last_name AS opened_by_last_name,
+                (SELECT COALESCE(SUM(total), 0) FROM sales
+                 WHERE cash_session_id = cs.id
+                   AND sale_type IN ('pos','tab_payment')
+                   AND payment_method = 'CASH') AS cash_sales_total,
+                (SELECT COALESCE(SUM(total), 0) FROM sales
+                 WHERE cash_session_id = cs.id
+                   AND sale_type IN ('pos','tab_payment')
+                   AND payment_method = 'CARD') AS card_sales_total
          FROM cash_sessions cs
          LEFT JOIN shifts s ON s.id = cs.shift_id
          LEFT JOIN employees e ON e.id = cs.opened_by_user_id
@@ -295,6 +327,8 @@ export class ShiftRepository {
             ? Number(row.pending_reconcile_total)
             : null,
         status: row.status,
+        cashSalesTotal: Number(row.cash_sales_total),
+        cardSalesTotal: Number(row.card_sales_total),
       }
     }
 
@@ -305,7 +339,7 @@ export class ShiftRepository {
   getSessionSalesDetail(sessionId: number): ShiftSessionSaleDetail[] {
     const sales = this.db
       .prepare(
-        `SELECT s.id, s.sale_type, s.total, s.created_at, s.tab_id,
+        `SELECT s.id, s.sale_type, s.total, s.created_at, s.tab_id, s.payment_method,
                 ct.customer_name AS tab_customer_name,
                 v.name AS vip_customer_name
          FROM sales s
@@ -320,6 +354,7 @@ export class ShiftRepository {
       total: number
       created_at: string
       tab_id: number | null
+      payment_method: string | null
       tab_customer_name: string | null
       vip_customer_name: string | null
     }>
@@ -334,6 +369,7 @@ export class ShiftRepository {
       total: Number(s.total),
       createdAt: s.created_at,
       tabId: s.tab_id != null ? Number(s.tab_id) : null,
+      paymentMethod: s.payment_method ?? null,
       tabCustomerName: s.tab_customer_name?.trim() ? s.tab_customer_name.trim() : null,
       vipCustomerName: s.vip_customer_name?.trim() ? s.vip_customer_name.trim() : null,
       lines: (lineStmt.all(s.id) as Array<{ product_name: string; quantity: number; subtotal: number }>).map(

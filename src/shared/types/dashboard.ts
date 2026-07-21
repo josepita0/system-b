@@ -18,6 +18,8 @@ export type DashboardKpis = {
   sales: {
     paidTotal: number
     paidTransactions: number
+    cashPaidTotal: number
+    cardPaidTotal: number
     tabChargeTotal: number
     tabChargeTransactions: number
   }
@@ -34,6 +36,8 @@ export type DashboardDailySalesRow = {
   businessDate: IsoDate
   paidTotal: number
   paidTransactions: number
+  cashPaidTotal: number
+  cardPaidTotal: number
   tabChargeTotal: number
   tabChargeTransactions: number
 }
@@ -48,6 +52,8 @@ export type DashboardTopEmployeeRow = {
   displayName: string
   paidTotal: number
   paidTransactions: number
+  cashPaidTotal: number
+  cardPaidTotal: number
   tabChargeTotal: number
   tabChargeTransactions: number
   paidPctOfTotal: number

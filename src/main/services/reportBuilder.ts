@@ -210,7 +210,8 @@ function getPosSaleLinesForSession(db: Database.Database, sessionId: number): Po
               si.subtotal AS subtotal,
               si.price_change_note AS priceChangeNote,
               TRIM(COALESCE(v.name, '')) AS vipName,
-              json_extract(s.vip_condition_snapshot, '$.conditionType') AS vipSaleCondition
+              json_extract(s.vip_condition_snapshot, '$.conditionType') AS vipSaleCondition,
+              s.payment_method AS paymentMethod
        FROM sale_items si
        INNER JOIN sales s ON s.id = si.sale_id
        LEFT JOIN vip_customers v ON v.id = s.vip_customer_id
@@ -225,6 +226,7 @@ function getPosSaleLinesForSession(db: Database.Database, sessionId: number): Po
     priceChangeNote: string | null
     vipName: string
     vipSaleCondition: string | null
+    paymentMethod: string
   }>
 
   return rows.map((r) => {
@@ -245,16 +247,21 @@ function getPosSaleLinesForSession(db: Database.Database, sessionId: number): Po
       vipCustomerLabel,
       priceChangeNote,
       lineTotal,
+      paymentMethod: r.paymentMethod ?? 'CASH',
     }
   })
 }
 
-/** Agrupa líneas POS para el PDF: misma fila si coinciden producto y cliente VIP; suma cantidad e importe. */
+function paymentMethodLabel(m: string) {
+  return m === 'CARD' ? 'Tarjeta' : 'Efectivo'
+}
+
+/** Agrupa líneas POS para el PDF: misma fila si coinciden producto, cliente VIP y método de pago; suma cantidad e importe. */
 function groupPosSaleLinesByProductAndVip(lines: PosSaleLineDetail[]): PosSaleLineDetail[] {
   const groups = new Map<string, PosSaleLineDetail[]>()
   const order: string[] = []
   for (const line of lines) {
-    const key = `${line.productName}\u0000${line.vipCustomerLabel}`
+    const key = `${line.productName}\u0000${line.vipCustomerLabel}\u0000${line.paymentMethod}`
     if (!groups.has(key)) {
       order.push(key)
       groups.set(key, [])
@@ -282,6 +289,7 @@ function groupPosSaleLinesByProductAndVip(lines: PosSaleLineDetail[]): PosSaleLi
       vipCustomerLabel: first.vipCustomerLabel,
       priceChangeNote,
       lineTotal,
+      paymentMethod: first.paymentMethod,
     }
   })
 }
@@ -736,7 +744,15 @@ function createPdf(report: ShiftCloseReport): string {
   doc.text('Ventas al contado', margin, startY)
   startY += 14
 
-  const totalContado = Math.round(report.posSaleLines.reduce((s, p) => s + p.lineTotal, 0) * 100) / 100
+  const totalCash =
+    Math.round(
+      report.posSaleLines.filter((l) => l.paymentMethod === 'CASH').reduce((s, p) => s + p.lineTotal, 0) * 100,
+    ) / 100
+  const totalCard =
+    Math.round(
+      report.posSaleLines.filter((l) => l.paymentMethod === 'CARD').reduce((s, p) => s + p.lineTotal, 0) * 100,
+    ) / 100
+  const totalContado = Math.round((totalCash + totalCard) * 100) / 100
   const totalCuentaAbierta =
     Math.round(
       report.tabChargeAccountsInSession.reduce((s, a) => s + (a.isVipExempt ? 0 : a.balanceTotal), 0) * 100,
@@ -750,11 +766,12 @@ function createPdf(report: ShiftCloseReport): string {
       ? posLinesForTable.map((p) => [
           p.productName.length > 36 ? `${p.productName.slice(0, 33)}...` : p.productName,
           formatQuantityEs(p.quantity),
+          paymentMethodLabel(p.paymentMethod),
           p.vipCustomerLabel,
           p.priceChangeNote ?? '—',
           formatEuro(p.lineTotal),
         ])
-      : [['Sin ventas al contado en este turno.', '—', '—', '—', '—']]
+      : [['Sin ventas al contado en este turno.', '—', '—', '—', '—', '—']]
 
   autoTable(doc, {
     startY,
@@ -762,6 +779,7 @@ function createPdf(report: ShiftCloseReport): string {
       [
         { content: 'Producto', styles: { halign: 'left' as const } },
         { content: 'Cantidad', styles: { halign: 'center' as const } },
+        { content: 'Método de pago', styles: { halign: 'center' as const } },
         { content: 'Cliente VIP', styles: { halign: 'center' as const } },
         { content: 'Cambio de precio', styles: { halign: 'left' as const } },
         { content: 'Total', styles: { halign: 'right' as const } },
@@ -774,7 +792,7 @@ function createPdf(report: ShiftCloseReport): string {
             [
               {
                 content: 'Total ventas al contado',
-                colSpan: 4,
+                colSpan: 5,
                 styles: {
                   fillColor: C.barGreen,
                   textColor: 255,
@@ -822,17 +840,18 @@ function createPdf(report: ShiftCloseReport): string {
       fontStyle: 'bold',
     },
     columnStyles: {
-      0: { cellWidth: innerW * 0.26, halign: 'left' },
-      1: { cellWidth: innerW * 0.12, halign: 'center' },
-      2: { cellWidth: innerW * 0.16, halign: 'center' },
-      3: { cellWidth: innerW * 0.26, halign: 'left' },
-      4: { cellWidth: innerW * 0.2, halign: 'right', fontStyle: 'bold', textColor: C.moneyGreen },
+      0: { cellWidth: innerW * 0.22, halign: 'left' },
+      1: { cellWidth: innerW * 0.11, halign: 'center' },
+      2: { cellWidth: innerW * 0.12, halign: 'center' },
+      3: { cellWidth: innerW * 0.14, halign: 'center' },
+      4: { cellWidth: innerW * 0.21, halign: 'left' },
+      5: { cellWidth: innerW * 0.2, halign: 'right', fontStyle: 'bold', textColor: C.moneyGreen },
     },
     alternateRowStyles: {
       fillColor: C.zebra,
     },
     didParseCell: (data) => {
-      if (data.section === 'body' && posLinesForTable.length > 0 && data.column.index === 4) {
+      if (data.section === 'body' && posLinesForTable.length > 0 && data.column.index === 5) {
         data.cell.styles.textColor = C.moneyGreen
         data.cell.styles.fontStyle = 'bold'
       }
@@ -954,12 +973,13 @@ function createPdf(report: ShiftCloseReport): string {
     startY,
     head: [
       [
-        { content: 'Total (Contado)', styles: { halign: 'center' as const } },
+        { content: 'Total (Efectivo)', styles: { halign: 'center' as const } },
+        { content: 'Total (Tarjeta)', styles: { halign: 'center' as const } },
         { content: 'Total (Cuenta abierta)', styles: { halign: 'center' as const } },
         { content: 'Total general', styles: { halign: 'center' as const } },
       ],
     ],
-    body: [[formatEuro(totalContado), formatEuro(totalCuentaAbierta), formatEuro(totalGeneral)]],
+    body: [[formatEuro(totalCash), formatEuro(totalCard), formatEuro(totalCuentaAbierta), formatEuro(totalGeneral)]],
     theme: 'grid',
     tableWidth: innerW,
     margin: { left: margin, right: margin },
@@ -984,16 +1004,17 @@ function createPdf(report: ShiftCloseReport): string {
       fontSize: 12,
     },
     columnStyles: {
-      0: { cellWidth: innerW / 3, halign: 'center' as const },
-      1: { cellWidth: innerW / 3, halign: 'center' as const },
-      2: { cellWidth: innerW / 3, halign: 'center' as const },
+      0: { cellWidth: innerW / 4, halign: 'center' as const },
+      1: { cellWidth: innerW / 4, halign: 'center' as const },
+      2: { cellWidth: innerW / 4, halign: 'center' as const },
+      3: { cellWidth: innerW / 4, halign: 'center' as const },
     },
     didParseCell: (data) => {
       if (data.section !== 'body' || data.row.index !== 0) {
         return
       }
       data.cell.styles.fillColor = C.summaryBand
-      if (data.column.index === 2) {
+      if (data.column.index === 3) {
         data.cell.styles.fontSize = 14
         data.cell.styles.textColor = C.moneyGreen
       } else {

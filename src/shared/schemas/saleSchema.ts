@@ -17,6 +17,7 @@ export const createSaleSchema = z.object({
   tabId: z.number().int().positive().optional(),
   vipCustomerId: z.number().int().positive().optional(),
   chargedTotal: z.number().nonnegative().optional(),
+  paymentMethod: z.enum(['CASH', 'CARD']).optional().default('CASH'),
 })
 
 export const openTabSchema = z
@@ -31,6 +32,7 @@ export const openTabSchema = z
 
 export const settleTabSchema = z.object({
   tabId: z.number().int().positive(),
+  paymentMethod: z.enum(['CASH', 'CARD']).optional().default('CASH'),
 })
 
 export const removeTabChargeLineSchema = z.object({

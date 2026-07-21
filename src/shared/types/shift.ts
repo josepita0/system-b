@@ -31,6 +31,8 @@ export interface CashSession {
   /** Solo sesión abierta actual (API current): totales en vivo para la barra de estado. */
   liveExpectedCash?: number | null
   livePendingReconcile?: number | null
+  cashSalesTotal?: number | null
+  cardSalesTotal?: number | null
 }
 
 export interface OpenShiftInput {
@@ -68,6 +70,10 @@ export interface CashSessionHistoryEntry {
   liveExpectedCash?: number | null
   /** Turno abierto: cargos pagaré pendientes (cuentas abiertas). */
   livePendingReconcile?: number | null
+  /** Total de ventas en efectivo (cash_session_id + sale_type IN pos/tab_payment + payment_method CASH). */
+  cashSalesTotal?: number | null
+  /** Total de ventas con tarjeta (cash_session_id + sale_type IN pos/tab_payment + payment_method CARD). */
+  cardSalesTotal?: number | null
 }
 
 export interface ShiftSessionSaleLineDetail {
@@ -86,6 +92,7 @@ export interface ShiftSessionSaleDetail {
   tabCustomerName: string | null
   /** Nombre del cliente VIP en la venta, si aplica. */
   vipCustomerName: string | null
+  paymentMethod: string | null
   lines: ShiftSessionSaleLineDetail[]
 }
 

@@ -21,7 +21,9 @@ export class DashboardRepository {
            COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') THEN s.total ELSE 0 END), 0) AS paidTotal,
            COALESCE(SUM(CASE WHEN s.sale_type = 'tab_charge' THEN s.total ELSE 0 END), 0) AS tabChargeTotal,
            COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') THEN 1 ELSE 0 END), 0) AS paidTransactions,
-           COALESCE(SUM(CASE WHEN s.sale_type = 'tab_charge' THEN 1 ELSE 0 END), 0) AS tabChargeTransactions
+           COALESCE(SUM(CASE WHEN s.sale_type = 'tab_charge' THEN 1 ELSE 0 END), 0) AS tabChargeTransactions,
+           COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') AND s.payment_method = 'CASH' THEN s.total ELSE 0 END), 0) AS cashPaidTotal,
+           COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') AND s.payment_method = 'CARD' THEN s.total ELSE 0 END), 0) AS cardPaidTotal
          FROM sales s
          INNER JOIN cash_sessions cs ON cs.id = s.cash_session_id
          WHERE cs.business_date BETWEEN ? AND ?
@@ -32,6 +34,8 @@ export class DashboardRepository {
       tabChargeTotal: number
       paidTransactions: number
       tabChargeTransactions: number
+      cashPaidTotal: number
+      cardPaidTotal: number
     }
   }
 
@@ -44,7 +48,9 @@ export class DashboardRepository {
            COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') THEN s.total ELSE 0 END), 0) AS paidTotal,
            COALESCE(SUM(CASE WHEN s.sale_type = 'tab_charge' THEN s.total ELSE 0 END), 0) AS tabChargeTotal,
            COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') THEN 1 ELSE 0 END), 0) AS paidTransactions,
-           COALESCE(SUM(CASE WHEN s.sale_type = 'tab_charge' THEN 1 ELSE 0 END), 0) AS tabChargeTransactions
+           COALESCE(SUM(CASE WHEN s.sale_type = 'tab_charge' THEN 1 ELSE 0 END), 0) AS tabChargeTransactions,
+           COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') AND s.payment_method = 'CASH' THEN s.total ELSE 0 END), 0) AS cashPaidTotal,
+           COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') AND s.payment_method = 'CARD' THEN s.total ELSE 0 END), 0) AS cardPaidTotal
          FROM cash_sessions cs
          LEFT JOIN sales s ON s.cash_session_id = cs.id
          WHERE cs.business_date BETWEEN ? AND ?
@@ -58,6 +64,8 @@ export class DashboardRepository {
       tabChargeTotal: number
       paidTransactions: number
       tabChargeTransactions: number
+      cashPaidTotal: number
+      cardPaidTotal: number
     }>
   }
 
@@ -72,7 +80,9 @@ export class DashboardRepository {
            COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') THEN s.total ELSE 0 END), 0) AS paidTotal,
            COALESCE(SUM(CASE WHEN s.sale_type = 'tab_charge' THEN s.total ELSE 0 END), 0) AS tabChargeTotal,
            COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') THEN 1 ELSE 0 END), 0) AS paidTransactions,
-           COALESCE(SUM(CASE WHEN s.sale_type = 'tab_charge' THEN 1 ELSE 0 END), 0) AS tabChargeTransactions
+           COALESCE(SUM(CASE WHEN s.sale_type = 'tab_charge' THEN 1 ELSE 0 END), 0) AS tabChargeTransactions,
+           COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') AND s.payment_method = 'CASH' THEN s.total ELSE 0 END), 0) AS cashPaidTotal,
+           COALESCE(SUM(CASE WHEN s.sale_type IN ('pos','tab_payment') AND s.payment_method = 'CARD' THEN s.total ELSE 0 END), 0) AS cardPaidTotal
          FROM sales s
          INNER JOIN cash_sessions cs ON cs.id = s.cash_session_id
          INNER JOIN employees e ON e.id = s.employee_id
@@ -90,6 +100,8 @@ export class DashboardRepository {
       tabChargeTotal: number
       paidTransactions: number
       tabChargeTransactions: number
+      cashPaidTotal: number
+      cardPaidTotal: number
     }>
   }
 

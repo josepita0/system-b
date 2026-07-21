@@ -22,6 +22,7 @@ export interface PosSaleLineDetail {
   priceChangeNote: string | null
   /** Importe de la línea; 0 si la venta es VIP exonerada. */
   lineTotal: number
+  paymentMethod: string
 }
 
 /**

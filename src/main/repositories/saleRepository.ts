@@ -43,14 +43,15 @@ export class SaleRepository {
     vipCustomerId: number | null = null,
     vipConditionSnapshot: string | null = null,
     progressiveConsumptions: Array<{ productId: number; amount: number }> = [],
+    paymentMethod: 'CASH' | 'CARD' = 'CASH',
   ) {
     const run = this.db.transaction(() => {
       const saleResult = this.db
         .prepare(
-          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total, tab_id, vip_customer_id, real_total, charged_total, vip_condition_snapshot)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total, tab_id, vip_customer_id, real_total, charged_total, vip_condition_snapshot, payment_method)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(cashSessionId, employeeId, saleType, chargedTotal, tabId, vipCustomerId, realTotal, chargedTotal, vipConditionSnapshot)
+        .run(cashSessionId, employeeId, saleType, chargedTotal, tabId, vipCustomerId, realTotal, chargedTotal, vipConditionSnapshot, paymentMethod)
 
       const saleId = Number(saleResult.lastInsertRowid)
 
@@ -99,21 +100,21 @@ export class SaleRepository {
       }
 
       const row = this.db.prepare('SELECT created_at FROM sales WHERE id = ?').get(saleId) as { created_at: string }
-      return { id: saleId, total: chargedTotal, realTotal, chargedTotal, cashSessionId, createdAt: row.created_at }
+      return { id: saleId, total: chargedTotal, realTotal, chargedTotal, cashSessionId, createdAt: row.created_at, paymentMethod }
     })
 
     return run()
   }
 
   /** Pago en efectivo + cierre de cuenta en una sola transacción. */
-  settleTabWithPayment(cashSessionId: number, employeeId: number, total: number, tabId: number) {
+  settleTabWithPayment(cashSessionId: number, employeeId: number, total: number, tabId: number, paymentMethod: 'CASH' | 'CARD' = 'CASH') {
     return this.db.transaction(() => {
       const saleResult = this.db
         .prepare(
-          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total, tab_id, real_total, charged_total)
-           VALUES (?, ?, 'tab_payment', ?, ?, ?, ?)`,
+          `INSERT INTO sales (cash_session_id, employee_id, sale_type, total, tab_id, real_total, charged_total, payment_method)
+           VALUES (?, ?, 'tab_payment', ?, ?, ?, ?, ?)`,
         )
-        .run(cashSessionId, employeeId, total, tabId, total, total)
+        .run(cashSessionId, employeeId, total, tabId, total, total, paymentMethod)
 
       const saleId = Number(saleResult.lastInsertRowid)
       const upd = this.db
@@ -129,7 +130,7 @@ export class SaleRepository {
         throw new ConflictError('La cuenta no pudo liquidarse (estado inesperado).')
       }
       const row = this.db.prepare('SELECT created_at FROM sales WHERE id = ?').get(saleId) as { created_at: string }
-      return { id: saleId, total, realTotal: total, chargedTotal: total, cashSessionId, createdAt: row.created_at }
+      return { id: saleId, total, realTotal: total, chargedTotal: total, cashSessionId, createdAt: row.created_at, paymentMethod }
     })()
   }
 

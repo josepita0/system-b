@@ -17,6 +17,7 @@ export interface CreateSaleInput {
   vipCustomerId?: number
   /** Si se indica, el total cobrado se fuerza a este monto (solo para ventas VIP manuales). */
   chargedTotal?: number
+  paymentMethod?: 'CASH' | 'CARD'
 }
 
 export interface CustomerTabSummary {
@@ -39,6 +40,7 @@ export interface OpenTabResult {
 
 export interface SettleTabInput {
   tabId: number
+  paymentMethod?: 'CASH' | 'CARD'
 }
 
 export interface TabSettlementResult {
@@ -47,6 +49,7 @@ export interface TabSettlementResult {
   total: number
   cashSessionId: number
   createdAt: string
+  paymentMethod?: 'CASH' | 'CARD'
 }
 
 export interface TabChargeLineDetail {
@@ -89,6 +92,7 @@ export interface SaleCreated {
   chargedTotal?: number
   cashSessionId: number
   createdAt: string
+  paymentMethod: 'CASH' | 'CARD'
 }
 
 export interface PosCatalogResponse {

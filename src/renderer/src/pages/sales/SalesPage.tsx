@@ -92,9 +92,11 @@ export function SalesPage() {
   const [newTabVipCustomerId, setNewTabVipCustomerId] = useState<number | ''>('')
   const [cashPaymentModalOpen, setCashPaymentModalOpen] = useState(false)
   const [cashReceivedInput, setCashReceivedInput] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD'>('CASH')
   const [vipChargedTotalInput, setVipChargedTotalInput] = useState('')
   const [settleModalTabId, setSettleModalTabId] = useState<number | null>(null)
   const [settleCashReceived, setSettleCashReceived] = useState('')
+  const [settlePaymentMethod, setSettlePaymentMethod] = useState<'CASH' | 'CARD'>('CASH')
   const [cancelEmptyTabModalOpen, setCancelEmptyTabModalOpen] = useState(false)
   const [cancelEmptyTabReason, setCancelEmptyTabReason] = useState('')
   const [priceEditLineKey, setPriceEditLineKey] = useState<string | null>(null)
@@ -278,8 +280,10 @@ export function SalesPage() {
   })
 
   const settleTabMutation = useMutation({
-    mutationFn: (tabId: number) => window.api.sales.settleTab({ tabId }),
-    onSuccess: async (_, tabId) => {
+    mutationFn: (payload: { tabId: number; paymentMethod: 'CASH' | 'CARD' }) =>
+      window.api.sales.settleTab({ tabId: payload.tabId, paymentMethod: payload.paymentMethod }),
+    onSuccess: async (_, payload) => {
+      const { tabId } = payload
       setSettleModalTabId(null)
       setSettleCashReceived('')
       if (selectedTabId === tabId) {
@@ -334,6 +338,7 @@ export function SalesPage() {
         tabId: saleMode === 'tab' && selectedTabId != null ? selectedTabId : undefined,
         vipCustomerId: selectedVipCustomerId ?? undefined,
         chargedTotal,
+        paymentMethod,
       })
     },
     onSuccess: async () => {
@@ -617,14 +622,15 @@ export function SalesPage() {
   }, [cashReceivedInput])
 
   const totalDueCents = moneyToCents(amountToCharge)
+  const isCardPayment = paymentMethod === 'CARD'
   const cashPaymentSufficient =
-    parsedReceived != null && moneyToCents(parsedReceived) >= totalDueCents && totalDueCents >= 0
+    isCardPayment || (parsedReceived != null && moneyToCents(parsedReceived) >= totalDueCents && totalDueCents >= 0)
 
   const changeAmount =
-    cashPaymentSufficient && parsedReceived != null ? roundMoney2(parsedReceived - amountToCharge) : null
+    cashPaymentSufficient && parsedReceived != null && !isCardPayment ? roundMoney2(parsedReceived - amountToCharge) : null
 
   const shortfall =
-    parsedReceived != null && totalDueCents > 0 && !cashPaymentSufficient
+    !isCardPayment && parsedReceived != null && totalDueCents > 0 && !cashPaymentSufficient
       ? roundMoney2(amountToCharge - parsedReceived)
       : null
 
@@ -642,17 +648,19 @@ export function SalesPage() {
 
   const settleDetail = tabChargeDetailQuery.data
   const settleBalanceCents = moneyToCents(settleDetail?.balance ?? 0)
+  const isSettleCard = settlePaymentMethod === 'CARD'
   const settlePaymentSufficient =
     settleBalanceCents === 0 ||
+    isSettleCard ||
     (parsedSettleReceived != null && moneyToCents(parsedSettleReceived) >= settleBalanceCents)
 
   const settleChangeAmount =
-    settlePaymentSufficient && parsedSettleReceived != null && settleBalanceCents > 0
+    settlePaymentSufficient && parsedSettleReceived != null && settleBalanceCents > 0 && !isSettleCard
       ? roundMoney2(parsedSettleReceived - (settleDetail?.balance ?? 0))
       : null
 
   const settleShortfall =
-    parsedSettleReceived != null && settleBalanceCents > 0 && !settlePaymentSufficient
+    !isSettleCard && parsedSettleReceived != null && settleBalanceCents > 0 && !settlePaymentSufficient
       ? roundMoney2((settleDetail?.balance ?? 0) - parsedSettleReceived)
       : null
 
@@ -660,11 +668,13 @@ export function SalesPage() {
     setCashPaymentModalOpen(false)
     setCashReceivedInput('')
     setVipChargedTotalInput('')
+    setPaymentMethod('CASH')
   }, [])
 
   const closeSettleModal = useCallback(() => {
     setSettleModalTabId(null)
     setSettleCashReceived('')
+    setSettlePaymentMethod('CASH')
   }, [])
 
   const closeConfigurator = useCallback(() => {
@@ -1117,7 +1127,10 @@ export function SalesPage() {
                   tabChargeDetailQuery.isLoading ||
                   !settlePaymentSufficient
                 }
-                onClick={() => settleModalTabId != null && settleTabMutation.mutate(settleModalTabId)}
+                onClick={() =>
+                  settleModalTabId != null &&
+                  settleTabMutation.mutate({ tabId: settleModalTabId, paymentMethod: settlePaymentMethod })
+                }
                 variant="primary"
               >
                 {settleTabMutation.isPending
@@ -1135,9 +1148,31 @@ export function SalesPage() {
         title={
           settleDetail?.customerName
             ? `Liquidar cuenta — ${settleDetail.customerName}`
-            : 'Liquidar cuenta (efectivo)'
+            : 'Liquidar cuenta'
         }
       >
+        <div className="mb-4 flex gap-4">
+          <label className="flex items-center gap-2 text-lg font-bold">
+            <input
+              checked={settlePaymentMethod === 'CASH'}
+              name="settlePaymentMethod"
+              className="h-6 w-6"
+              onChange={() => setSettlePaymentMethod('CASH')}
+              type="radio"
+            />
+            Efectivo
+          </label>
+          <label className="flex items-center gap-2 text-lg font-bold">
+            <input
+              checked={settlePaymentMethod === 'CARD'}
+              name="settlePaymentMethod"
+              className="h-6 w-6"
+              onChange={() => setSettlePaymentMethod('CARD')}
+              type="radio"
+            />
+            Tarjeta
+          </label>
+        </div>
         {tabChargeDetailQuery.isLoading ? (
           <>
             <p className="text-sm text-slate-600">
@@ -1223,7 +1258,7 @@ export function SalesPage() {
                   </span>
                 </div>
 
-                {settleBalanceCents > 0 ? (
+                {settleBalanceCents > 0 && !isSettleCard ? (
                   <label className="mt-4 block text-sm text-slate-700">
                     Monto recibido
                     <Input
@@ -1236,8 +1271,10 @@ export function SalesPage() {
                       value={settleCashReceived}
                     />
                   </label>
+                ) : settleBalanceCents > 0 && isSettleCard ? (
+                  <p className="mt-4 text-sm text-slate-500">Cobro con tarjeta — no requiere monto recibido.</p>
                 ) : (
-                  <p className="mt-4 text-sm text-slate-500">Saldo 0: se cerrara la cuenta sin cobro en efectivo.</p>
+                  <p className="mt-4 text-sm text-slate-500">Saldo 0: se cerrara la cuenta sin cobro.</p>
                 )}
 
                 {settleChangeAmount != null ? (
@@ -1251,7 +1288,7 @@ export function SalesPage() {
                 {settleShortfall != null ? (
                   <p className="mt-3 text-sm text-amber-700">Falta {settleShortfall.toFixed(2)} para cubrir el total.</p>
                 ) : null}
-                {parsedSettleReceived == null && settleCashReceived.trim() !== '' && settleBalanceCents > 0 ? (
+                {!isSettleCard && parsedSettleReceived == null && settleCashReceived.trim() !== '' && settleBalanceCents > 0 ? (
                   <p className="mt-2 text-xs text-rose-600">Indique un monto valido.</p>
                 ) : null}
               </>
@@ -1415,9 +1452,33 @@ export function SalesPage() {
         }
         onClose={closeCashPaymentModal}
         open={cashPaymentModalOpen}
-        title="Cobro en efectivo"
+        title={`Cobro${paymentMethod === 'CARD' ? ' (tarjeta)' : ' en efectivo'}`}
       >
-        <p className="text-sm text-slate-600">Confirme el monto recibido y el cambio antes de registrar la venta.</p>
+        <div className="mb-4 flex gap-4">
+          <label className="flex items-center gap-2 text-lg font-bold">
+            <input
+              checked={paymentMethod === 'CASH'}
+              name="paymentMethod"
+              className="h-6 w-6"
+              onChange={() => setPaymentMethod('CASH')}
+              type="radio"
+            />
+            Efectivo
+          </label>
+          <label className="flex items-center gap-2 text-lg font-bold">
+            <input
+              checked={paymentMethod === 'CARD'}
+              name="paymentMethod"
+              className="h-6 w-6"
+              onChange={() => setPaymentMethod('CARD')}
+              type="radio"
+            />
+            Tarjeta
+          </label>
+        </div>
+        {!isCardPayment ? (
+          <p className="text-sm text-slate-600">Confirme el monto recibido y el cambio antes de registrar la venta.</p>
+        ) : null}
         <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-slate-50 px-3 py-2 text-slate-800">
           <span>Total a cobrar</span>
           <span className={cn(posLargeText ? 'text-4xl' : 'text-3xl', 'font-semibold tabular-nums text-brand')}>
@@ -1444,18 +1505,22 @@ export function SalesPage() {
             ) : null}
           </label>
         ) : null}
-        <label className="mt-4 block text-sm text-slate-700">
-          Monto recibido
-          <Input
-            autoFocus
-            className="mt-1"
-            min={0}
-            onChange={(e) => setCashReceivedInput(e.target.value)}
-            step={0.01}
-            type="number"
-            value={cashReceivedInput}
-          />
-        </label>
+        {!isCardPayment ? (
+          <label className="mt-4 block text-sm text-slate-700">
+            Monto recibido
+            <Input
+              autoFocus
+              className="mt-1"
+              min={0}
+              onChange={(e) => setCashReceivedInput(e.target.value)}
+              step={0.01}
+              type="number"
+              value={cashReceivedInput}
+            />
+          </label>
+        ) : (
+          <p className="mt-4 text-sm text-slate-500">Cobro con tarjeta — no requiere monto recibido.</p>
+        )}
         {cashPaymentSufficient && changeAmount != null ? (
           <div className="mt-4 flex items-center justify-between text-slate-800">
             <span>Cambio</span>
@@ -1467,7 +1532,7 @@ export function SalesPage() {
         {shortfall != null ? (
           <p className="mt-3 text-sm text-amber-700">Falta {shortfall.toFixed(2)} para cubrir el total.</p>
         ) : null}
-        {parsedReceived == null && cashReceivedInput.trim() !== '' ? (
+        {!isCardPayment && parsedReceived == null && cashReceivedInput.trim() !== '' ? (
           <p className="mt-3 text-sm text-rose-600">Indique un monto valido.</p>
         ) : null}
         {saleMutation.isError ? (

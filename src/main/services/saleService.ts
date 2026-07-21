@@ -176,13 +176,15 @@ export class SaleService {
       }
     }
 
-    const created = this.sales.settleTabWithPayment(session.id, employeeId, total, parsed.data.tabId)
+    const paymentMethod = parsed.data.paymentMethod ?? 'CASH'
+    const created = this.sales.settleTabWithPayment(session.id, employeeId, total, parsed.data.tabId, paymentMethod)
 
     return {
       saleId: created.id,
       total: created.total,
       cashSessionId: created.cashSessionId,
       createdAt: created.createdAt,
+      paymentMethod,
     }
   }
 
@@ -469,6 +471,7 @@ export class SaleService {
 
     const saleType = parsed.data.tabId != null ? 'tab_charge' : 'pos'
     const tabId = parsed.data.tabId ?? null
+    const paymentMethod = parsed.data.paymentMethod ?? 'CASH'
 
     return this.sales.createSaleWithItems(
       session.id,
@@ -482,6 +485,7 @@ export class SaleService {
       vipCustomerId,
       vipConditionSnapshot,
       [...progressiveToConsume.entries()].map(([productId, amount]) => ({ productId, amount })),
+      paymentMethod,
     )
   }
 }

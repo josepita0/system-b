@@ -306,6 +306,15 @@ export function DashboardPage() {
           value={overviewQuery.isLoading ? '…' : formatMoney(kpis?.receivables.pendingTotal ?? 0)}
         />
         <KpiCard
+          subtitle={
+            kpis
+              ? `Efectivo ${formatMoney(kpis.sales.cashPaidTotal)} · Tarjeta ${formatMoney(kpis.sales.cardPaidTotal)}`
+              : '—'
+          }
+          title="Ventas al contado"
+          value={overviewQuery.isLoading ? '…' : formatMoney(kpis?.sales.paidTotal ?? 0)}
+        />
+        <KpiCard
           subtitle="Total de cargos a cuenta dentro del rango."
           title="Cargos a cuenta (rango)"
           value={overviewQuery.isLoading ? '…' : formatMoney(kpis?.sales.tabChargeTotal ?? 0)}

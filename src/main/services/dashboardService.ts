@@ -62,6 +62,8 @@ export class DashboardService {
       businessDate: r.businessDate as any,
       paidTotal: Number(r.paidTotal ?? 0),
       paidTransactions: Number(r.paidTransactions ?? 0),
+      cashPaidTotal: Number(r.cashPaidTotal ?? 0),
+      cardPaidTotal: Number(r.cardPaidTotal ?? 0),
       tabChargeTotal: Number(r.tabChargeTotal ?? 0),
       tabChargeTransactions: Number(r.tabChargeTransactions ?? 0),
     }))
@@ -75,6 +77,8 @@ export class DashboardService {
         displayName,
         paidTotal: Number(r.paidTotal ?? 0),
         paidTransactions: Number(r.paidTransactions ?? 0),
+        cashPaidTotal: Number(r.cashPaidTotal ?? 0),
+        cardPaidTotal: Number(r.cardPaidTotal ?? 0),
         tabChargeTotal: Number(r.tabChargeTotal ?? 0),
         tabChargeTransactions: Number(r.tabChargeTransactions ?? 0),
         paidPctOfTotal: paidDen ? Number(r.paidTotal ?? 0) / paidDen : 0,
@@ -106,6 +110,8 @@ export class DashboardService {
         sales: {
           paidTotal: Number(totals.paidTotal ?? 0),
           paidTransactions: Number(totals.paidTransactions ?? 0),
+          cashPaidTotal: Number(totals.cashPaidTotal ?? 0),
+          cardPaidTotal: Number(totals.cardPaidTotal ?? 0),
           tabChargeTotal: Number(totals.tabChargeTotal ?? 0),
           tabChargeTransactions: Number(totals.tabChargeTransactions ?? 0),
         },
