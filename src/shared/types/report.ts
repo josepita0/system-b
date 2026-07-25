@@ -38,6 +38,8 @@ export interface TabChargeSessionAccount {
   balanceTotal: number
   /** Si el VIP asociado a la cuenta es exonerado, el PDF muestra total cuenta en 0. */
   isVipExempt: boolean
+  /** Método de pago usado al liquidar la cuenta. null si se cerró sin pago (saldo cero). */
+  paymentMethod: 'CASH' | 'CARD' | null
 }
 
 /** Cuenta (pagaré) abierta durante el turno que se está cerrando. */

@@ -299,11 +299,13 @@ function getTabChargeAccountsInSession(db: Database.Database, sessionId: number)
     .prepare(
       `SELECT DISTINCT s.tab_id AS tabId
        FROM sales s
+       INNER JOIN customer_tabs ct ON ct.id = s.tab_id
        WHERE s.cash_session_id = ?
          AND s.sale_type = 'tab_charge'
-         AND s.tab_id IS NOT NULL`,
+         AND s.tab_id IS NOT NULL
+         AND ct.settled_cash_session_id = ?`,
     )
-    .all(sessionId) as Array<{ tabId: number }>
+    .all(sessionId, sessionId) as Array<{ tabId: number }>
 
   if (tabIdRows.length === 0) {
     return []
@@ -334,6 +336,14 @@ function getTabChargeAccountsInSession(db: Database.Database, sessionId: number)
      WHERE s.tab_id = ? AND s.sale_type = 'tab_charge'`,
   )
 
+  const paymentMethodStmt = db.prepare(
+    `SELECT s.payment_method AS paymentMethod
+     FROM sales s
+     WHERE s.tab_id = ? AND s.sale_type = 'tab_payment'
+     ORDER BY s.id DESC
+     LIMIT 1`,
+  )
+
   const withMeta = tabIdRows
     .map(({ tabId }) => {
       const meta = metaStmt.get(tabId) as
@@ -361,6 +371,8 @@ function getTabChargeAccountsInSession(db: Database.Database, sessionId: number)
     const balRow = balanceStmt.get(tabId) as { t: number }
     const balanceTotal = Math.round(Number(balRow.t) * 100) / 100
     const isVipExempt = meta.vipConditionType === 'exempt'
+    const pmRow = paymentMethodStmt.get(tabId) as { paymentMethod: string } | undefined
+    const paymentMethod = pmRow ? ((pmRow.paymentMethod === 'CARD' || pmRow.paymentMethod === 'CASH') ? (pmRow.paymentMethod as 'CASH' | 'CARD') : null) : null
     return {
       tabId,
       customerName: meta.customerName,
@@ -372,6 +384,7 @@ function getTabChargeAccountsInSession(db: Database.Database, sessionId: number)
       })),
       balanceTotal,
       isVipExempt,
+      paymentMethod,
     }
   })
 }
@@ -692,7 +705,7 @@ function createPdf(report: ShiftCloseReport): string {
 
     autoTable(doc, {
       startY,
-      head: [['Cliente', 'Apertura', 'Consumos (cargos a cuenta)', 'Total cuenta']],
+    head: [['Cliente', 'Apertura', 'Consumos (cargos a cuenta)', 'Total cuenta']],
       body: pendingAccountsBody,
       theme: 'grid',
       tableWidth: innerW,
@@ -727,7 +740,7 @@ function createPdf(report: ShiftCloseReport): string {
         if (data.section !== 'body') {
           return
         }
-        if (data.column.index === 3) {
+      if (data.column.index === 4) {
           data.cell.styles.textColor = C.moneyGreen
           data.cell.styles.fontStyle = 'bold'
         }
@@ -757,7 +770,19 @@ function createPdf(report: ShiftCloseReport): string {
     Math.round(
       report.tabChargeAccountsInSession.reduce((s, a) => s + (a.isVipExempt ? 0 : a.balanceTotal), 0) * 100,
     ) / 100
-  const totalGeneral = Math.round((totalContado + totalCuentaAbierta) * 100) / 100
+  const totalCuentaAbiertaCASH = Math.round(
+    report.tabChargeAccountsInSession
+      .filter((a) => a.paymentMethod === 'CASH')
+      .reduce((s, a) => s + (a.isVipExempt ? 0 : a.balanceTotal), 0) * 100,
+  ) / 100
+  const totalCuentaAbiertaCARD = Math.round(
+    report.tabChargeAccountsInSession
+      .filter((a) => a.paymentMethod === 'CARD')
+      .reduce((s, a) => s + (a.isVipExempt ? 0 : a.balanceTotal), 0) * 100,
+  ) / 100
+  const subtotalCash = Math.round((totalCash + totalCuentaAbiertaCASH) * 100) / 100
+  const subtotalCard = Math.round((totalCard + totalCuentaAbiertaCARD) * 100) / 100
+  const grandTotal = Math.round((subtotalCash + subtotalCard) * 100) / 100
 
   const posLinesForTable = groupPosSaleLinesByProductAndVip(report.posSaleLines)
 
@@ -872,7 +897,7 @@ function createPdf(report: ShiftCloseReport): string {
           [
             {
               content: 'Sin cargos a cuenta registrados en este turno.',
-              colSpan: 4,
+              colSpan: 5,
               styles: { halign: 'center' as const, textColor: C.labelGrey },
             },
           ],
@@ -881,12 +906,13 @@ function createPdf(report: ShiftCloseReport): string {
           a.customerName,
           formatOpenedAtLabel(a.openedAt),
           formatAccountConsumptionCell(a.consumptionLines, fmt),
+          a.paymentMethod ? paymentMethodLabel(a.paymentMethod) : '—',
           formatEuro(a.isVipExempt ? 0 : a.balanceTotal),
         ])
 
   autoTable(doc, {
     startY,
-    head: [['Cliente', 'Apertura', 'Consumos (cargos a cuenta)', 'Total cuenta']],
+    head: [['Cliente', 'Apertura', 'Consumos (cargos a cuenta)', 'Método de pago', 'Total cuenta']],
     body: tabChargeBody,
     foot:
       report.tabChargeAccountsInSession.length > 0
@@ -894,7 +920,7 @@ function createPdf(report: ShiftCloseReport): string {
             [
               {
                 content: 'Total ventas en cuenta abierta',
-                colSpan: 3,
+                colSpan: 4,
                 styles: {
                   fillColor: C.barGreen,
                   textColor: 255,
@@ -942,10 +968,11 @@ function createPdf(report: ShiftCloseReport): string {
       fontStyle: 'bold',
     },
     columnStyles: {
-      0: { cellWidth: innerW * 0.18, halign: 'left' },
-      1: { cellWidth: innerW * 0.2, halign: 'left' },
-      2: { cellWidth: innerW * 0.47, halign: 'left' },
-      3: { cellWidth: innerW * 0.15, halign: 'right', fontStyle: 'bold', textColor: C.moneyGreen },
+      0: { cellWidth: innerW * 0.16, halign: 'left' },
+      1: { cellWidth: innerW * 0.18, halign: 'left' },
+      2: { cellWidth: innerW * 0.38, halign: 'left' },
+      3: { cellWidth: innerW * 0.13, halign: 'center' },
+      4: { cellWidth: innerW * 0.15, halign: 'right', fontStyle: 'bold', textColor: C.moneyGreen },
     },
     alternateRowStyles: {
       fillColor: C.zebra,
@@ -973,13 +1000,28 @@ function createPdf(report: ShiftCloseReport): string {
     startY,
     head: [
       [
-        { content: 'Total (Efectivo)', styles: { halign: 'center' as const } },
-        { content: 'Total (Tarjeta)', styles: { halign: 'center' as const } },
+        { content: '', styles: { halign: 'center' as const } },
+        { content: 'Total (Al contado)', styles: { halign: 'center' as const } },
         { content: 'Total (Cuenta abierta)', styles: { halign: 'center' as const } },
-        { content: 'Total general', styles: { halign: 'center' as const } },
+        { content: 'Subtotal', styles: { halign: 'center' as const } },
+        { content: 'Total', styles: { halign: 'center' as const } },
       ],
     ],
-    body: [[formatEuro(totalCash), formatEuro(totalCard), formatEuro(totalCuentaAbierta), formatEuro(totalGeneral)]],
+    body: [
+      [
+        { content: 'Efectivo', styles: { fontStyle: 'bold', halign: 'left' as const } },
+        formatEuro(totalCash),
+        formatEuro(totalCuentaAbiertaCASH),
+        formatEuro(subtotalCash),
+        { content: formatEuro(grandTotal), rowSpan: 2, styles: { halign: 'center' as const } },
+      ],
+      [
+        { content: 'Tarjeta', styles: { fontStyle: 'bold', halign: 'left' as const } },
+        formatEuro(totalCard),
+        formatEuro(totalCuentaAbiertaCARD),
+        formatEuro(subtotalCard),
+      ],
+    ],
     theme: 'grid',
     tableWidth: innerW,
     margin: { left: margin, right: margin },
@@ -1004,19 +1046,23 @@ function createPdf(report: ShiftCloseReport): string {
       fontSize: 12,
     },
     columnStyles: {
-      0: { cellWidth: innerW / 4, halign: 'center' as const },
-      1: { cellWidth: innerW / 4, halign: 'center' as const },
-      2: { cellWidth: innerW / 4, halign: 'center' as const },
-      3: { cellWidth: innerW / 4, halign: 'center' as const },
+      0: { cellWidth: innerW * 0.15, halign: 'left' as const },
+      1: { cellWidth: innerW * 0.23, halign: 'center' as const },
+      2: { cellWidth: innerW * 0.23, halign: 'center' as const },
+      3: { cellWidth: innerW * 0.20, halign: 'center' as const },
+      4: { cellWidth: innerW * 0.19, halign: 'center' as const },
     },
     didParseCell: (data) => {
-      if (data.section !== 'body' || data.row.index !== 0) {
+      if (data.section !== 'body') {
         return
       }
       data.cell.styles.fillColor = C.summaryBand
-      if (data.column.index === 3) {
+      if (data.column.index === 4) {
         data.cell.styles.fontSize = 14
         data.cell.styles.textColor = C.moneyGreen
+      } else if (data.column.index === 3) {
+        data.cell.styles.textColor = C.moneyGreen
+        data.cell.styles.fontStyle = 'bold'
       } else {
         data.cell.styles.textColor = [40, 44, 52]
       }
