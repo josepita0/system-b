@@ -329,9 +329,9 @@ export function ShiftsPage() {
         const r = data.report
         let msg = 'Turno cerrado. PDF de cierre generado.'
         if (r.emailSentImmediately && r.reportRecipientEmail) {
-          msg += ` Correo enviado a ${r.reportRecipientEmail}.`
+          msg
         } else if (r.emailEnqueued && r.reportRecipientEmail) {
-          msg += ` No se pudo enviar ahora; correo en cola para ${r.reportRecipientEmail} (reintente desde Reportes).`
+          msg 
         } else {
           msg += ' No se configuró envío por correo (revise destinatario en el panel de licencia).'
         }
@@ -365,9 +365,9 @@ export function ShiftsPage() {
       await queryClient.invalidateQueries({ queryKey: ['reports', 'pending-emails'] })
       let msg = `PDF de cierre regenerado para sesión #${r.sessionId}.`
       if (r.emailSentImmediately && r.reportRecipientEmail) {
-        msg += ` Correo enviado a ${r.reportRecipientEmail}.`
+        msg 
       } else if (r.emailEnqueued && r.reportRecipientEmail) {
-        msg += ` No se pudo enviar ahora; correo en cola para ${r.reportRecipientEmail} (reintente desde Reportes).`
+        msg
       } else {
         msg += ' No se configuró envío por correo (revise destinatario en el panel de licencia).'
       }
