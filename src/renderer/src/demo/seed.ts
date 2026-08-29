@@ -5,7 +5,7 @@ import type { VipCustomer } from '@shared/types/vipCustomer'
 import type { ShiftDefinition } from '@shared/types/shift'
 
 export const DEMO_CURRENCY = 'USD'
-export const DEMO_MIN_OPENING_CASH = 20_000
+export const DEMO_MIN_OPENING_CASH = 200
 export const DEMO_MANAGER: AuthenticatedUser = {
   id: 1, firstName: 'Carlos', lastName: 'Barra', documentId: 'DEMO-001', email: 'demo@systembarra.app',
   username: 'carlos', role: 'manager', isActive: 1, mustChangePassword: 0, lastLoginAt: null,

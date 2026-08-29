@@ -22,4 +22,6 @@ async function bootstrap() {
     <React.StrictMode><QueryClientProvider client={queryClient}><Router><App /></Router></QueryClientProvider></React.StrictMode>,
   )
 }
-void bootstrap()
+void bootstrap().catch((error: unknown) => {
+  console.error('Renderer bootstrap failed', error)
+})
