@@ -12,5 +12,6 @@ export function DemoChip() {
     <Button className={cn('h-7 rounded-full px-2 text-xs', resetting && 'opacity-60')} disabled={resetting} onClick={() => {
       setResetting(true); resetDemo(); queryClient.clear(); setTimeout(() => setResetting(false), 100)
     }} type="button" variant="secondary">{resetting ? 'Restaurando...' : 'Reiniciar demo'}</Button>
+    <a className="inline-flex h-7 items-center rounded-full border border-brand/30 px-2 text-xs font-semibold text-brand transition-opacity hover:opacity-70" href="/">Volver a la landing</a>
   </div>
 }
