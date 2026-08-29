@@ -18,6 +18,8 @@
     "build:installer": "npm run generate:app-icon && npm run build:main && npm run build:renderer && npm run native:electron && npm run sync:app-icon && electron-builder --win nsis --publish never",
     "build:main": "node -e \"require('fs').rmSync('dist-electron',{recursive:true,force:true})\" && tsc -p tsconfig.electron.json && node scripts/copy-main-assets.js",
     "build:renderer": "vite build",
+    "build:demo": "vite build --mode demo --outDir landing/public/demo",
+    "check:no-demo": "npm run build:renderer && node scripts/check-no-demo-in-prod.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "test": "npm run native:node && vitest run",
     "test:watch": "npm run native:node && vitest"

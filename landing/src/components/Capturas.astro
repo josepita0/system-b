@@ -1,0 +1,47 @@
+---
+const capturas = [
+  { file: 'pos-catalogo.png', caption: 'Catalogo de ventas por categoria' },
+  { file: 'dashboard.png', caption: 'Dashboard: el estado de tu barra de un vistazo' },
+  { file: 'cierre-turno-pdf.png', caption: 'Reporte PDF de cierre de turno' },
+  { file: 'productos.png', caption: 'Administracion de productos' },
+];
+---
+
+<section id="capturas" class="scroll-mt-24 py-24 sm:py-32">
+  <div class="mx-auto max-w-6xl px-6">
+    <header class="mx-auto max-w-2xl text-center">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-ink-muted">
+        La interfaz
+      </p>
+      <h2 class="mt-3 font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        Asi se ve trabajar
+      </h2>
+      <p class="mt-4 text-ink-muted">
+        Estas son las pantallas que vas a usar todos los dias.
+      </p>
+    </header>
+
+    <div class="mt-14 grid gap-8 sm:grid-cols-2">
+      {
+        capturas.map((c) => (
+          <figure class="group">
+            <div class="overflow-hidden rounded-2xl border border-edge bg-surface-2 transition-transform duration-300 motion-reduce:transform-none group-hover:-translate-y-1">
+              <img
+                src={`/capturas/${c.file}`}
+                alt={c.caption}
+                loading="lazy"
+                decoding="async"
+                width="1280"
+                height="800"
+                class="aspect-[16/10] w-full object-cover object-top"
+              />
+            </div>
+            <figcaption class="mt-3 text-sm leading-snug text-ink-muted">
+              {c.caption}
+            </figcaption>
+          </figure>
+        ))
+      }
+    </div>
+  </div>
+</section>

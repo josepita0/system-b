@@ -1,0 +1,5 @@
+{
+  "installCommand": "npm install --ignore-scripts",
+  "buildCommand": "npm run build:demo && npm --prefix landing run build",
+  "outputDirectory": "landing/dist"
+}

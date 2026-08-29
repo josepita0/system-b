@@ -1,0 +1,106 @@
+<section id="contacto" class="scroll-mt-24 py-24 sm:py-32">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="grid gap-12 lg:grid-cols-2 lg:gap-16">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-ink-muted">
+          Contacto
+        </p>
+        <h2 class="mt-3 font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          Conversemos sobre tu barra
+        </h2>
+        <p class="mt-4 max-w-md text-ink-muted">
+          Contanos como es tu salon de juegos: cuantas cajas, que productos,
+          como cerras el turno hoy. Te contamos como el sistema se adapta a
+          tu negocio.
+        </p>
+
+        <a
+          href="mailto:contacto@tu-dominio.com"
+          class="mt-8 inline-flex items-center gap-3 rounded-2xl border border-edge bg-surface px-5 py-4 font-medium transition-colors duration-200 hover:border-brand-line"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-5 w-5 text-brand"
+            aria-hidden="true"
+          >
+            <rect x="2" y="4" width="20" height="16" rx="2" />
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+          </svg>
+          contacto@tu-dominio.com
+        </a>
+        <p class="mt-3 text-xs text-ink-muted">
+          Direccion de ejemplo: reemplazala por el correo real de tu negocio.
+        </p>
+      </div>
+
+      <form
+        id="formulario-contacto"
+        class="rounded-2xl border border-edge bg-surface p-6 sm:p-8"
+      >
+        <div class="space-y-5">
+          <div>
+            <label for="nombre" class="mb-2 block text-sm font-medium">Nombre</label>
+            <input
+              id="nombre"
+              name="nombre"
+              type="text"
+              required
+              placeholder="Tu nombre"
+              class="w-full rounded-xl border border-edge bg-canvas px-4 py-3 text-sm placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
+            />
+          </div>
+          <div>
+            <label for="email" class="mb-2 block text-sm font-medium">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              placeholder="tu@email.com"
+              class="w-full rounded-xl border border-edge bg-canvas px-4 py-3 text-sm placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
+            />
+          </div>
+          <div>
+            <label for="mensaje" class="mb-2 block text-sm font-medium">Mensaje</label>
+            <textarea
+              id="mensaje"
+              name="mensaje"
+              rows="4"
+              required
+              placeholder="Contanos sobre tu salon de juegos..."
+              class="w-full resize-none rounded-xl border border-edge bg-canvas px-4 py-3 text-sm placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
+            ></textarea>
+          </div>
+        </div>
+        <button
+          type="submit"
+          class="mt-6 w-full rounded-full bg-brand px-6 py-3.5 text-sm font-semibold text-brand-fg transition-colors duration-200 hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        >
+          Enviar mensaje
+        </button>
+        <p class="mt-4 text-center text-xs text-ink-muted">
+          Formulario de demostracion sin backend: conectalo a tu servicio de
+          email o CRM.
+        </p>
+      </form>
+    </div>
+  </div>
+</section>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('#formulario-contacto');
+  const button = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+  form?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    form.reset();
+    if (button) {
+      button.textContent = 'Mensaje enviado (demo)';
+      button.disabled = true;
+    }
+  });
+</script>

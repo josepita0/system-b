@@ -1,0 +1,18 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Hero from '../components/Hero.astro';
+import Pilares from '../components/Pilares.astro';
+import Capturas from '../components/Capturas.astro';
+import Contacto from '../components/Contacto.astro';
+
+const pageTitle = 'Tu marca · POS para salones de juegos';
+const pageDescription =
+  'Sistema de punto de venta para salones de juegos que funciona sin internet: cierre de turno en PDF, catalogo por categoria, dashboard y administracion de productos. Sin suscripcion, sin nube, sin terceros.';
+---
+
+<Layout title={pageTitle} description={pageDescription}>
+  <Hero />
+  <Pilares />
+  <Capturas />
+  <Contacto />
+</Layout>

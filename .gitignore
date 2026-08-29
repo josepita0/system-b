@@ -22,6 +22,7 @@ initial-admin-access.json
 # Environment and local overrides
 .env
 .env.*
+!.env.demo
 *.local
 
 # Logs and temporary files
@@ -45,3 +46,7 @@ Thumbs.db
 docs/private/
 
 skills-lock.json
+
+# Build artifacts
+landing/public/demo/
+landing/dist/

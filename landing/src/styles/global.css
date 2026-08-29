@@ -1,0 +1,50 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Convierte los tokens en utilidades de Tailwind v4 (bg-brand,
+   text-ink, border-edge, font-heading, etc.). Al cambiar los
+   valores en tokens.css, toda la pagina se re-viste sola. */
+@theme {
+  --color-brand: var(--brand-color);
+  --color-brand-hover: var(--brand-color-hover);
+  --color-brand-fg: var(--brand-color-fg);
+  --color-brand-tint: var(--brand-color-tint);
+  --color-brand-line: var(--brand-color-line);
+  --color-brand-glow: var(--brand-color-glow);
+
+  --color-canvas: var(--canvas);
+  --color-canvas-soft: var(--canvas-soft);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-scrim: var(--scrim);
+  --color-edge: var(--edge);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-heading);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: var(--canvas);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--brand-color);
+    color: var(--brand-color-fg);
+  }
+}
