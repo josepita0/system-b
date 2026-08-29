@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, type ReactNode } from 'react'
+import { Suspense, lazy, useEffect, type ReactNode, type ReactElement } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
@@ -7,6 +7,10 @@ import { Button } from './components/ui/Button'
 import { getSetupStatusSafe } from './lib/setup'
 import { useAuthStore } from './store/authStore'
 import { usePosStore } from './store/posStore'
+
+const demoEnabled = import.meta.env.VITE_DEMO === 'true'
+const DemoFallback = demoEnabled ? lazy(() => import('./demo/DemoFallback').then((module) => ({ default: module.DemoFallback }))) : null
+const DemoChip = demoEnabled ? lazy(() => import('./demo/DemoChip').then((module) => ({ default: module.DemoChip }))) : null
 
 const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage').then((module) => ({ default: module.ChangePasswordPage })))
 const LoginPage = lazy(() => import('./pages/auth/LoginPage').then((module) => ({ default: module.LoginPage })))
@@ -51,8 +55,8 @@ function buildAppNavItems(role: string): NavEntry[] {
   if (role !== 'employee') {
     items.push(
       { to: '/dashboard', label: 'Dashboard', icon: 'chart' },
-      { to: '/usuarios', label: 'Usuarios', icon: 'users' },
-      { to: '/inventario', label: 'Inventario', icon: 'box' },
+       { to: '/usuarios', label: 'Usuarios', icon: 'users', disabled: demoEnabled },
+       { to: '/inventario', label: 'Inventario', icon: 'box', disabled: demoEnabled },
       { to: '/turnos', label: 'Turnos', icon: 'clock' },
       { to: '/reportes', label: 'Reportes', icon: 'chart' },
       {
@@ -61,19 +65,24 @@ function buildAppNavItems(role: string): NavEntry[] {
         label: 'Ajustes',
         icon: 'cog',
         children: [
-          { to: '/', label: 'Productos', icon: 'grid', end: true },
-          { to: '/galeria-imagenes', label: 'Galeria de imagenes', icon: 'grid' },
-          { to: '/consumos', label: 'Consumos', icon: 'flask' },
+           { to: '/', label: 'Productos', icon: 'grid', end: true, disabled: demoEnabled },
+           { to: '/galeria-imagenes', label: 'Galeria de imagenes', icon: 'grid', disabled: demoEnabled },
+           { to: '/consumos', label: 'Consumos', icon: 'flask', disabled: demoEnabled },
           { to: '/clientes-vip', label: 'Clientes VIP', icon: 'star' },
-          { to: '/ajustes/caja', label: 'Caja', icon: 'clock' },
+           { to: '/ajustes/caja', label: 'Caja', icon: 'clock', disabled: demoEnabled },
         ],
       },
     )
   }
   if (role === 'manager') {
-    items.push({ to: '/mi-documentacion', label: 'Mi documentacion', icon: 'file' })
+    items.push({ to: '/mi-documentacion', label: 'Mi documentacion', icon: 'file', disabled: demoEnabled })
   }
   return items
+}
+
+function demoRoute(element: ReactElement): ReactElement {
+  if (!demoEnabled || !DemoFallback) return element
+  return <DemoFallback />
 }
 
 export default function App() {
@@ -247,6 +256,7 @@ export default function App() {
       onLogout={handleLogout}
       userDisplayName={userDisplayName}
       userRole={user.role}
+      headerExtra={demoEnabled && DemoChip ? <Suspense fallback={null}><DemoChip /></Suspense> : undefined}
     >
       <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -256,7 +266,7 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <ProductsPage />
+                     {demoRoute(<ProductsPage />)}
                   </ProtectedRoute>
                 }
                 path="/"
@@ -288,7 +298,7 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <InventoryLayout />
+                     {demoRoute(<InventoryLayout />)}
                   </ProtectedRoute>
                 }
                 path="/inventario"
@@ -299,7 +309,7 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <ConsumptionRulesPage />
+                     {demoRoute(<ConsumptionRulesPage />)}
                   </ProtectedRoute>
                 }
                 path="/consumos"
@@ -315,7 +325,7 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <ImageGalleryPage />
+                     {demoRoute(<ImageGalleryPage />)}
                   </ProtectedRoute>
                 }
                 path="/galeria-imagenes"
@@ -323,7 +333,7 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <CashSettingsPage />
+                     {demoRoute(<CashSettingsPage />)}
                   </ProtectedRoute>
                 }
                 path="/ajustes/caja"
@@ -331,7 +341,7 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <UserListPage />
+                     {demoRoute(<UserListPage />)}
                   </ProtectedRoute>
                 }
                 path="/usuarios"
@@ -339,7 +349,7 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <Navigate replace to="/usuarios" />
+                     {demoRoute(<Navigate replace to="/usuarios" />)}
                   </ProtectedRoute>
                 }
                 path="/usuarios/nuevo"
@@ -347,7 +357,7 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
-                    <UserDetailPage />
+                     {demoRoute(<UserDetailPage />)}
                   </ProtectedRoute>
                 }
                 path="/usuarios/:id"
@@ -363,7 +373,7 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute requiredRole="admin">
-                    <LicenseAdminPage />
+                     {demoRoute(<LicenseAdminPage />)}
                   </ProtectedRoute>
                 }
                 path="/admin/licencia"
@@ -374,7 +384,7 @@ export default function App() {
                     <Navigate replace to="/" />
                   ) : (
                     <ProtectedRoute requiredRole="manager">
-                      <UserDocumentsPage />
+                       {demoRoute(<UserDocumentsPage />)}
                     </ProtectedRoute>
                   )
                 }

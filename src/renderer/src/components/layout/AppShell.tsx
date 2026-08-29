@@ -17,6 +17,7 @@ export type NavLinkItem = {
   icon: NavIconName
   /** Evita que `/` active en rutas hijas. */
   end?: boolean
+  disabled?: boolean
 }
 
 /** Grupo con submenú (p. ej. Ajustes). */
@@ -236,7 +237,7 @@ function NavGroup({ group, sidebarExpanded }: { group: NavGroupItem; sidebarExpa
                 <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {group.label}
                 </div>
-                {group.children.map((child) => (
+                {group.children.map((child) => child.disabled ? <DisabledNavItem item={child} expanded={true} /> : (
                   <NavLink
                     className={({ isActive }) =>
                       cn(
@@ -323,9 +324,16 @@ type AppShellProps = {
   userRole: UserRole
   navItems: NavEntry[]
   onLogout: () => void
+  headerExtra?: ReactNode
 }
 
-export function AppShell({ children, userDisplayName, userRole, navItems, onLogout }: AppShellProps) {
+function DisabledNavItem({ item, expanded }: { item: NavLinkItem; expanded: boolean }) {
+  return <button aria-disabled="true" className={cn(navSubLinkClass({ isActive: false, expanded }), 'cursor-not-allowed opacity-40')} disabled title={item.label} type="button">
+    <span className="flex shrink-0"><Icon name={item.icon} /></span>{expanded ? <span className="min-w-0 truncate text-sm font-medium">{item.label}</span> : null}
+  </button>
+}
+
+export function AppShell({ children, userDisplayName, userRole, navItems, onLogout, headerExtra }: AppShellProps) {
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {
     try {
       return localStorage.getItem(SIDEBAR_EXPANDED_KEY) === '1'
@@ -396,7 +404,7 @@ export function AppShell({ children, userDisplayName, userRole, navItems, onLogo
           {navItems.map((item) =>
             isNavGroup(item) ? (
               <NavGroup group={item} key={item.id} sidebarExpanded={sidebarExpanded} />
-            ) : (
+            ) : item.disabled ? <DisabledNavItem item={item} expanded={sidebarExpanded} key={item.to + item.label} /> : (
               <NavLink
                 className={({ isActive }) => navLinkClass({ isActive, expanded: sidebarExpanded })}
                 end={item.end}
@@ -458,6 +466,8 @@ export function AppShell({ children, userDisplayName, userRole, navItems, onLogo
               />
             </div>
           </div> */}
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            {headerExtra}
           <div className="hidden min-w-0 shrink-0 items-center gap-2 sm:flex">
             <div className="flex min-w-0 max-w-[min(100%,20rem)] flex-wrap items-center gap-2 text-sm">
               <span className="truncate font-medium text-slate-900" title={userDisplayName}>
@@ -474,6 +484,7 @@ export function AppShell({ children, userDisplayName, userRole, navItems, onLogo
             >
               {userDisplayName.trim().charAt(0).toUpperCase() || '?'}
             </div>
+          </div>
           </div>
         </header>
 
