@@ -2,33 +2,36 @@
    Tokens de marca — puntos de personalizacion
    ------------------------------------------------------------
    Toda la identidad visual de la pagina se construye a partir
-   de estas variables CSS. Para re-vestir esta landing con la
-   marca de un cliente basta con cambiar estos valores (y la
-   carga de fuentes en src/layouts/Layout.astro). Los
-   componentes no necesitan tocarse: todo se consume via el
-   bloque @theme de src/styles/global.css.
+   de estas variables CSS. Los valores estan alineados con la
+   app principal (src/renderer/src/styles.css): mismo azul de
+   marca, mismas superficies claras, misma tipografia Inter.
+   Para re-vestir esta landing con la marca de un cliente basta
+   con cambiar estos valores (y la carga de fuentes en
+   src/layouts/Layout.astro). Los componentes no necesitan
+   tocarse: todo se consume via el bloque @theme de
+   src/styles/global.css.
    ============================================================ */
 
 :root {
-  /* Acento de marca — el color que identifica al negocio */
-  --brand-color: #e9a13b;
-  --brand-color-hover: #f0b45c;
-  --brand-color-fg: #211807;
-  --brand-color-tint: rgba(233, 161, 59, 0.12);
-  --brand-color-line: rgba(233, 161, 59, 0.45);
-  --brand-color-glow: rgba(233, 161, 59, 0.18);
+  /* Acento de marca — alineado con la app principal (#0066ff) */
+  --brand-color: #0066ff;
+  --brand-color-hover: #3385ff;
+  --brand-color-fg: #ffffff;
+  --brand-color-tint: rgba(0, 102, 255, 0.08);
+  --brand-color-line: rgba(0, 102, 255, 0.25);
+  --brand-color-glow: rgba(0, 102, 255, 0.12);
 
-  /* Tipografias — la carga real de las fuentes vive en el Layout */
-  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-heading: "Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+  /* Tipografias — Inter en toda la app, la landing usa la misma */
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  /* Paleta neutra (fondo y superficies) */
-  --canvas: #16130f;
-  --canvas-soft: rgba(22, 19, 15, 0.85);
-  --surface: #1f1a14;
-  --surface-2: #27211a;
-  --scrim: rgba(22, 19, 15, 0.65);
-  --edge: rgba(243, 236, 224, 0.1);
-  --ink: #f3ece0;
-  --ink-muted: rgba(243, 236, 224, 0.64);
+  /* Paleta neutra clara — alineada con la app principal */
+  --canvas: #f8fafc;
+  --canvas-soft: rgba(248, 250, 252, 0.85);
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --scrim: rgba(248, 250, 252, 0.65);
+  --edge: rgba(15, 23, 42, 0.08);
+  --ink: #0f172a;
+  --ink-muted: #64748b;
 }
