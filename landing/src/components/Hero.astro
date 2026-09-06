@@ -1,38 +1,181 @@
-<section id="inicio" class="relative overflow-hidden">
+<section id="inicio" class="relative overflow-hidden pt-12 sm:pt-16">
+  {/* Fondo decorativo con gradiente radial y glow de marca */}
   <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10">
-    <div class="absolute -top-64 left-1/2 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-brand-glow blur-[128px]" />
+    <div class="absolute -top-48 left-1/2 h-[44rem] w-[44rem] -translate-x-1/2 rounded-full bg-brand-glow blur-[140px] opacity-80" />
     <div class="absolute inset-0 bg-[radial-gradient(rgba(15,23,42,0.04)_1px,transparent_1px)] bg-[size:28px_28px]" />
   </div>
 
-  <div class="mx-auto max-w-6xl px-6 pb-24 pt-28 text-center sm:pb-32 sm:pt-40">
-    <p
-      class="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-edge bg-surface px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-ink-muted"
-    >
-      Sistema de punto de venta · Salones de juegos
-    </p>
+  <div class="mx-auto max-w-6xl px-6 pb-20 pt-16 text-center sm:pb-28 sm:pt-24">
+    {/* Pill superior con indicador de estado offline */}
+    <div class="inline-flex items-center gap-2.5 rounded-full border border-edge bg-surface px-4 py-1.5 text-xs font-semibold tracking-wide text-ink shadow-xs">
+      <span class="relative flex h-2 w-2">
+        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+      </span>
+      <span>POS Offline-First · Rápido, confiable y sin suscripción</span>
+    </div>
 
-    <h1
-      class="mx-auto max-w-3xl font-heading text-4xl font-semibold leading-[1.05] tracking-tight text-balance sm:text-6xl"
-    >
-      Tu caja, sin nube.<br />Tu turno, en un toque.
+    {/* Título principal con alto impacto */}
+    <h1 class="mx-auto mt-6 max-w-4xl font-heading text-4xl font-bold tracking-tight text-balance sm:text-6xl sm:leading-[1.1]">
+      Tu punto de venta nunca se detiene.<br />
+      <span class="text-brand">Tu turno en un solo toque.</span>
     </h1>
 
+    {/* Bajada de texto generalizada a cualquier comercio */}
     <p class="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-ink-muted text-pretty">
-      El punto de venta para tu salon de juegos que trabaja sin internet y sin
-      suscripcion: productos, categorias, dashboard y cierre de turno en PDF,
-      listo para imprimir o enviar por mail.
+      Cobra en segundos, administra tu catálogo y genera tu arqueo de caja en PDF al instante.
+      Opera al 100% sin internet, sin caídas de servidor y sin alquileres mensuales que encarezcan tu operación.
     </p>
 
-    <div class="mt-10 flex flex-col items-center gap-4">
+    {/* Botones de acción */}
+    <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
       <a
         href="/demo/"
-        class="inline-flex items-center justify-center rounded-full bg-brand px-8 py-4 text-base font-semibold text-brand-fg shadow-lg shadow-brand-glow transition-colors duration-200 hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        class="inline-flex items-center justify-center gap-2 rounded-full bg-brand px-8 py-3.5 text-base font-semibold text-brand-fg shadow-lg shadow-brand-glow transition-all duration-200 hover:bg-brand-hover hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       >
-        Probar la demo
+        <span>Probar demo interactiva</span>
+        <svg
+          class="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M5 12h14" />
+          <path d="m12 5 7 7-7 7" />
+        </svg>
       </a>
-      <p class="text-sm text-ink-muted">
-        Un solo pago. Sin mensualidad, sin nube, sin terceros.
-      </p>
+
+      <a
+        href="#capturas"
+        class="inline-flex items-center justify-center gap-2 rounded-full border border-edge bg-surface px-7 py-3.5 text-base font-semibold text-ink transition-colors duration-200 hover:border-brand-line hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      >
+        <svg
+          class="h-4 w-4 text-brand"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect width="20" height="14" x="2" y="3" rx="2" />
+          <line x1="8" x2="16" y1="21" y2="21" />
+          <line x1="12" x2="12" y1="17" y2="21" />
+        </svg>
+        <span>Ver pantallas del sistema</span>
+      </a>
+    </div>
+
+    {/* Micro-puntos de confianza */}
+    <div class="mt-8 flex flex-wrap items-center justify-center gap-y-2 gap-x-6 text-xs font-medium text-ink-muted">
+      <span class="inline-flex items-center gap-1.5">
+        <svg class="h-3.5 w-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+        Un solo pago (licencia definitiva)
+      </span>
+      <span class="inline-flex items-center gap-1.5">
+        <svg class="h-3.5 w-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+        100% Operativo sin conexión
+      </span>
+      <span class="inline-flex items-center gap-1.5">
+        <svg class="h-3.5 w-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+        Tus datos en tu propia máquina
+      </span>
+    </div>
+
+    {/* Mockup interactivo en ventana con badges flotantes */}
+    <div class="relative mx-auto mt-14 max-w-5xl">
+      {/* Badge flotante 1: Motor Local */}
+      <div
+        class="animate-float pointer-events-none absolute -top-5 left-4 z-20 hidden items-center gap-3 rounded-2xl border border-edge bg-surface/95 p-3.5 shadow-xl backdrop-blur-md sm:flex"
+      >
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-brand-tint text-brand">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <ellipse cx="12" cy="5" rx="9" ry="3" />
+            <path d="M3 5V19A9 3 0 0 0 21 19V5" />
+            <path d="M3 12A9 3 0 0 0 21 12" />
+          </svg>
+        </div>
+        <div class="text-left">
+          <p class="text-xs font-bold text-ink">Base Local SQLite</p>
+          <p class="text-[11px] text-ink-muted">Cero latencia · &lt;50ms por venta</p>
+        </div>
+      </div>
+
+      {/* Badge flotante 2: Cierre de turno */}
+      <div
+        class="animate-float-delayed pointer-events-none absolute -bottom-6 -left-3 z-20 hidden items-center gap-3 rounded-2xl border border-edge bg-surface/95 p-3.5 shadow-xl backdrop-blur-md md:flex"
+      >
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" x2="8" y1="13" y2="13" />
+            <line x1="16" x2="8" y1="17" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
+        </div>
+        <div class="text-left">
+          <p class="text-xs font-bold text-ink">Cierre en 1 Clic</p>
+          <p class="text-[11px] text-ink-muted">PDF con arqueo y total por medio de pago</p>
+        </div>
+      </div>
+
+      {/* Badge flotante 3: Sin suscripción */}
+      <div
+        class="animate-float pointer-events-none absolute -bottom-6 -right-3 z-20 hidden items-center gap-3 rounded-2xl border border-edge bg-surface/95 p-3.5 shadow-xl backdrop-blur-md sm:flex"
+      >
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-brand-tint text-brand">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="18" height="18" x="3" y="3" rx="2" />
+            <path d="m9 12 2 2 4-4" />
+          </svg>
+        </div>
+        <div class="text-left">
+          <p class="text-xs font-bold text-ink">$0 Mensualidad</p>
+          <p class="text-[11px] text-ink-muted">Sin terceros ni rentas continuas</p>
+        </div>
+      </div>
+
+      {/* Marco de ventana de aplicación */}
+      <div class="overflow-hidden rounded-2xl border border-edge bg-surface shadow-2xl shadow-slate-900/10 transition-transform duration-500 hover:scale-[1.005]">
+        {/* Barra superior de la ventana */}
+        <div class="flex items-center justify-between border-b border-edge bg-surface-2 px-4 py-3">
+          <div class="flex items-center gap-2">
+            <span class="h-3 w-3 rounded-full bg-rose-400/80"></span>
+            <span class="h-3 w-3 rounded-full bg-amber-400/80"></span>
+            <span class="h-3 w-3 rounded-full bg-emerald-400/80"></span>
+          </div>
+          <div class="flex items-center gap-2 rounded-lg bg-canvas px-3 py-1 text-xs font-medium text-ink-muted">
+            <svg class="h-3.5 w-3.5 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M3 9h18" />
+            </svg>
+            <span>POS Terminal — Catalogo de Ventas</span>
+          </div>
+          <div class="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
+            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+            <span class="hidden sm:inline">Offline Activo</span>
+          </div>
+        </div>
+
+        {/* Imagen del mockup */}
+        <div class="relative bg-surface-2">
+          <img
+            src="/capturas/pos-catalogo.png"
+            alt="Interfaz del sistema POS con catálogo por categoría y carro de ventas"
+            loading="eager"
+            decoding="async"
+            width="1280"
+            height="800"
+            class="aspect-[16/10] w-full object-cover object-top"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </section>

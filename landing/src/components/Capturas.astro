@@ -1,47 +1,341 @@
 ---
-const capturas = [
-  { file: 'pos-catalogo.png', caption: 'Catalogo de ventas por categoria' },
-  { file: 'dashboard.png', caption: 'Dashboard: el estado de tu barra de un vistazo' },
-  { file: 'cierre-turno-pdf.png', caption: 'Reporte PDF de cierre de turno' },
-  { file: 'productos.png', caption: 'Administracion de productos' },
+interface Pantalla {
+  id: string;
+  tabLabel: string;
+  title: string;
+  description: string;
+  file: string;
+  highlights: { icon: string; text: string }[];
+}
+
+const pantallas: Pantalla[] = [
+  {
+    id: 'pos',
+    tabLabel: 'Caja y Ventas',
+    title: 'Terminal de Ventas y Facturación Ágil',
+    description:
+      'Diseñado para operar a gran velocidad en momentos de alta demanda. Búsqueda instantánea de productos, organización visual por familias o categorías, atajos de teclado y múltiples medios de pago.',
+    file: 'pos-catalogo.png',
+    highlights: [
+      { icon: 'bolt', text: 'Cobro veloz con cálculo automático de vuelto' },
+      { icon: 'category', text: 'Catálogo visual configurable por categorías' },
+      { icon: 'payment', text: 'Efectivo, tarjetas y transferencias combinadas' },
+    ],
+  },
+  {
+    id: 'cierre',
+    tabLabel: 'Cierre de Turno (PDF)',
+    title: 'Arqueo de Caja y Reporte PDF Inalterable',
+    description:
+      'Control riguroso al finalizar la jornada o cambiar de cajero. Realiza el arqueo ciego o guiado, compara el conteo contra el sistema y genera un reporte formal en PDF listo para imprimir o enviar.',
+    file: 'cierre-turno-pdf.png',
+    highlights: [
+      { icon: 'pdf', text: 'Generación directa de PDF en 1 solo clic' },
+      { icon: 'balance', text: 'Detección precisa de diferencias y sobrantes' },
+      { icon: 'user', text: 'Trazabilidad por sesión, fecha y cajero' },
+    ],
+  },
+  {
+    id: 'dashboard',
+    tabLabel: 'Dashboard y Métricas',
+    title: 'Visión General del Negocio en Tiempo Real',
+    description:
+      'El panel central para conocer al instante el ritmo de tu negocio: recaudación total del día, ticket promedio, cantidad de pedidos procesados y estado de las sesiones abiertas.',
+    file: 'dashboard.png',
+    highlights: [
+      { icon: 'chart', text: 'Totales de venta acumulados en tiempo real' },
+      { icon: 'star', text: 'Métricas de productos con mayor salida' },
+      { icon: 'clock', text: 'Monitoreo de turnos abiertos y finalizados' },
+    ],
+  },
+  {
+    id: 'productos',
+    tabLabel: 'Control de Stock',
+    title: 'Administración de Catálogo e Inventario',
+    description:
+      'Controla tus existencias sin complicaciones. Crea productos, define precios, organiza subcategorías y mantén activas las alertas preventivas antes de que se agote un producto clave.',
+    file: 'productos.png',
+    highlights: [
+      { icon: 'box', text: 'Descuento de inventario automático con cada cobro' },
+      { icon: 'alert', text: 'Alertas de stock mínimo para evitar quiebres' },
+      { icon: 'tag', text: 'Actualización ágil de precios y descripciones' },
+    ],
+  },
 ];
 ---
 
-<section id="capturas" class="scroll-mt-24 py-24 sm:py-32">
+<section id="capturas" class="scroll-mt-24 py-24 sm:py-32 bg-canvas-soft/50">
   <div class="mx-auto max-w-6xl px-6">
     <header class="mx-auto max-w-2xl text-center">
-      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-ink-muted">
-        La interfaz
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+        La Experiencia de Uso
       </p>
-      <h2 class="mt-3 font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        Asi se ve trabajar
+      <h2 class="mt-3 font-heading text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+        Así se ve trabajar con un sistema diseñado para la velocidad
       </h2>
-      <p class="mt-4 text-ink-muted">
-        Estas son las pantallas que vas a usar todos los dias.
+      <p class="mt-4 text-base text-ink-muted">
+        Explora las pantallas principales con las que tu equipo operará todos los días.
       </p>
     </header>
 
-    <div class="mt-14 grid gap-8 sm:grid-cols-2">
+    {/* Selector de pestañas interactivas */}
+    <div class="mt-12 flex items-center justify-center">
+      <nav
+        class="inline-flex max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-edge bg-surface p-1.5 shadow-sm"
+        role="tablist"
+        aria-label="Pantallas del sistema"
+      >
+        {
+          pantallas.map((p, index) => (
+            <button
+              type="button"
+              role="tab"
+              id={`tab-${p.id}`}
+              aria-controls={`panel-${p.id}`}
+              aria-selected={index === 0 ? 'true' : 'false'}
+              data-screen-id={p.id}
+              class={`tab-button rounded-xl px-4 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                index === 0
+                  ? 'bg-brand text-brand-fg shadow-xs'
+                  : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+              }`}
+            >
+              {p.tabLabel}
+            </button>
+          ))
+        }
+      </nav>
+    </div>
+
+    {/* Contenido interactivo por panel */}
+    <div class="mt-10">
       {
-        capturas.map((c) => (
-          <figure class="group">
-            <div class="overflow-hidden rounded-2xl border border-edge bg-surface-2 transition-transform duration-300 motion-reduce:transform-none group-hover:-translate-y-1">
-              <img
-                src={`/capturas/${c.file}`}
-                alt={c.caption}
-                loading="lazy"
-                decoding="async"
-                width="1280"
-                height="800"
-                class="aspect-[16/10] w-full object-cover object-top"
-              />
+        pantallas.map((p, index) => (
+          <div
+            id={`panel-${p.id}`}
+            role="tabpanel"
+            aria-labelledby={`tab-${p.id}`}
+            class={`tab-panel grid gap-8 lg:grid-cols-12 lg:items-center ${
+              index === 0 ? 'block' : 'hidden'
+            }`}
+          >
+            {/* Columna de descripción y detalles */}
+            <div class="lg:col-span-5 space-y-6">
+              <div class="inline-flex items-center gap-2 rounded-lg bg-brand-tint px-3 py-1 text-xs font-semibold text-brand">
+                <span>Pantalla {index + 1} de {pantallas.length}</span>
+              </div>
+
+              <h3 class="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-ink">
+                {p.title}
+              </h3>
+
+              <p class="text-sm sm:text-base leading-relaxed text-ink-muted">
+                {p.description}
+              </p>
+
+              {/* Lista de puntos clave */}
+              <ul class="space-y-3 pt-2">
+                {p.highlights.map((h) => (
+                  <li class="flex items-start gap-3 text-sm text-ink">
+                    <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-600">
+                      <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <path d="M20 6 9 17l-5-5"/>
+                      </svg>
+                    </span>
+                    <span>{h.text}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div class="pt-2">
+                <button
+                  type="button"
+                  data-zoom-src={`/capturas/${p.file}`}
+                  data-zoom-caption={p.title}
+                  class="btn-zoom-trigger inline-flex items-center gap-2 rounded-xl border border-edge bg-surface px-4 py-2.5 text-xs font-semibold text-ink transition-colors hover:border-brand-line hover:bg-surface-2"
+                >
+                  <svg class="h-4 w-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" x2="16.65" y1="21" y2="16.65" />
+                    <line x1="11" x2="11" y1="8" y2="14" />
+                    <line x1="8" x2="14" y1="11" y2="11" />
+                  </svg>
+                  <span>Ver en pantalla completa</span>
+                </button>
+              </div>
             </div>
-            <figcaption class="mt-3 text-sm leading-snug text-ink-muted">
-              {c.caption}
-            </figcaption>
-          </figure>
+
+            {/* Columna de visualización con mockup y trigger de zoom */}
+            <div class="lg:col-span-7">
+              <figure
+                class="group relative cursor-pointer overflow-hidden rounded-2xl border border-edge bg-surface shadow-xl transition-all duration-300 hover:border-brand-line hover:shadow-2xl"
+                data-zoom-src={`/capturas/${p.file}`}
+                data-zoom-caption={p.title}
+              >
+                {/* Cabecera estilizada de la ventana */}
+                <div class="flex items-center justify-between border-b border-edge bg-surface-2 px-4 py-2.5 text-xs text-ink-muted">
+                  <div class="flex items-center gap-1.5">
+                    <span class="h-2.5 w-2.5 rounded-full bg-rose-400/80"></span>
+                    <span class="h-2.5 w-2.5 rounded-full bg-amber-400/80"></span>
+                    <span class="h-2.5 w-2.5 rounded-full bg-emerald-400/80"></span>
+                  </div>
+                  <span class="font-mono text-[11px]">{p.file}</span>
+                  <span class="text-[11px] font-medium text-brand group-hover:underline">Ampliar ↗</span>
+                </div>
+
+                <div class="relative overflow-hidden bg-surface-2">
+                  <img
+                    src={`/capturas/${p.file}`}
+                    alt={p.title}
+                    loading="lazy"
+                    decoding="async"
+                    width="1280"
+                    height="800"
+                    class="aspect-[16/10] w-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.01]"
+                  />
+                  {/* Overlay sutil al hover */}
+                  <div class="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/20 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-surface/95 px-4 py-2 text-xs font-semibold text-ink shadow-lg backdrop-blur-xs">
+                      <svg class="h-4 w-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" x2="16.65" y1="21" y2="16.65" />
+                        <line x1="11" x2="11" y1="8" y2="14" />
+                        <line x1="8" x2="14" y1="11" y2="11" />
+                      </svg>
+                      Haz clic para ampliar
+                    </span>
+                  </div>
+                </div>
+              </figure>
+            </div>
+          </div>
         ))
       }
     </div>
   </div>
+
+  {/* Modal Lightbox para visualización en alta resolución */}
+  <div
+    id="lightbox-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Visor ampliado de pantalla"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm sm:p-6"
+  >
+    <div class="relative flex max-h-[95vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-2xl">
+      {/* Barra de control del modal */}
+      <div class="flex items-center justify-between border-b border-edge bg-surface-2 px-5 py-3">
+        <p id="lightbox-caption" class="text-sm font-semibold text-ink truncate pr-4">
+          Captura del sistema
+        </p>
+        <button
+          type="button"
+          id="lightbox-close"
+          class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-edge bg-surface text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          aria-label="Cerrar visor"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Imagen ampliada */}
+      <div class="overflow-auto p-2 sm:p-4 bg-slate-900/5">
+        <img
+          id="lightbox-image"
+          src=""
+          alt=""
+          class="mx-auto max-h-[80vh] w-auto rounded-lg object-contain shadow-md"
+        />
+      </div>
+    </div>
+  </div>
 </section>
+
+<script>
+  // Control interactivo de Pestañas (Tabs)
+  const tabButtons = document.querySelectorAll<HTMLButtonElement>('.tab-button');
+  const tabPanels = document.querySelectorAll<HTMLDivElement>('.tab-panel');
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-screen-id');
+
+      // Actualizar botones
+      tabButtons.forEach((b) => {
+        const isCurrent = b === btn;
+        b.setAttribute('aria-selected', isCurrent ? 'true' : 'false');
+        if (isCurrent) {
+          b.className =
+            'tab-button rounded-xl px-4 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-brand text-brand-fg shadow-xs';
+        } else {
+          b.className =
+            'tab-button rounded-xl px-4 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand text-ink-muted hover:text-ink hover:bg-surface-2';
+        }
+      });
+
+      // Mostrar panel correspondiente
+      tabPanels.forEach((panel) => {
+        if (panel.id === `panel-${targetId}`) {
+          panel.classList.remove('hidden');
+          panel.classList.add('block');
+        } else {
+          panel.classList.remove('block');
+          panel.classList.add('hidden');
+        }
+      });
+    });
+  });
+
+  // Control de Lightbox Modal
+  const modal = document.querySelector<HTMLDivElement>('#lightbox-modal');
+  const modalImg = document.querySelector<HTMLImageElement>('#lightbox-image');
+  const modalCaption = document.querySelector<HTMLParagraphElement>('#lightbox-caption');
+  const closeBtn = document.querySelector<HTMLButtonElement>('#lightbox-close');
+  const zoomTriggers = document.querySelectorAll<HTMLElement>('[data-zoom-src]');
+
+  function openLightbox(src: string, caption: string) {
+    if (!modal || !modalImg || !modalCaption) return;
+    modalImg.src = src;
+    modalImg.alt = caption;
+    modalCaption.textContent = caption;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+  }
+
+  zoomTriggers.forEach((trigger) => {
+    trigger.addEventListener('click', () => {
+      const src = trigger.getAttribute('data-zoom-src');
+      const caption = trigger.getAttribute('data-zoom-caption') || 'Captura del sistema';
+      if (src) {
+        openLightbox(src, caption);
+      }
+    });
+  });
+
+  closeBtn?.addEventListener('click', closeLightbox);
+
+  // Cerrar al hacer clic fuera del diálogo
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeLightbox();
+    }
+  });
+
+  // Cerrar con tecla Escape
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+      closeLightbox();
+    }
+  });
+</script>
