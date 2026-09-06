@@ -2,17 +2,30 @@
   <div class="mx-auto max-w-6xl px-6">
     <div class="grid gap-12 lg:grid-cols-2 lg:gap-16">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-ink-muted">
-          Contacto
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+          Contacto Directo
         </p>
         <h2 class="mt-3 font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          Conversemos sobre tu barra
+          Conversemos sobre tu punto de venta
         </h2>
-        <p class="mt-4 max-w-md text-ink-muted">
-          Contanos como es tu salon de juegos: cuantas cajas, que productos,
-          como cerras el turno hoy. Te contamos como el sistema se adapta a
-          tu negocio.
+        <p class="mt-4 max-w-md text-ink-muted leading-relaxed">
+          Cuéntanos sobre tu negocio: qué tipo de productos comercializas, cuántas cajas o mostradores operas y cómo realizas el arqueo de tus turnos hoy. Te mostramos cómo el sistema se adapta a tu operación.
         </p>
+
+        <div class="mt-6 space-y-3">
+          <div class="flex items-center gap-3 text-sm text-ink font-medium">
+            <span class="grid h-6 w-6 place-items-center rounded-full bg-emerald-100 text-emerald-700">✓</span>
+            <span>Instalación y puesta en marcha inmediata</span>
+          </div>
+          <div class="flex items-center gap-3 text-sm text-ink font-medium">
+            <span class="grid h-6 w-6 place-items-center rounded-full bg-emerald-100 text-emerald-700">✓</span>
+            <span>Compatible con tus impresoras y gaveta actuales</span>
+          </div>
+          <div class="flex items-center gap-3 text-sm text-ink font-medium">
+            <span class="grid h-6 w-6 place-items-center rounded-full bg-emerald-100 text-emerald-700">✓</span>
+            <span>Licencia permanente sin cobros sorpresa</span>
+          </div>
+        </div>
 
         <a
           href="mailto:contacto@tu-dominio.com"
@@ -34,34 +47,34 @@
           contacto@tu-dominio.com
         </a>
         <p class="mt-3 text-xs text-ink-muted">
-          Direccion de ejemplo: reemplazala por el correo real de tu negocio.
+          Dirección de ejemplo: reemplázala por el correo de contacto de tu negocio.
         </p>
       </div>
 
       <form
         id="formulario-contacto"
-        class="rounded-2xl border border-edge bg-surface p-6 sm:p-8"
+        class="rounded-2xl border border-edge bg-surface p-6 sm:p-8 shadow-sm"
       >
         <div class="space-y-5">
           <div>
-            <label for="nombre" class="mb-2 block text-sm font-medium">Nombre</label>
+            <label for="nombre" class="mb-2 block text-sm font-medium">Nombre o Razón Social</label>
             <input
               id="nombre"
               name="nombre"
               type="text"
               required
-              placeholder="Tu nombre"
+              placeholder="Tu nombre o empresa"
               class="w-full rounded-xl border border-edge bg-canvas px-4 py-3 text-sm placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
             />
           </div>
           <div>
-            <label for="email" class="mb-2 block text-sm font-medium">Email</label>
+            <label for="email" class="mb-2 block text-sm font-medium">Email de Contacto</label>
             <input
               id="email"
               name="email"
               type="email"
               required
-              placeholder="tu@email.com"
+              placeholder="tu@negocio.com"
               class="w-full rounded-xl border border-edge bg-canvas px-4 py-3 text-sm placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
             />
           </div>
@@ -72,7 +85,7 @@
               name="mensaje"
               rows="4"
               required
-              placeholder="Contanos sobre tu salon de juegos..."
+              placeholder="Cuéntanos sobre tu negocio o los requerimientos de tu punto de venta..."
               class="w-full resize-none rounded-xl border border-edge bg-canvas px-4 py-3 text-sm placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
             ></textarea>
           </div>
