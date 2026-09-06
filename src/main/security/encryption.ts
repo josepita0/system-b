@@ -14,6 +14,7 @@ function getOrCreateKey() {
   }
 
   const key = crypto.randomBytes(32)
+  fs.mkdirSync(path.dirname(keyPath), { recursive: true })
   fs.writeFileSync(keyPath, key.toString('hex'))
   return key
 }
