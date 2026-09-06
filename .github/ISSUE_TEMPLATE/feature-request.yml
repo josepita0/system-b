@@ -1,0 +1,27 @@
+---
+name: Feature Request
+about: Sugerir una nueva funcionalidad
+title: "[Feature] "
+labels: enhancement
+assignees: ""
+---
+
+## ¿Tu solicitud está relacionada con un problema?
+
+Una descripción clara y concisa del problema. Ej: "Siempre me frustra cuando..."
+
+## Describe la solución que te gustaría
+
+Una descripción clara de lo que quieres que suceda.
+
+## Describe alternativas que has considerado
+
+Una descripción de cualquier solución o feature alternativa que hayas considerado.
+
+## Contexto adicional
+
+Agrega cualquier otro contexto o screenshots sobre la solicitud aquí.
+
+## Casos de uso
+
+Describe los casos de uso donde esta feature sería útil.

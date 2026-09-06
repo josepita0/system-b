@@ -1,26 +1,56 @@
-# Politica de seguridad
+# Security Policy
 
-## Alcance actual
+## Supported Versions
 
-Este proyecto se prepara para una publicacion inicial en un repositorio privado.
+| Version | Supported          |
+| ------- | ------------------ |
+| 1.0.x   | :white_check_mark: |
 
-Hasta completar el backlog de hardening documentado en `docs/implementation/2026-03-18-github-hardening.md`, no se recomienda abrirlo al publico.
+## Reporting a Vulnerability
 
-## Reporte de vulnerabilidades
+If you discover a security vulnerability, please **do not** open a public issue.
 
-Si detectas una vulnerabilidad o una exposicion de datos:
+Instead, please report it via email at joseacureropita0@gmail.com.
 
-1. no abras un issue publico con detalles sensibles;
-2. comunica el hallazgo por un canal privado del equipo;
-3. adjunta pasos de reproduccion y archivos afectados;
-4. confirma si el hallazgo compromete credenciales locales, sesiones o datos exportados.
+### What to include
 
-## Riesgos conocidos en seguimiento
+- Description of the vulnerability
+- Steps to reproduce
+- Potential impact
+- Suggested fix (if any)
 
-- exposicion del acceso inicial de administrador via `bootstrapInfo`;
-- persistencia local de sesion: mitigacion parcial con `safeStorage` cuando el SO lo permite (ver `src/main/security/sessionStorage.ts`);
-- manejo local de `app.key`;
-- almacenamiento de `smtp_password` en la base local: mitigar con `enc:` y/o `SYSTEM_BARRA_SMTP_PASSWORD` (ver `docs/pilot/04-smtp-operacion.md`);
-- `Content-Security-Policy` definida en `index.html` (ajustar si se agregan origenes externos);
-- evaluacion pendiente de `sandbox: true` en Electron (ver `src/main/windows/createMainWindow.ts`);
-- **tokens en URL de `git remote`**: rotar y usar SSH o credential helper — ver `docs/setup/005-git-credenciales.md`.
+### Response timeline
+
+- **Initial response**: Within 48 hours
+- **Status update**: Within 7 days
+- We will keep you informed about the progress of fixing the vulnerability
+
+### Disclosure policy
+
+- We follow coordinated disclosure
+- We will work with you to understand and reproduce the issue
+- We will not take legal action against researchers who follow this policy
+- We will acknowledge your contribution (unless you prefer to remain anonymous)
+
+## Security Best Practices
+
+When deploying System Barra:
+
+1. **Keep Node.js updated** — Use the LTS version (22.x)
+2. **Protect local data** — The SQLite database contains sensitive business data
+3. **Secure SMTP credentials** — Use environment variables, never commit `.env`
+4. **Review IPC handlers** — All IPC channels must validate input and check authorization
+5. **Monitor sessions** — Review active sessions periodically
+
+## Known Security Considerations
+
+- Session data is stored locally using `safeStorage` when available
+- SMTP passwords can be configured via environment variable `SYSTEM_BARRA_SMTP_PASSWORD`
+- Content Security Policy is defined in `index.html`
+- Electron sandbox mode is under evaluation
+
+## Security Updates
+
+Security updates are released as soon as possible after a vulnerability is confirmed and a fix is available.
+
+Subscribe to repository notifications to receive security update announcements.

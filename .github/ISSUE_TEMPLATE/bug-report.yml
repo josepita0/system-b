@@ -1,0 +1,40 @@
+---
+name: Bug Report
+about: Reportar un bug para ayudarnos a mejorar
+title: "[Bug] "
+labels: bug
+assignees: ""
+---
+
+## Descripción del bug
+
+Una descripción clara y concisa del bug.
+
+## Pasos para reproducir
+
+1. Ir a '...'
+2. Click en '...'
+3. Scroll hasta '...'
+4. Ver el error
+
+## Comportamiento esperado
+
+Una descripción clara de lo que esperabas que sucediera.
+
+## Comportamiento actual
+
+Lo que realmente sucedió.
+
+## Screenshots
+
+Si aplica, agrega screenshots para ayudar a explicar el problema.
+
+## Entorno
+
+- **SO**: [ej. Windows 11]
+- **Versión de la app**: [ej. 1.0.0]
+- **Node.js**: [ej. 22.x]
+
+## Contexto adicional
+
+Agrega cualquier otro contexto sobre el problema aquí.

@@ -24,9 +24,27 @@
     "test": "npm run native:node && vitest run",
     "test:watch": "npm run native:node && vitest"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "pos",
+    "point-of-sale",
+    "electron",
+    "react",
+    "sqlite",
+    "inventory",
+    "bar-management",
+    "offline-first",
+    "desktop-app"
+  ],
+  "author": "Jose Cura <joseacureropita0@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/josepita0/system-barra.git"
+  },
+  "bugs": {
+    "url": "https://github.com/josepita0/system-barra/issues"
+  },
+  "homepage": "https://github.com/josepita0/system-barra#readme",
   "type": "commonjs",
   "engines": {
     "node": ">=22 <23"

@@ -23,6 +23,7 @@ initial-admin-access.json
 .env
 .env.*
 !.env.demo
+!.env.example
 *.local
 
 # Logs and temporary files
