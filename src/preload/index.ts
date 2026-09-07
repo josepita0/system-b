@@ -17,6 +17,7 @@ import { dashboardChannels } from '../shared/ipc/dashboard'
 import { internalConsumptionChannels } from '../shared/ipc/internalConsumptions'
 import { bomChannels } from '../shared/ipc/bom'
 import { imageGalleryChannels } from '../shared/ipc/imageGallery'
+import { backupChannels } from '../shared/ipc/backup'
 
 async function invokeIpc<T>(channel: string, ...args: unknown[]) {
   const result = (await ipcRenderer.invoke(channel, ...args)) as IpcResult<T>
@@ -198,6 +199,14 @@ const api = {
     linkToProduct: (payload: unknown) => invokeIpc(imageGalleryChannels.linkToProduct, payload),
     unlinkFromProduct: (payload: unknown) => invokeIpc(imageGalleryChannels.unlinkFromProduct, payload),
     setPrimaryForProduct: (payload: unknown) => invokeIpc(imageGalleryChannels.setPrimaryForProduct, payload),
+  },
+  backup: {
+    create: () => invokeIpc(backupChannels.create),
+    list: () => invokeIpc(backupChannels.list),
+    restore: (backupId: string) => invokeIpc(backupChannels.restore, backupId),
+    remove: (backupId: string) => invokeIpc(backupChannels.remove, backupId),
+    export: (backupId: string) => invokeIpc(backupChannels.export, backupId),
+    import: () => invokeIpc(backupChannels.import),
   },
 }
 

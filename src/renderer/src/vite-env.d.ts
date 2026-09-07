@@ -17,6 +17,7 @@ import type { DashboardApi } from '@shared/ipc/dashboard'
 import type { InternalConsumptionsApi } from '@shared/ipc/internalConsumptions'
 import type { BomApi } from '@shared/ipc/bom'
 import type { ImageGalleryApi } from '@shared/ipc/imageGallery'
+import type { BackupApi } from '@shared/ipc/backup'
 
 declare global {
   interface Window {
@@ -38,6 +39,7 @@ declare global {
       internalConsumptions: InternalConsumptionsApi
       bom: BomApi
       imageGallery: ImageGalleryApi
+      backup: BackupApi
     }
   }
 }

@@ -15,6 +15,7 @@ import { registerDashboardHandlers } from './dashboardHandlers'
 import { registerInternalConsumptionHandlers } from './internalConsumptionHandlers'
 import { registerBomHandlers } from './bomHandlers'
 import { registerImageGalleryHandlers } from './imageGalleryHandlers'
+import { registerBackupHandlers } from './backupHandlers'
 
 export function registerIpcHandlers() {
   registerAuthHandlers()
@@ -34,4 +35,5 @@ export function registerIpcHandlers() {
   registerConsumptionHandlers()
   registerInternalConsumptionHandlers()
   registerBomHandlers()
+  registerBackupHandlers()
 }

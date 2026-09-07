@@ -6,6 +6,7 @@ import { registerIpcHandlers } from './ipc'
 import { AuthService } from './services/authService'
 import { registerCatalogMediaProtocol } from './protocol/registerCatalogMediaProtocol'
 import { createMainWindow } from './windows/createMainWindow'
+import { executePendingRestore } from './services/backupService'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -94,8 +95,14 @@ function showBootstrapError(error: unknown) {
 }
 
 function runBootstrap() {
-  /** Sin menú nativo File / Edit / View… (la app se usa solo con la UI web). */
+  /** Sin menú nativo File / Edit / View… (el app se usa solo con la UI web). */
   Menu.setApplicationMenu(null)
+
+  // Ejecutar restauración pendiente ANTES de abrir la base de datos
+  const restoreExecuted = executePendingRestore()
+  if (restoreExecuted) {
+    console.log('[Sistema Barra] Restauración de backup completada.')
+  }
 
   const db = getDb()
   runMigrations(db)

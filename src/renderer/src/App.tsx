@@ -35,6 +35,7 @@ const InventoryDashboardPage = lazy(() =>
 const InventoryHistoryPage = lazy(() => import('./pages/inventory/InventoryHistoryPage').then((m) => ({ default: m.InventoryHistoryPage })))
 const ConsumptionRulesPage = lazy(() => import('./pages/consumptions/ConsumptionRulesPage').then((module) => ({ default: module.ConsumptionRulesPage })))
 const CashSettingsPage = lazy(() => import('./pages/settings/CashSettingsPage').then((m) => ({ default: m.CashSettingsPage })))
+const DatabaseSettingsPage = lazy(() => import('./pages/settings/DatabaseSettingsPage').then((m) => ({ default: m.DatabaseSettingsPage })))
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })))
 const ImageGalleryPage = lazy(() => import('./pages/images/ImageGalleryPage').then((m) => ({ default: m.ImageGalleryPage })))
 
@@ -70,6 +71,7 @@ function buildAppNavItems(role: string): NavEntry[] {
            { to: '/consumos', label: 'Consumos', icon: 'flask', disabled: demoEnabled },
           { to: '/clientes-vip', label: 'Clientes VIP', icon: 'star' },
            { to: '/ajustes/caja', label: 'Caja', icon: 'clock', disabled: demoEnabled },
+           { to: '/ajustes/base-de-datos', label: 'Base de datos', icon: 'database', disabled: demoEnabled },
         ],
       },
     )
@@ -330,13 +332,21 @@ export default function App() {
                 }
                 path="/galeria-imagenes"
               />
-              <Route
+               <Route
                 element={
                   <ProtectedRoute requiredRole="manager">
                      {demoRoute(<CashSettingsPage />)}
                   </ProtectedRoute>
                 }
                 path="/ajustes/caja"
+              />
+              <Route
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                     {demoRoute(<DatabaseSettingsPage />)}
+                  </ProtectedRoute>
+                }
+                path="/ajustes/base-de-datos"
               />
               <Route
                 element={
