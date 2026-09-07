@@ -295,19 +295,42 @@ function groupPosSaleLinesByProductAndVip(lines: PosSaleLineDetail[]): PosSaleLi
 }
 
 function getTabChargeAccountsInSession(db: Database.Database, sessionId: number): TabChargeSessionAccount[] {
-  const tabIdRows = db
+  // Cuentas con cargos en este turno (cargos nuevos)
+  const chargedTabIdRows = db
     .prepare(
       `SELECT DISTINCT s.tab_id AS tabId
        FROM sales s
-       INNER JOIN customer_tabs ct ON ct.id = s.tab_id
        WHERE s.cash_session_id = ?
          AND s.sale_type = 'tab_charge'
-         AND s.tab_id IS NOT NULL
-         AND ct.settled_cash_session_id = ?`,
+         AND s.tab_id IS NOT NULL`,
     )
-    .all(sessionId, sessionId) as Array<{ tabId: number }>
+    .all(sessionId) as Array<{ tabId: number }>
 
-  if (tabIdRows.length === 0) {
+  // Cuentas pagadas en este turno (pagos realizados)
+  const paidTabIdRows = db
+    .prepare(
+      `SELECT DISTINCT s.tab_id AS tabId
+       FROM sales s
+       WHERE s.cash_session_id = ?
+         AND s.sale_type = 'tab_payment'
+         AND s.tab_id IS NOT NULL`,
+    )
+    .all(sessionId) as Array<{ tabId: number }>
+
+  // Combinar ambos conjuntos (sin duplicados)
+  const tabIdMap = new Map<number, { hasCharge: boolean; hasPayment: boolean }>()
+  for (const row of chargedTabIdRows) {
+    const existing = tabIdMap.get(row.tabId) || { hasCharge: false, hasPayment: false }
+    existing.hasCharge = true
+    tabIdMap.set(row.tabId, existing)
+  }
+  for (const row of paidTabIdRows) {
+    const existing = tabIdMap.get(row.tabId) || { hasCharge: false, hasPayment: false }
+    existing.hasPayment = true
+    tabIdMap.set(row.tabId, existing)
+  }
+
+  if (tabIdMap.size === 0) {
     return []
   }
 
@@ -336,6 +359,18 @@ function getTabChargeAccountsInSession(db: Database.Database, sessionId: number)
      WHERE s.tab_id = ? AND s.sale_type = 'tab_charge'`,
   )
 
+  // Pagos realizados en este turno para esta cuenta
+  const paymentsInSessionStmt = db.prepare(
+    `SELECT COALESCE(SUM(s.total), 0) AS totalPaid,
+            s.payment_method AS paymentMethod
+     FROM sales s
+     WHERE s.tab_id = ?
+       AND s.sale_type = 'tab_payment'
+       AND s.cash_session_id = ?
+     GROUP BY s.payment_method`,
+  )
+
+  // Último método de pago usado para liquidar la cuenta (cualquier turno)
   const paymentMethodStmt = db.prepare(
     `SELECT s.payment_method AS paymentMethod
      FROM sales s
@@ -344,8 +379,9 @@ function getTabChargeAccountsInSession(db: Database.Database, sessionId: number)
      LIMIT 1`,
   )
 
-  const withMeta = tabIdRows
-    .map(({ tabId }) => {
+  const tabIds = Array.from(tabIdMap.keys())
+  const withMeta = tabIds
+    .map((tabId) => {
       const meta = metaStmt.get(tabId) as
         | {
             tabId: number
@@ -357,12 +393,12 @@ function getTabChargeAccountsInSession(db: Database.Database, sessionId: number)
       if (!meta) {
         return null
       }
-      return { tabId, meta }
+      return { tabId, meta, flags: tabIdMap.get(tabId)! }
     })
     .filter((x): x is NonNullable<typeof x> => x != null)
     .sort((a, b) => new Date(a.meta.openedAt).getTime() - new Date(b.meta.openedAt).getTime())
 
-  return withMeta.map(({ tabId, meta }) => {
+  return withMeta.map(({ tabId, meta, flags }) => {
     const rawLines = linesStmt.all(tabId) as Array<{
       productName: string
       quantity: number
@@ -371,8 +407,34 @@ function getTabChargeAccountsInSession(db: Database.Database, sessionId: number)
     const balRow = balanceStmt.get(tabId) as { t: number }
     const balanceTotal = Math.round(Number(balRow.t) * 100) / 100
     const isVipExempt = meta.vipConditionType === 'exempt'
-    const pmRow = paymentMethodStmt.get(tabId) as { paymentMethod: string } | undefined
-    const paymentMethod = pmRow ? ((pmRow.paymentMethod === 'CARD' || pmRow.paymentMethod === 'CASH') ? (pmRow.paymentMethod as 'CASH' | 'CARD') : null) : null
+
+    // Si la cuenta fue pagada en este turno, obtener el monto pagado y método de pago
+    let paidAmount = 0
+    let paymentMethod: 'CASH' | 'CARD' | null = null
+
+    if (flags.hasPayment) {
+      const payments = paymentsInSessionStmt.all(tabId, sessionId) as Array<{
+        totalPaid: number
+        paymentMethod: string
+      }>
+      paidAmount = Math.round(payments.reduce((sum, p) => sum + Number(p.totalPaid), 0) * 100) / 100
+      // Usar el método de pago de los pagos en este turno
+      const cashPayment = payments.find((p) => p.paymentMethod === 'CASH')
+      const cardPayment = payments.find((p) => p.paymentMethod === 'CARD')
+      if (cashPayment && cardPayment) {
+        // Si hay ambos, priorizar el mayor (o el último, según preferencia)
+        paymentMethod = Number(cashPayment.totalPaid) >= Number(cardPayment.totalPaid) ? 'CASH' : 'CARD'
+      } else if (cashPayment) {
+        paymentMethod = 'CASH'
+      } else if (cardPayment) {
+        paymentMethod = 'CARD'
+      }
+    } else {
+      // Solo cargos en este turno, usar el último método de pago conocido
+      const pmRow = paymentMethodStmt.get(tabId) as { paymentMethod: string } | undefined
+      paymentMethod = pmRow ? ((pmRow.paymentMethod === 'CARD' || pmRow.paymentMethod === 'CASH') ? (pmRow.paymentMethod as 'CASH' | 'CARD') : null) : null
+    }
+
     return {
       tabId,
       customerName: meta.customerName,
@@ -383,6 +445,7 @@ function getTabChargeAccountsInSession(db: Database.Database, sessionId: number)
         subtotal: Number(li.subtotal),
       })),
       balanceTotal,
+      paidAmountInSession: paidAmount,
       isVipExempt,
       paymentMethod,
     }
@@ -766,19 +829,25 @@ function createPdf(report: ShiftCloseReport): string {
       report.posSaleLines.filter((l) => l.paymentMethod === 'CARD').reduce((s, p) => s + p.lineTotal, 0) * 100,
     ) / 100
   const totalContado = Math.round((totalCash + totalCard) * 100) / 100
+  // Para cuentas pagadas en este turno, usar el monto pagado; para cuentas con cargos, usar el balance
+  const getAccountAmount = (a: typeof report.tabChargeAccountsInSession[0]) => {
+    if (a.isVipExempt) return 0
+    // Si hubo pago en este turno, usar ese monto; si no, usar el balance (cargos)
+    return a.paidAmountInSession > 0 ? a.paidAmountInSession : a.balanceTotal
+  }
   const totalCuentaAbierta =
     Math.round(
-      report.tabChargeAccountsInSession.reduce((s, a) => s + (a.isVipExempt ? 0 : a.balanceTotal), 0) * 100,
+      report.tabChargeAccountsInSession.reduce((s, a) => s + getAccountAmount(a), 0) * 100,
     ) / 100
   const totalCuentaAbiertaCASH = Math.round(
     report.tabChargeAccountsInSession
       .filter((a) => a.paymentMethod === 'CASH')
-      .reduce((s, a) => s + (a.isVipExempt ? 0 : a.balanceTotal), 0) * 100,
+      .reduce((s, a) => s + getAccountAmount(a), 0) * 100,
   ) / 100
   const totalCuentaAbiertaCARD = Math.round(
     report.tabChargeAccountsInSession
       .filter((a) => a.paymentMethod === 'CARD')
-      .reduce((s, a) => s + (a.isVipExempt ? 0 : a.balanceTotal), 0) * 100,
+      .reduce((s, a) => s + getAccountAmount(a), 0) * 100,
   ) / 100
   const subtotalCash = Math.round((totalCash + totalCuentaAbiertaCASH) * 100) / 100
   const subtotalCard = Math.round((totalCard + totalCuentaAbiertaCARD) * 100) / 100
@@ -907,7 +976,7 @@ function createPdf(report: ShiftCloseReport): string {
           formatOpenedAtLabel(a.openedAt),
           formatAccountConsumptionCell(a.consumptionLines, fmt),
           a.paymentMethod ? paymentMethodLabel(a.paymentMethod) : '—',
-          formatEuro(a.isVipExempt ? 0 : a.balanceTotal),
+          formatEuro(getAccountAmount(a)),
         ])
 
   autoTable(doc, {

@@ -26,7 +26,7 @@ export interface PosSaleLineDetail {
 }
 
 /**
- * Cuenta con al menos un cargo (tab_charge) en la sesión de cierre;
+ * Cuenta con al menos un cargo (tab_charge) o pago (tab_payment) en la sesión de cierre;
  * incluye todo el detalle de consumos de la cuenta y el saldo.
  */
 export interface TabChargeSessionAccount {
@@ -36,6 +36,8 @@ export interface TabChargeSessionAccount {
   consumptionLines: AccountOpenedConsumptionLine[]
   /** Suma de subtotales de cargos a la cuenta (saldo teórico). */
   balanceTotal: number
+  /** Monto pagado en esta sesión (tab_payment). 0 si no hubo pagos en este turno. */
+  paidAmountInSession: number
   /** Si el VIP asociado a la cuenta es exonerado, el PDF muestra total cuenta en 0. */
   isVipExempt: boolean
   /** Método de pago usado al liquidar la cuenta. null si se cerró sin pago (saldo cero). */
